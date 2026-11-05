@@ -23,19 +23,8 @@ import {createIndexedDBPersistence} from 'webevm';
 import {createIndexedDBDeploymentStore} from '@rocketh/web';
 import {createContext} from '$lib/context/index';
 import type {Context} from '$lib/context/types';
-import {createPublicClient, custom} from 'viem';
-import {
-	createOfflinePlayers,
-	playedTurnCells,
-	type OfflinePlayer,
-} from '$lib/offline-players';
-import {createPlayedTurnStore, RANDOM_LEVEL} from '$lib/game/core/strategy';
-import {createBytecodeSandbox} from '$lib/game/simulation';
-import {
-	PLACEMENT_LEVELS,
-	createPlacementStrategy,
-} from '$lib/placement/strategy';
-import {PLACEMENT_STORAGE} from '$lib/placement/storage';
+import {createOfflinePlayers, type OfflinePlayer} from '$lib/offline-players';
+import {RANDOM_LEVEL, type AiLevel} from '$lib/game/core/strategy';
 import {pokeWhenTheHumanActs} from '$lib/game/core/played';
 import {
 	MOST_SEATS,
@@ -54,9 +43,10 @@ import {
 	type HotseatHuman,
 } from '$lib/game/lobby/hotseat';
 import {authoriseTheBrowsersKey} from '$lib/game/acquire';
-import {resolvePlacementConfig} from '$lib/placement/config';
-import {deleteWorldIndex} from '$lib/indexer';
-import {INDEXER_PREFIX} from '$lib/placement/indexer/prefix';
+import {resolveChessConfig} from '$lib/chess/config';
+import {awaitDeploymentsOf, firstArmyOf} from '$lib/chess/awaited-deployments';
+
+export {firstArmyOf};
 
 /**
  * THIS GAME'S OFFLINE WORLD: the composition, which is the half
@@ -92,10 +82,10 @@ import {INDEXER_PREFIX} from '$lib/placement/indexer/prefix';
  *    would be a second copy of a measurement, which is exactly how the identity
  *    branches once came to price a credit 58% above what a step there costs.
  *
- * 3. **What the player is given**, which for this game is a bonded ERC20 stake,
- *    acquired through the same rail a purchase uses. A game that gates on
- *    custody of an NFT hands over an NFT here instead, and the framework
- *    requires only that SOMETHING is lost by not revealing.
+ * 3. **What the player is given**, which for this game is ONE ARMY'S STAKE in
+ *    the account's reserve, bought through the same rail a purchase uses. It
+ *    makes nobody a member: only armies are, so every seat, the person's
+ *    included, then DEPLOYS an army with it.
  *
  * 4. **Who else is in it**, which is the difference between a commit-reveal
  *    game and a demonstration of one. A cycle with a single waited-for member
@@ -144,13 +134,6 @@ const ADMIN_ADDRESS = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
  */
 export const CHAIN_ID_STORAGE_KEY = 'offline-world:chain-id';
 /**
- * Which world's index this browser holds, so that the index of a world the
- * lobby forgot is deleted when the next one starts. Its own key, because the
- * lobby, byte-identical across games, knows nothing of an index.
- */
-const INDEXED_CHAIN_ID_STORAGE_KEY = 'offline-world:indexed-chain-id';
-
-/**
  * HOTSEAT: how many people at this device this world can play, each their own
  * account in the world's wallet, passing the device between them
  * (`$lib/game/lobby/hotseat`). Every seat may be one. Read by the
@@ -160,20 +143,13 @@ const INDEXED_CHAIN_ID_STORAGE_KEY = 'offline-world:indexed-chain-id';
 export const LOCAL_HUMANS_AT_MOST = MOST_SEATS;
 
 /**
- * THE LEVELS A WORLD SEAT MAY PLAY AT, chosen per seat at the lobby: `random`
- * (today's derived turn, the default) and `greedy` (`$lib/placement/strategy`).
- * Read by the byte-identical lobby off this module, as `LOCAL_HUMANS_AT_MOST`
- * is; a game whose world does not export it offers no choice, and every seat
- * plays `random`.
+ * THE LEVELS A WORLD SEAT MAY PLAY AT, chosen per seat at the lobby. One, for
+ * now: a seat deploys and then passes. The greedy bot (`chess-greedy-bot`) adds
+ * the second. Read by the byte-identical lobby off this module.
  */
-export const AI_LEVELS = PLACEMENT_LEVELS;
-
-/**
- * Where a played seat's decided turn is kept, beside this world's other keys:
- * a storage that lost it has lost the chain id too, and so the world. A WIRE
- * from its first build, like the record it holds (`$lib/game/core/strategy`).
- */
-export const PLAYED_TURNS_STORAGE_KEY = 'offline-world:played-turns';
+export const AI_LEVELS: readonly AiLevel[] = [
+	{id: RANDOM_LEVEL, label: 'Deploys and passes'},
+];
 const PLAY_MONEY = 10n ** 24n;
 
 /**
@@ -286,26 +262,10 @@ export function startOfflineWorld(params: {
 	return pending;
 }
 
-/**
- * Delete the index of the world this browser indexed before, when it is not
- * the one starting now: the lobby forgot it, or its restore was incoherent and
- * a new id was minted. Best-effort and not awaited (a database a stopping
- * worker still holds blocks its deletion until it lets go).
- */
-function forgetPreviousWorldIndex(chainId: number): void {
-	const previous = Number(localStorage.getItem(INDEXED_CHAIN_ID_STORAGE_KEY));
-	if (previous && previous !== chainId) {
-		void deleteWorldIndex(INDEXER_PREFIX, previous).catch((err) =>
-			console.warn('could not delete a forgotten world\u2019s index', err),
-		);
-	}
-	localStorage.setItem(INDEXED_CHAIN_ID_STORAGE_KEY, String(chainId));
-}
-
 async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	// The id is minted once and remembered, because it is what keys everything
 	// the player keeps: the operations ledger, and this game's submission
-	// storage (`placement/storage.ts` keys by `chainID_gameAddress_player`). See
+	// storage (`chess/storage.ts` keys by `chainID_gameAddress_army`). See
 	// `lib/embedded/chain-id.ts`.
 	const chainId = rememberChainId({
 		storage: localStorage,
@@ -313,7 +273,6 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	});
 
 	const world = await openWorld(chainId, table);
-	forgetPreviousWorldIndex(world.deployments.get().chain.id);
 	const humans = humansAtThisDevice(table);
 	const hotseatHere = humans.length > 1;
 
@@ -506,16 +465,22 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	 * is not disposed when a router navigates away); what stops is the playing.
 	 */
 	const played = await playedByTheWorld({env: world.env, table});
-	const decider = playedSeatDecider(world, played);
+	// EVERY SEAT DEPLOYS BEFORE THE FIRST CYCLE TURNS OVER: the people here and
+	// the seats the world plays. Only armies are members, so without this the
+	// first to deploy would close the commit phase on everyone else. See
+	// `$lib/chess/awaited-deployments`.
+	awaitDeploymentsOf(world.deployments.get().chain.id, [
+		...(wallet ? wallet.accounts : []),
+		...played.map((seat) => seat.address),
+	]);
 	const players = createOfflinePlayers({
 		provider: world.provider,
 		deployments: world.deployments,
-		config: resolvePlacementConfig(world.deployments.get()),
+		config: resolveChessConfig(world.deployments.get()),
 		players: played,
 		// A played commit can complete unanimity just as the human's can, and the
 		// advance client would otherwise find out on its own one-second poll.
 		onActed: () => void context.context.game.cycleAdvance.check(),
-		...(decider ? {strategy: decider.strategy, turns: decider.turns} : {}),
 	});
 
 	const ready: OfflineWorldStatus = {
@@ -537,9 +502,6 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 					stopRevealer();
 					stopPoke();
 					stopPlayers();
-					// The seats' sandbox stops with the board; a later decision starts
-					// it again.
-					decider?.sandbox.dispose();
 					stopContext();
 				};
 			},
@@ -548,67 +510,6 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	showHotseat(hotseat);
 	status.set(ready);
 	return ready;
-}
-
-/**
- * HOW THE WORLD'S SEATS DECIDE, when one of them plays at a level other than
- * `random`: the game's strategy over the world's own provider, scored by the
- * `Simulation` route's bytecode in a sandbox of the seats' own (not the
- * player's preview sandbox, which is the game context's and rebuilt with it),
- * and the store their decided turns are kept in. Undefined when every seat
- * plays `random`, so such a world builds no sandbox and stores nothing.
- *
- * EXPORTED for the world test, which builds the seats exactly as this does.
- * Handed the provider and nothing of the page (PA6): no context, no
- * submission, no handover.
- */
-export function playedSeatDecider(
-	world: Pick<EmbeddedWorld, 'provider' | 'deployments'>,
-	played: readonly OfflinePlayer[],
-	options: {
-		storage?: Pick<Storage, 'getItem' | 'setItem'>;
-		onDecided?: (measure: {
-			ms: number;
-			claimed: number;
-			simulated: number;
-		}) => void;
-	} = {},
-) {
-	if (played.every((seat) => (seat.level ?? RANDOM_LEVEL) === RANDOM_LEVEL)) {
-		return undefined;
-	}
-	const records = world.deployments.get();
-	const contract = {
-		address: records.contracts.Game.address,
-		abi: records.contracts.Game.abi,
-	};
-	const sandbox = createBytecodeSandbox({
-		provider: world.provider as never,
-		contracts: {
-			rules: {
-				address:
-					records.contracts.Game_Implementation_Router_Simulation_Route.address,
-			},
-		},
-	});
-	const strategy = createPlacementStrategy({
-		publicClient: createPublicClient({
-			chain: worldChain(world),
-			transport: custom(world.provider as never),
-		}),
-		sandbox,
-		contract,
-		candidates: playedTurnCells(),
-		onDecided: options.onDecided,
-	});
-	const turns = createPlayedTurnStore({
-		storage: options.storage ?? localStorage,
-		key: PLAYED_TURNS_STORAGE_KEY,
-		chainId: records.chain.id,
-		contract: contract.address,
-		format: PLACEMENT_STORAGE,
-	});
-	return {strategy, turns, sandbox};
 }
 
 /** The world's chain as viem wants it, for the clients the world's own loops build. */
@@ -746,20 +647,16 @@ let announcedWallet: EmbeddedWallet | undefined;
  *    pick one - and cannot pick one that has no account on this chain, which is
  *    every other wallet they own.
  * 2. **Gas**, by cheat call. The chain is in the tab; its ether is a number.
- * 3. **A STAKE**, which is what THIS game puts at risk and therefore the only
- *    reason anybody here has to reveal. Bought through `StakeSale.purchase`,
- *    the same rail the online purchase uses, rather than by minting and
- *    bonding by hand: the rail is one call that mints, stakes for the player
- *    and can forward a gas stipend, and using it here means the offline world
- *    exercises the contract path the online one depends on instead of a
- *    private shortcut that could quietly stop matching it.
+ * 3. **ONE ARMY'S STAKE**, in the account's reserve, which is what THIS game
+ *    puts at risk. Bought through `StakeSale.purchase`, the same rail the
+ *    online purchase uses, so the offline world exercises the contract path the
+ *    online one depends on. It makes nobody a member: only armies are, so the
+ *    person deploys an army with it from the board, and every seat the world
+ *    plays deploys one too (`$lib/offline-players`).
  * 4. **EVERYONE ELSE AT THE TABLE**, which is gas and a stake for every seat
- *    the lobby laid out and is the same three things over again. It is not a
- *    courtesy: the stake is what makes them waited-for members
- *    (`_startWaitingFor` fires on a funded reserve), and a cycle with one
- *    member is a cycle that hides nothing. They are given exactly what the
- *    human is given and nothing more, so what the world can do, the human can
- *    do.
+ *    the lobby laid out and is the same three things over again. They are given
+ *    exactly what the human is given and nothing more, so what the world can
+ *    do, the human can do.
  *
  * WHAT IT STILL DOES NOT DO IS AUTHORISE THE BROWSER'S KEY, and this paragraph
  * used to go on to say that authorising was therefore the player's one press.
@@ -856,27 +753,16 @@ async function provisionOfflinePlayer(params: {
 }
 
 /**
- * GIVE EVERY SEAT AT THE TABLE SOMETHING TO LOSE.
+ * GIVE EVERY SEAT AT THE TABLE AN ARMY'S STAKE.
  *
  * ONE FUNCTION RATHER THAN A CALL PER SEAT AT THE HOOK, because it is the half
- * of provisioning that can be asserted in node: the wallet and its gas need a
- * `window` to announce on, and this does not.
- * `test/lib/embedded/world.test.ts` calls exactly this, so it cannot check the
- * human and miss the players the world plays - which would be a green suite
- * over a world with one waited-for member and therefore over a cycle that
- * hides nothing. That test reads the count back off `getAttendance` rather
- * than off the table, because the table is what a cascade can quietly halve.
+ * of provisioning that can be asserted in node: `test/lib/embedded/world.test.ts`
+ * calls exactly this, then deploys with it.
  *
- * A WALK OF THE TABLE rather than a loop over a key list, which is where the
- * seat model earns its keep: this stakes for whoever is in each seat, so the
- * day a seat holds a second human it is staked for by this same line.
- *
- * THE OTHER SEATS ARE NOT A COURTESY. A stake is what enrols a player as a
- * waited-for member here (`_addToReserve` starts waiting for anyone with a
- * funded reserve), so this call is what makes unanimity mean something; and it
- * is what they lose by going quiet, which is what makes their commitments
- * worth making. They are given exactly what the human is given and nothing
- * more, so what the world can do, the human can do.
+ * A STAKE IS NOT MEMBERSHIP HERE. It sits in the account's reserve until the
+ * seat deploys an army with it, and only the army is waited for. So this is
+ * what lets every seat deploy, and the deployments are what make unanimity
+ * mean something.
  */
 export async function stakeForEveryoneInTheWorld(params: {
 	env: EmbeddedWorld['env'];
@@ -930,32 +816,30 @@ export async function stakeForOfflinePlayer(params: {
 	};
 
 	/**
-	 * ONLY IF THEY HAVE NONE, and this is the half that measurement added.
+	 * ONLY IF THEY HAVE NONE: no stake in the account's reserve and no army.
 	 *
 	 * Provisioning runs on every boot and a boot is not always a first boot: the
 	 * chain and the deployment records both persist, so a reload restores the
-	 * world and SKIPS the deploy - and then runs this hook again. Measured
-	 * exactly that way: a reserve of 10 became 20 on the second load, and 30 on
-	 * the third. That is not a cosmetic surplus, it is the stake becoming
-	 * refillable by pressing F5, which is the one property this game's whole
-	 * commit-reveal design rests on (`AGENTS.md`: something must be at stake, or
-	 * nobody has to reveal).
+	 * world and runs this hook again. Measured on the template: a reserve of 10
+	 * became 20 on the second load. That is the stake becoming refillable by
+	 * pressing F5, which is the one property the commit-reveal design rests on
+	 * (`AGENTS.md`: something must be at stake). And here the account's reserve
+	 * is EMPTY once its stake has moved into an army, so the army is asked about
+	 * too, or every reload would buy one more.
 	 *
-	 * THE CHAIN IS ASKED RATHER THAN A FLAG KEPT, for the same reason
-	 * `missed-reveal.ts` asks it: local storage can be cleared, the world can be
-	 * restored into a different browser profile, and what is true is what the
+	 * THE CHAIN IS ASKED RATHER THAN A FLAG KEPT: what is true is what the
 	 * contract holds.
-	 *
-	 * The framework could have offered "this world was restored" instead, and
-	 * that would be the wrong question. What a game needs to know is whether its
-	 * player already has what it was about to give them, and only the game knows
-	 * what that is.
 	 */
 	const held = (await env.read(env.get('Game'), {
 		functionName: 'getReserve',
 		args: [BigInt(params.player)],
 	})) as bigint;
 	if (held > 0n) return;
+	const next = (await env.read(env.get('Game'), {
+		functionName: 'getNextArmy',
+		args: [params.player],
+	})) as bigint;
+	if (next !== firstArmyOf(params.player)) return;
 	await env.execute(env.get('StakeSale'), {
 		// THE RESOLVED ADDRESS, not the private key the spec was written with.
 		// rocketh resolves a named account to an address and keeps the signing
@@ -984,37 +868,20 @@ export async function stakeForOfflinePlayer(params: {
 }
 
 /**
- * WHO AN ADDRESS PLAYS AS IN THIS WORLD, once it has been provisioned.
- *
- * ASYNC, AND IT IS NOT ASYNC HERE, which is the whole reason it is a function
- * rather than an expression. This branch is an ADDRESS game, so an identity is
- * the account widened to a `uint256` exactly as `game/identity.ts` widens the
- * human's own, and nothing has to be asked of anybody. On a branch whose
- * identity is a TOKEN there is no such arithmetic: the token is minted by
- * provisioning and its id is whatever the contract assigned, so the only place
- * the answer exists is the chain. Writing the signature for the harder of the
- * two costs one `await` here and keeps `offline-players.ts` - which is where
- * all the behaviour is - byte-identical across the template's branches.
- *
- * ONE PLACE PER BRANCH SAYS HOW AN ADDRESS BECOMES A PLAYER, which is the same
- * rule `game/identity.ts` follows for the human and for the same reason: every
- * OTHER site that spelled it would be a site this branch has to edit and
- * therefore conflict on forever.
- *
- * Called AFTER provisioning, because on that branch there is nothing to read
- * until the identity has been handed out.
+ * WHO AN ADDRESS PLAYS AS IN THIS WORLD: its FIRST ARMY, the one its first
+ * deployment creates. An army id is `nonce << 160 | owner`, so this needs no
+ * read; it is async, and takes the environment, so that a game whose identity
+ * only the chain knows keeps the same signature.
  */
 export async function offlineIdentityOf(params: {
 	env: EmbeddedWorld['env'];
 	player: `0x${string}`;
 }): Promise<bigint> {
-	// `env` is named and unused on this branch, because the branch that needs it
-	// needs it in exactly this position. See above.
 	void params.env;
-	return BigInt(params.player);
+	return firstArmyOf(params.player);
 }
 
-/** The seats the world plays, with the identity each of their keys plays as. */
+/** The seats the world plays, with the army each of their keys plays as. */
 export async function playedByTheWorld(params: {
 	env: EmbeddedWorld['env'];
 	table: Table;
@@ -1023,10 +890,12 @@ export async function playedByTheWorld(params: {
 	for (const played of seatsPlayedByTheWorld(params.table)) {
 		resolved.push({
 			privateKey: played.privateKey,
+			address: played.address,
 			identity: await offlineIdentityOf({
 				env: params.env,
 				player: played.address,
 			}),
+			seat: resolved.length,
 			...(played.level !== undefined ? {level: played.level} : {}),
 		});
 	}

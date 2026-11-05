@@ -44,7 +44,7 @@ export const CYCLE_POLICY = {
  *
  * THESE BELONG TO THE CONTRACTS AND THEREFORE TO THIS FILE, which is the change
  * that matters rather than the numbers. They used to be constants in
- * `web/src/lib/placement/config.ts`, and that file is INHERITED down this
+ * the template game's client config, and that file is INHERITED down this
  * template tree while contracts are NOT: every game writes its own. So a
  * descendant ran its own contracts while reading gas figures measured against
  * somebody else's, in a file whose text did not differ at all. That is not
@@ -55,7 +55,7 @@ export const CYCLE_POLICY = {
  * Declared here, they travel with the contracts they were measured against:
  * they are recorded in the Game's `linkedData` by `deploy/010_deploy_game.ts`
  * and read off the deployment by the client, exactly as `actionsPerReveal` and
- * `placementCost` already are. A game that writes its own contracts cannot
+ * `stake` already are. A game that writes its own contracts cannot
  * inherit a wrong figure, because there is nothing to inherit.
  *
  * They are NOT in the Solidity `Config` struct, deliberately. The contract never
@@ -63,34 +63,28 @@ export const CYCLE_POLICY = {
  * forever for a number only the client budgets with. `linkedData` is the
  * established channel for what the client must agree with the deploy about.
  *
- * MEASURED ON THIS BRANCH, on a local node, at four actions per reveal. The
- * reveal's worst case is a FULL chunk of cells claimed for the first time, each
- * in a different zone: `_place` appends to a per-zone index only on a cell's
- * first claim, so four first claims across four zones is four new dynamic
- * arrays.
+ * MEASURED FOR CHESS (`chess-army-deployment`), on a local node. A submission
+ * here is ONE action, so a reveal is one transaction, and today there are two
+ * kinds: a deployment and a pass. The worst commit is a DEPLOYMENT's, which
+ * creates the army (its registry entry), moves the stake from the account's
+ * reserve into the army's, starts waiting for it and only then commits; the
+ * worst reveal is a deployment's too, the first of its cycle, which writes the
+ * open set of spawn points as well as the spawn point's record.
  *
- *   first commit (cold slots)                116,898
- *   later commit (warm slots)                 82,698
- *   first commit PAYING A FRESH PAYEE        152,154
- *   full fresh chunk, four zones, final      535,561
- *   the same chunk, non-final                534,756
+ *   deployment commit (cold slots)           291,708
+ *   deployment commit paying a fresh payee   326,148
+ *   the first deployment reveal ever         230,649
  *
- * RE-MEASURED 2026-10-31, when a placement's rule became a pure function the
- * client can run (`_placementOutcome`, with `_place` loading before it and
- * applying after it, and a `Simulation` route exposing it): the GasBudget
- * test's worst reveal went from 533,508 to 536,813 (+3,305, 0.6%), its first
- * commit from 117,714 to 117,740 and the paid one from 152,154 to 152,180 (one
- * more route behind the router). Both figures below still hold, with more than
- * the test's ten per cent above the worst case.
+ * So COMMIT_GAS is the paid case plus 15%. REVEAL_GAS is left at the
+ * template's 600,000, 2.6 times the deployment's reveal: inside the band
+ * `GasBudget.test.ts` allows, and room for the moves that come next rather
+ * than a figure that has to be raised the day they land.
  *
- * THE COMMIT'S WORST CASE IS A PAID ONE. A game that hands the skeleton a
- * reveal scheduler (`RevealScheduler`, stratagems' plan step 8, P3) makes the
- * commit carry the scheduler's payment, which `makeCommitment` forwards to
- * `payee`; the first payment goes to an account that holds nothing, which
- * costs the value transfer, the cold account and creating it. Measured
- * 2026-10-30 at 152,154 against the 150,000 this declared, so every player's
- * first scheduled commit ran out of gas (found by `with/fuzd`'s e2e). It is
- * now 175,000: the paid case plus 15%, and the GasBudget test measures it.
+ * The template's figures (a placement game, whose worst reveal was a chunk of
+ * four fresh cells at 535,561) went with the template's game. The reveal's
+ * figure WILL grow with moves (`chess-moves`): a move's worst case, a slider's
+ * path over squares idle for many cycles, has to be measured then, because a
+ * reveal that runs out of gas is a missed reveal, which freezes the army.
  *
  * Both carry a margin over the reading, because they size a RESERVATION: over
  * reserving costs a slightly larger first payment, under reserving costs a
@@ -110,7 +104,7 @@ export const CYCLE_POLICY = {
  * is bounded per transaction by this, and as a whole by `expectedActionsPerTurn`
  * below.
  */
-const COMMIT_GAS = 175_000n;
+const COMMIT_GAS = 375_000n;
 const REVEAL_GAS = 600_000n;
 
 /**
@@ -131,19 +125,16 @@ const REVEAL_GAS = 600_000n;
  * An average with its expectation written down is worth more than an exact
  * figure with no unit.
  *
- * FOUR, ON THIS BRANCH, BECAUSE A TURN HERE IS BOUNDED ECONOMICALLY. One stake
- * buys ten placements and no more, so a turn is a few cells and the reserve is
- * gone in a handful of them. Four is one chunk, so the expected turn is exactly
- * one commit and one reveal - which is also why this parameter changes no
- * number on this branch, and why the branch where it matters is the one where a
- * placement is free.
+ * ONE, IN CHESS, BECAUSE IT IS THE RULE: an army submits at most one move per
+ * cycle (`CONTEXT.md`), and a deployment is one action too. So the expected
+ * turn is exactly one commit and one reveal.
  *
  * It sizes the gas stipend and nothing else today. It is deliberately NOT used
  * to price a credit: a credit count is shown to the player as what they can
  * still do, so it has to be a FLOOR, and an expectation is not one. See the
- * stipend in `web/src/lib/placement/config.ts`.
+ * stipend in `web/src/lib/chess/config.ts`.
  */
-const EXPECTED_ACTIONS_PER_TURN = 4n;
+const EXPECTED_ACTIONS_PER_TURN = 1n;
 
 // we define our config and export it as "config"
 export const config = {
@@ -200,43 +191,10 @@ export const config = {
 				// costs more credits than a short one, and a credit that still meant
 				// "one turn" would be a number with no fixed gas behind it.
 				//
-				// MEASURED, on a local node, not reasoned about. At four actions per
-				// reveal the worst case a single transaction can reach is a FULL
-				// chunk of cells claimed for the first time, each in a different
-				// zone: `_place` appends to a per-zone index only on a cell's first
-				// claim, so four first claims across four zones is four new dynamic
-				// arrays.
-				//
-				//   first commit (cold slots)                116,898
-				//   later commit (warm slots)                 82,698
-				//   full fresh chunk, four zones, final      535,561
-				//   the same chunk, non-final                534,756
-				//
-				// So one commit plus one reveal step is 652,459 worst case, and this
-				// is that plus about 15%, kept a round number because it is a policy
-				// figure with a margin rather than a reading. (Since 2026-10-30 the
-				// commit's share is sized for a PAID first commit, 152,154: see
-				// COMMIT_GAS. A player with a reveal scheduler pays the reveal's gas
-				// to the scheduler in the commit instead of sending the reveal, so
-				// a credit still prices one action.) The margin is what
-				// keeps the credit count a FLOOR when a contract edit moves the gas a
-				// little; if one moves it a lot, this is measured again rather than
-				// nudged.
-				//
-				// IT WAS 1,500,000, sized against the old single-transaction reveal
-				// whose worst case was ten placements at once (1,334,323). That
-				// reveal no longer exists: ten placements is now three transactions,
-				// each bounded by the chunk, and pricing a credit at the old figure
-				// would overstate what one costs by more than half.
-				//
-				// IT IS NO LONGER A SECOND NUMBER. It used to be typed out here as
-				// 750,000 and again as `COMMIT_GAS + REVEAL_GAS` in
-				// web/src/lib/placement/config.ts, with a comment explaining that the
-				// agreement was the point. Two copies of one measurement is how the
-				// identity branches came to price a credit 58% above what a step
-				// there costs: the copy that mattered was in a file that does not
-				// differ between branches, so it merged cleanly and its reasoning did
-				// not. There is one measurement now and this is derived from it.
+				// One commit plus one reveal step, both at their declared worst
+				// case (see COMMIT_GAS): derived from the one measurement rather
+				// than typed out again, because two copies of one measurement is
+				// how a credit ends up priced against a game nobody runs.
 				creditsGasMultiplier: COMMIT_GAS + REVEAL_GAS,
 				supportsSendRawTransactionSync: false,
 			},
@@ -295,9 +253,9 @@ export const config = {
 		 * exercise the value split that lets one transaction pay for the stake and
 		 * fund the key that plays with it.
 		 *
-		 * `amount` is ten placements at the placement cost below, which is enough
-		 * to play with and small enough that running out is a state the game gets
-		 * to demonstrate.
+		 * `amount` is ONE ARMY'S STAKE (`Game.stake` below): one purchase is one
+		 * deployment. The two are separate numbers on separate contracts, so keep
+		 * them equal by hand.
 		 */
 		sale: {
 			default: {
@@ -315,17 +273,14 @@ export const config = {
 		 * the turn itself is not capped, and capping it is a game rule this
 		 * framework deliberately does not take a position on.
 		 *
-		 * Four, for the reference game, and the number is chosen to be EXERCISED
-		 * rather than to be the largest that fits. A placement's measured worst case
-		 * is about 122k gas (ten fresh cells across ten zones cost 1,217,425), so a
-		 * chunk of four is roughly half a million gas and would sit comfortably
-		 * under any chain's ceiling at several times that size. What a larger number
-		 * would cost is the only thing that matters here: this game's biggest
-		 * possible turn is ten placements, so a chunk of sixteen or thirty-two would
-		 * mean no turn anybody can make ever chains, and a mechanism that is never
-		 * executed in the game the template ships is a mechanism nobody finds out is
-		 * broken. A game built from this template picks its own, from its own
-		 * measurements on its own chain.
+		 * ONE, for chess: an army submits at most one move per cycle, and a
+		 * deployment is one action too, so no submission ever chains.
+		 *
+		 * `stake` is what one army holds, taken from the account's reserve when
+		 * its deployment is committed. `spawnSpacing` (S) is the distance between
+		 * spawn points on each axis, and `openSpawnPoints` (K) how many free spawn
+		 * points are open at once, the K nearest the origin in spiral order: few
+		 * enough that the world stays dense as it grows.
 		 *
 		 * The reveal phase is the one to be careful with, and it used to be 3-4
 		 * seconds. That is not survivable: a client has to NOTICE the phase turned
@@ -340,31 +295,15 @@ export const config = {
 		 * optimistically. Size the reveal phase to comfortably exceed one block time
 		 * plus a client round trip; ten seconds is generous on a local chain and is
 		 * the floor to think from on a real one.
-		 *
-		 * AND IT IS NOW SIZED FOR SEVERAL TRANSACTIONS, NOT ONE. A turn longer
-		 * than `actionsPerReveal` is revealed in `ceil(actions / actionsPerReveal)`
-		 * transactions, in order, all of which have to land inside this window;
-		 * anything still owed when it shuts is a partially applied turn whose
-		 * remaining bond is forfeit. The reference game's largest possible turn is
-		 * ten placements (the sale's `amount` over `placementCost`), so at four per
-		 * reveal that is three sequential sends. Multiply the round trip above by
-		 * that number before shortening this.
-		 *
-		 * THAT FACTOR IS THE CLIENT'S AND NOT THE CHAIN'S, which is the thing to
-		 * know before treating it as a floor. Nonces are per account and strictly
-		 * sequential, so the chunks could be broadcast in ONE burst and would still
-		 * execute in order - one round trip rather than three. The client sends them
-		 * one at a time today for reasons written at its reveal loop
-		 * (`placement/commit-reveal.ts`), none of which is that a burst would not
-		 * work. So a phase that is too short for a long turn is a pair of things to
-		 * weigh rather than one: lengthen the window, or stop waiting between
-		 * chunks.
 		 */
 		Game: {
 			localhost: {
 				commitPhaseDuration: 30n,
 				revealPhaseDuration: 10n,
-				actionsPerReveal: 4n,
+				actionsPerReveal: 1n,
+				stake: parseEther('10'),
+				spawnSpacing: 16n,
+				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.Timed,
 				commitGas: COMMIT_GAS,
 				revealGas: REVEAL_GAS,
@@ -373,7 +312,10 @@ export const config = {
 			default: {
 				commitPhaseDuration: 30n,
 				revealPhaseDuration: 10n,
-				actionsPerReveal: 4n,
+				actionsPerReveal: 1n,
+				stake: parseEther('10'),
+				spawnSpacing: 16n,
+				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.Timed,
 				commitGas: COMMIT_GAS,
 				revealGas: REVEAL_GAS,
@@ -401,7 +343,10 @@ export const config = {
 			default: {
 				commitPhaseDuration: 45n,
 				revealPhaseDuration: 15n,
-				actionsPerReveal: 4n,
+				actionsPerReveal: 1n,
+				stake: parseEther('10'),
+				spawnSpacing: 16n,
+				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.TimedWithEarlyAdvance,
 				commitGas: COMMIT_GAS,
 				revealGas: REVEAL_GAS,

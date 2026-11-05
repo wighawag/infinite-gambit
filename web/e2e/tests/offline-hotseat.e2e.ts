@@ -8,9 +8,10 @@ import {test, expect, describe} from '../fixtures/test';
  *
  * What it holds: the handover screen REPLACES the game between turns (no canvas
  * is mounted while the device changes hands); the second person is shown
- * nothing of the first person's plan (an empty submission, no planned cell,
- * the first person's cell not on the board before the reveal); both turns land
- * on the board when the cycle closes, revealed by the world's own revealer key
+ * nothing of the first person's plan (an empty submission, no planned spawn
+ * point, no ghost of the first person's army); both deployments land on the
+ * board when the cycle closes, the world waiting for every seat to deploy
+ * before it turns over, revealed by the world's own revealer key
  * rather than by either person's; and a reload in the middle of a commit phase
  * lands on the handover for the right person, never on a plan, and the turn
  * committed before it is still revealed (the revealer forgot it; the handover
@@ -38,23 +39,6 @@ const REVEALER = mnemonicToAccount(
 	{addressIndex: 12},
 ).address;
 
-/**
- * Click the board at an offset from its centre. Here rather than imported from
- * the reference game's fixtures, which a game that replaces the reference game
- * does not have: this file arrives in every game unchanged.
- */
-async function clickCanvas(
-	page: Page,
-	offset: {x: number; y: number},
-): Promise<void> {
-	const box = await page.locator('canvas').boundingBox();
-	if (!box) throw new Error('the canvas has no layout box');
-	await page.mouse.click(
-		box.x + box.width / 2 + offset.x,
-		box.y + box.height / 2 + offset.y,
-	);
-}
-
 async function whoPlays(page: Page): Promise<string | undefined> {
 	return page.evaluate(`(() => {
 		${READ}
@@ -64,37 +48,43 @@ async function whoPlays(page: Page): Promise<string | undefined> {
 	})()`) as Promise<string | undefined>;
 }
 
+/** What the person at the device has planned: a spawn point, or nothing. */
 async function planned(page: Page): Promise<{
 	submission: string;
-	actions: string[];
-	plannedOnBoard: number;
+	spawnPoint: string | undefined;
+	ghost: number;
 }> {
 	return page.evaluate(`(() => {
 		${READ}
 		const submission = read(world.context.game.submission);
 		const view = read(world.context.viewState);
-		const actions = 'actions' in submission
-			? submission.actions.map((a) => a.cellID.toString())
-			: [];
-		const plannedOnBoard = view.step === 'Loaded'
-			? [...view.cells.values()].filter((c) => c.planned).length
-			: 0;
-		return {submission: submission.step, actions, plannedOnBoard};
+		const spawnPoint = 'actions' in submission && submission.actions.length === 1
+			? submission.actions[0].to.toString()
+			: undefined;
+		const ghost = view.step === 'Loaded' ? view.ghost.length : 0;
+		return {submission: submission.step, spawnPoint, ghost};
 	})()`) as Promise<{
 		submission: string;
-		actions: string[];
-		plannedOnBoard: number;
+		spawnPoint: string | undefined;
+		ghost: number;
 	}>;
 }
 
-async function claimants(page: Page, cellID: string): Promise<number> {
-	return page.evaluate(`(() => {
+/** The registry's status of every army, by owner. */
+async function armies(page: Page): Promise<Record<string, number>> {
+	return page.evaluate(`(async () => {
 		${READ}
-		const view = read(world.context.viewState);
-		if (view.step !== 'Loaded') return -1;
-		const cell = view.cells.get(BigInt('${cellID}'));
-		return cell ? cell.numClaimants : 0;
-	})()`) as Promise<number>;
+		const records = world.world.deployments.get();
+		const [list] = await world.context.publicClient.readContract({
+			address: records.contracts.Game.address,
+			abi: records.contracts.Game.abi,
+			functionName: 'getArmies',
+			args: [0n, 100n],
+		});
+		const out = {};
+		for (const army of list) out[army.owner.toLowerCase()] = Number(army.status);
+		return out;
+	})()`) as Promise<Record<string, number>>;
 }
 
 async function revealerSends(page: Page): Promise<number> {
@@ -114,13 +104,10 @@ async function begin(page: Page, label: string): Promise<void> {
 		`Pass the device to ${label}`,
 		{timeout: 120_000},
 	);
-	// Nothing of the game is mounted while the device changes hands.
 	await expect(page.locator('canvas')).toHaveCount(0);
 	await page.getByTestId('handover-begin').click();
 	await expect(page.getByTestId('handover')).toHaveCount(0, {timeout: 60_000});
 	await expect(page.locator('canvas')).toBeVisible({timeout: 30_000});
-	// AND THE GAME IS SHOWN ONLY ONCE THIS PERSON'S DATA HAS LOADED: before it,
-	// the submission drops every plan, so a click would be silently ignored.
 	expect(await dataLoadedForWhoPlays(page)).toBe(true);
 }
 
@@ -138,27 +125,27 @@ async function dataLoadedForWhoPlays(page: Page): Promise<boolean> {
 	})()`) as Promise<boolean>;
 }
 
-/** Plan one placement at `offset` and commit it; the cell planned. */
-async function playOneCell(
-	page: Page,
-	offset: {x: number; y: number},
-): Promise<string> {
-	// A turn of a past cycle shown as `Revealed` is a state to plan from, like
-	// `Idle`: whether a person comes back to it or to `Idle` depends on when
-	// their record was restored against the chain, which differs by branch
-	// (on `with/nft-identity` the identity is an avatar, resolved after the
-	// account switch).
+/** Pick the `index`th open spawn point and deploy there; the spawn point. */
+async function deploy(page: Page, index: number): Promise<string> {
 	await expect
 		.poll(async () => (await planned(page)).submission, {timeout: 60_000})
 		.toMatch(/Idle|Planning|Revealed/);
-	await clickCanvas(page, offset);
+	await page.getByTestId('spawn-point').nth(index).click();
 	await expect
-		.poll(async () => (await planned(page)).actions.length, {timeout: 15_000})
-		.toBe(1);
-	const [cell] = (await planned(page)).actions;
-	await page.getByRole('button', {name: /commit now/i}).click();
-	return cell;
+		.poll(async () => (await planned(page)).spawnPoint, {timeout: 15_000})
+		.toBeDefined();
+	const {spawnPoint} = await planned(page);
+	await page.getByTestId('commit-deployment').click();
+	return spawnPoint!;
 }
+
+/** Commit a pass: the army is deployed and the cycle waits for everyone. */
+async function pass(page: Page): Promise<void> {
+	await expect(page.getByTestId('pass')).toBeVisible({timeout: 60_000});
+	await page.getByTestId('pass').click();
+}
+
+const DEPLOYED = 2;
 
 describe('Hotseat in the offline world', () => {
 	test('two people at one device and one world seat play two cycles, passing the device', async ({
@@ -182,43 +169,47 @@ describe('Hotseat in the offline world', () => {
 		await expect(page.getByText('Player 2', {exact: true})).toBeVisible();
 		await page.getByTestId('sit-down').click();
 
-		// CYCLE ONE. Player 1 takes the device and commits a cell.
+		// CYCLE ONE. Player 1 takes the device and deploys.
 		await begin(page, 'Player 1');
 		const first = await whoPlays(page);
 		expect(first).toBeTruthy();
-		const firstCell = await playOneCell(page, {x: 40, y: 30});
+		const firstSpawn = await deploy(page, 0);
 
-		// The device goes to Player 2, who is shown nothing of it.
+		// Player 2's turn although Player 1 is the only MEMBER so far: the world
+		// waits for every seat to deploy before the cycle turns over.
 		await begin(page, 'Player 2');
 		await expect.poll(() => whoPlays(page), {timeout: 30_000}).not.toBe(first);
 		const second = await whoPlays(page);
+		// Nothing of Player 1's deployment is shown: the spawn point is hidden.
 		const shown = await planned(page);
-		expect(shown.actions).toEqual([]);
-		expect(shown.plannedOnBoard).toBe(0);
-		expect(await claimants(page, firstCell)).toBe(0);
-		const secondCell = await playOneCell(page, {x: -60, y: -40});
-		expect(secondCell).not.toBe(firstCell);
+		expect(shown.spawnPoint).toBeUndefined();
+		expect(shown.ghost).toBe(0);
+		const secondSpawn = await deploy(page, 1);
+		expect(secondSpawn).not.toBe(firstSpawn);
 
-		// Everyone here has committed: covered until the cycle closes, then the
-		// device goes back to Player 1, and both cells are on the board,
-		// revealed by the revealer.
-		await expect(page.getByTestId('handover-resolving')).toBeVisible({
-			timeout: 60_000,
-		});
+		// Both reveals sent by the world's revealer, and the armies stand.
 		await begin(page, 'Player 1');
 		await expect.poll(() => whoPlays(page), {timeout: 30_000}).toBe(first);
 		await expect
-			.poll(() => claimants(page, firstCell), {timeout: 30_000})
-			.toBeGreaterThanOrEqual(1);
+			.poll(async () => (await armies(page))[first!], {timeout: 60_000})
+			.toBe(DEPLOYED);
 		await expect
-			.poll(() => claimants(page, secondCell), {timeout: 30_000})
-			.toBeGreaterThanOrEqual(1);
+			.poll(async () => (await armies(page))[second!], {timeout: 60_000})
+			.toBe(DEPLOYED);
+		// And the seat the world plays deployed beside them.
+		await expect
+			.poll(
+				async () =>
+					Object.values(await armies(page)).filter((s) => s === DEPLOYED)
+						.length,
+				{timeout: 60_000},
+			)
+			.toBe(3);
 		expect(await revealerSends(page)).toBeGreaterThanOrEqual(2);
 		const sentInCycleOne = await revealerSends(page);
 
-		// CYCLE TWO, with a reload after Player 1 has committed: the page comes
-		// back on the handover for Player 2, never on a plan.
-		const thirdCell = await playOneCell(page, {x: 100, y: 60});
+		// A cycle of passes, with a reload between the two people.
+		await pass(page);
 		await expect(page.getByTestId('handover-to')).toHaveText(
 			'Pass the device to Player 2',
 			{timeout: 60_000},
@@ -226,18 +217,11 @@ describe('Hotseat in the offline world', () => {
 		await page.reload();
 		await begin(page, 'Player 2');
 		await expect.poll(() => whoPlays(page), {timeout: 30_000}).toBe(second);
-		expect((await planned(page)).actions).toEqual([]);
-		const fourthCell = await playOneCell(page, {x: -120, y: 80});
+		await pass(page);
 
-		// The revealer lost Player 1's turn in the reload; it is revealed anyway,
-		// and the cycle closes.
 		await begin(page, 'Player 1');
 		await expect
-			.poll(() => claimants(page, thirdCell), {timeout: 30_000})
-			.toBeGreaterThanOrEqual(1);
-		await expect
-			.poll(() => claimants(page, fourthCell), {timeout: 30_000})
-			.toBeGreaterThanOrEqual(1);
-		expect(await revealerSends(page)).toBeGreaterThan(sentInCycleOne);
+			.poll(() => revealerSends(page), {timeout: 60_000})
+			.toBeGreaterThan(sentInCycleOne);
 	});
 });

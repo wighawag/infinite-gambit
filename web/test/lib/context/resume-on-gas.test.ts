@@ -3,7 +3,7 @@ import {writable} from 'svelte/store';
 import {resumeWhenGasArrives as resumeWhen} from '$lib/game/core/commit-reveal-game';
 import {SignerOutOfFundsError} from '$lib/game/core/commit-reveal/errors';
 import type {SubmissionState} from '$lib/game/core/submission';
-import type {Placement} from '$lib/placement/commit-reveal';
+import type {Move} from '$lib/chess/commit-reveal';
 
 /**
  * The one piece of wiring that spends the player's gas without being asked.
@@ -19,7 +19,7 @@ import type {Placement} from '$lib/placement/commit-reveal';
  * player never asked for either send.
  */
 
-type State = SubmissionState<Placement>;
+type State = SubmissionState<Move>;
 
 /**
  * The framework's wiring with THIS GAME'S classification of the failure, which
@@ -27,7 +27,7 @@ type State = SubmissionState<Placement>;
  * constructs at its own boundary, not a fresh look at the node's wording.
  */
 function resumeWhenGasArrives(
-	params: Omit<Parameters<typeof resumeWhen<Placement>>[0], 'isOutOfGas'>,
+	params: Omit<Parameters<typeof resumeWhen<Move>>[0], 'isOutOfGas'>,
 ) {
 	return resumeWhen({
 		...params,
@@ -56,7 +56,7 @@ const outOfGas = (during: 'commit' | 'reveal'): State => ({
 	step: 'Error',
 	during,
 	cycleNumber: 3,
-	actions: [{cellID: 1n}],
+	actions: [{from: 1n, to: 1n}],
 	message: 'Not enough gas to send this move.',
 	error: new SignerOutOfFundsError(new Error('insufficient funds')),
 });
@@ -104,7 +104,7 @@ describe('resuming a submission when gas arrives', () => {
 			step: 'Error',
 			during: 'commit',
 			cycleNumber: 3,
-			actions: [{cellID: 1n}],
+			actions: [{from: 1n, to: 1n}],
 			message: 'The commitment was rejected by the contract',
 			error: new Error('The commitment was rejected by the contract'),
 		});
@@ -125,7 +125,7 @@ describe('resuming a submission when gas arrives', () => {
 		const submission = fakeSubmission({
 			step: 'Committed',
 			cycleNumber: 3,
-			actions: [{cellID: 1n}],
+			actions: [{from: 1n, to: 1n}],
 			hash: '0xabc',
 		} as unknown as State);
 		const balance = writable<{step: string; value?: bigint}>({

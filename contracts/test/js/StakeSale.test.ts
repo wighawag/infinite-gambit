@@ -1,7 +1,12 @@
 import {expect} from 'earl';
 import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not support vitest
 import {network} from 'hardhat';
-import {setupFixtures, idOf} from './utils/index.js';
+import {
+	setupFixtures,
+	idOf,
+	commitDeployment,
+	squareAt,
+} from './utils/index.js';
 import {zeroAddress} from 'viem';
 
 const {provider, networkHelpers} = await network.connect();
@@ -152,7 +157,7 @@ describe('StakeSale', function () {
 		).toBeRejected();
 	});
 
-	it('leaves the stake usable: it can be bonded to a commitment', async function () {
+	it('leaves the stake usable: it pays for a deployment', async function () {
 		// The reserve is only worth crediting if the game will accept it. Reading
 		// `getReserve` alone would pass with tokens the game never received, since
 		// the mapping and the token balance are written by different calls.
@@ -160,6 +165,8 @@ describe('StakeSale', function () {
 			env,
 			Game,
 			StakeSale,
+			actionsPerReveal,
+			stake,
 			unnamedAccounts,
 			advanceToCycleNumber,
 			getCycleNumber,
@@ -167,7 +174,9 @@ describe('StakeSale', function () {
 		} = await networkHelpers.loadFixture(deployAll);
 
 		const {price, amount} = saleConfig(StakeSale);
-		const player = unnamedAccounts[6];
+		// One purchase is one army's stake.
+		expect(amount).toEqual(stake);
+		const player = unnamedAccounts[6] as `0x${string}`;
 		const {cycleNumber: startCycleNumber} = getCycleNumber(
 			await getTimestamp(),
 		);
@@ -180,18 +189,21 @@ describe('StakeSale', function () {
 			value: price,
 		});
 
-		await env.execute(Game, {
-			account: player,
-			functionName: 'makeCommitment',
-			args: [
-				0n,
-				'0x000000000000000000000000000000000000000000000001',
-				amount,
-				zeroAddress,
-			],
-		});
+		const {army} = await commitDeployment(
+			{env, Game},
+			{
+				owner: player,
+				spawnPoint: squareAt(0, 0),
+				secret:
+					'0x0000000000000000000000000000000000000000000000000000000000000001',
+				actionsPerReveal,
+			},
+		);
 
-		// Bonded to the commitment, so it cannot be taken back out.
+		// Moved into the army, so it cannot be taken back out.
+		expect(
+			await env.read(Game, {functionName: 'getReserve', args: [army]}),
+		).toEqual(amount);
 		await expect(
 			env.execute(Game, {
 				account: player,

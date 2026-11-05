@@ -10,12 +10,12 @@ contract GameReveal is IGameReveal, UsingGameInternal {
     /// @inheritdoc IGameReveal
     function reveal(
         uint256 player,
-        Placement[] calldata placements,
+        Move[] calldata moves,
         bytes32 secret,
         bytes24 furtherActions,
         address payable payee
     ) external payable {
-        _reveal(player, placements, secret, furtherActions);
+        _reveal(player, moves, secret, furtherActions);
 
         // extra steps for which we do not intend to track via events
         if (payee != address(0) && msg.value != 0) {
@@ -26,11 +26,11 @@ contract GameReveal is IGameReveal, UsingGameInternal {
     /// @inheritdoc IGameReveal
     function acknowledgeMissedReveal(
         uint256 player,
-        Placement[] calldata placements,
+        Move[] calldata moves,
         bytes32 secret,
         bytes24 furtherActions
     ) external {
-        _acknowledgeMissedReveal(player, placements, secret, furtherActions);
+        _acknowledgeMissedReveal(player, moves, secret, furtherActions);
     }
 
     /// @inheritdoc IGameReveal

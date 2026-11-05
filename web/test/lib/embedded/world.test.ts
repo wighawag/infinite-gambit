@@ -8,16 +8,21 @@ import {
 } from 'chess-battleground-contracts/rocketh/config.js';
 import {
 	OFFLINE_DEPLOYMENT,
+	firstArmyOf,
+	playedByTheWorld,
 	stakeForEveryoneInTheWorld,
 	stakeForOfflinePlayer,
 } from '$lib/offline';
+import {createOfflinePlayers} from '$lib/offline-players';
+import {countStillToDeploy} from '$lib/chess/awaited-deployments';
+import {buildMoveChain, deploymentAt} from '$lib/chess/commit-reveal';
 import {
 	MOST_SEATS,
 	SEATS_BY_DEFAULT,
 	seatsPlayedByTheWorld,
 	tableOf,
 } from '$lib/game/lobby/seats';
-import {resolvePlacementConfig} from '$lib/placement/config';
+import {resolveChessConfig} from '$lib/chess/config';
 
 // No `.svelte.` infix, so this runs in the `server` project: node, no DOM.
 // That is not a compromise, it is the harness this deserves - webevm's core
@@ -101,30 +106,30 @@ describe('this game\u2019s offline world', () => {
 
 	it('declares the MANUAL cycle policy, with no clock and nothing else changed', async () => {
 		// The one decision an offline deployment of this game makes, and the one
-		// thing a test of the mechanism could never have caught. `resolvePlacementConfig`
+		// thing a test of the mechanism could never have caught. `resolveChessConfig`
 		// is the client's own reader, so this asserts what the GAME will believe
 		// rather than what the deploy wrote.
 		world = await buildWorld();
-		const placement = resolvePlacementConfig(world.deployments.get());
+		const chess = resolveChessConfig(world.deployments.get());
 
-		expect(placement.cycle.policy).toBe('manual');
+		expect(chess.cycle.policy).toBe('manual');
 		// Zero durations and the manual policy are ONE fact: the contract refuses
 		// a configuration where they disagree, so a deployment that declared
 		// `manual` with a clock would not be here to read.
-		expect(placement.cycle.commitPhaseDuration).toBe(0);
-		expect(placement.cycle.revealPhaseDuration).toBe(0);
+		expect(chess.cycle.commitPhaseDuration).toBe(0);
+		expect(chess.cycle.revealPhaseDuration).toBe(0);
 
 		// Everything measured against THESE CONTRACTS is untouched, because where
 		// the chain runs is not one of the things it was measured against: webevm
 		// and hardhat agree to the unit on all six readings. A world that restated
 		// these would be a second copy of a measurement.
-		const onNode = resolvePlacementConfig(buildTimeDeployments as never);
-		expect(placement.gas).toEqual(onNode.gas);
-		expect(placement.actionsPerReveal).toBe(onNode.actionsPerReveal);
-		expect(placement.expectedActionsPerTurn).toBe(
-			onNode.expectedActionsPerTurn,
-		);
-		expect(placement.placementCost).toBe(onNode.placementCost);
+		const onNode = resolveChessConfig(buildTimeDeployments as never);
+		expect(chess.gas).toEqual(onNode.gas);
+		expect(chess.actionsPerReveal).toBe(onNode.actionsPerReveal);
+		expect(chess.expectedActionsPerTurn).toBe(onNode.expectedActionsPerTurn);
+		expect(chess.stake).toBe(onNode.stake);
+		expect(chess.spawnSpacing).toBe(onNode.spawnSpacing);
+		expect(chess.openSpawnPoints).toBe(onNode.openSpawnPoints);
 	});
 
 	it('gives the context the world it was handed, member for member', async () => {
@@ -159,12 +164,10 @@ describe('this game\u2019s offline world', () => {
 		await expect(context.publicClient.getChainId()).resolves.toBe(CHAIN_ID);
 	});
 
-	it('stakes for the offline player, which is what makes them have to reveal', async () => {
-		// THE PROVISIONING SEAM, with this game's answer in it. The framework
-		// supplies the moment and the capability; what is at stake is the game's,
-		// and here it is a bonded ERC20 bought through the same rail an online
-		// purchase uses. A game that gates on custody of an NFT replaces exactly
-		// this call.
+	it('stakes for the offline player, which is what lets them deploy an army', async () => {
+		// THE PROVISIONING SEAM, with this game's answer in it: one army's stake
+		// in the account's reserve, bought through the same rail an online
+		// purchase uses.
 		const player = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
 		let stakedDuringProvision = false;
 
@@ -209,51 +212,83 @@ describe('this game\u2019s offline world', () => {
 
 	/**
 	 * WHAT PROVISIONING ACTUALLY HANDS OUT, asserted over the TABLE rather than
-	 * over the human. A world that enrols ONE waited-for member is not a
-	 * commit-reveal game: unanimity is satisfied by the only person present, and
-	 * two of the three conditions `advanceCycle` exists to enforce cannot be
-	 * reached at all. So the world plays every seat but one, and what makes them
-	 * members is precisely this call - `_addToReserve` starts waiting for anyone
-	 * holding a funded reserve.
-	 *
-	 * THE COUNT IS READ OFF `getAttendance`, NOT OFF THE TABLE, and that is the
-	 * assertion rather than a detail of it. The table is a list this code built;
-	 * `waitedFor` is what the CONTRACT will block the cycle on. A cascade that
-	 * quietly halved the seats, or a provisioning loop that skipped one, would
-	 * leave a table of N and an attendance of fewer, and only the second number
-	 * decides whether the game moves.
+	 * over the human: every seat's account holds one army's stake, and NOBODY is
+	 * a member yet, because only armies are. Then every seat deploys with it,
+	 * the person included, and the count is read off `getAttendance`: the table
+	 * is a list this code built, `waitedFor` is what the CONTRACT blocks the
+	 * cycle on.
 	 */
 	async function stakesEverySeat(seats: number) {
 		const human = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
 		const table = tableOf(seats);
 		world = await buildWorld({
-			provision: async ({env}) => {
+			provision: async ({env, node}) => {
 				await stakeForEveryoneInTheWorld({env, player: human, table});
+				// Gas for the seats the world plays, as `provisionOfflinePlayer` gives
+				// it: they send their own deployments below.
+				for (const played of seatsPlayedByTheWorld(table)) {
+					await node.provider.request({
+						method: 'evm_setBalance',
+						params: [played.address, `0x${(10n ** 24n).toString(16)}`],
+					} as never);
+				}
 			},
 		});
 
-		const read = (
-			world.env as unknown as {
-				read: (deployment: unknown, args: unknown) => Promise<unknown>;
-			}
-		).read;
+		const env = world.env as unknown as {
+			read: (deployment: unknown, args: unknown) => Promise<unknown>;
+			execute: (deployment: unknown, args: unknown) => Promise<unknown>;
+		};
 		const Game = world.deployments.get().contracts.Game;
+		const attendance = async () =>
+			(await env.read(Game, {functionName: 'getAttendance'})) as {
+				waitedFor: bigint;
+				committed: bigint;
+			};
+		expect((await attendance()).waitedFor).toBe(0n);
 
-		const attendance = (await read(Game, {
-			functionName: 'getAttendance',
-		})) as {waitedFor: bigint};
-		expect(attendance.waitedFor).toBe(BigInt(seats));
-
-		for (const played of seatsPlayedByTheWorld(table)) {
-			const reserve = (await read(Game, {
+		const accounts = [
+			human,
+			...seatsPlayedByTheWorld(table).map((played) => played.address),
+		];
+		for (const account of accounts) {
+			const reserve = (await env.read(Game, {
 				functionName: 'getReserve',
-				args: [BigInt(played.address)],
+				args: [BigInt(account)],
 			})) as bigint;
-			expect(reserve, played.address).toBe(config.data.sale.default.amount);
+			expect(reserve, account).toBe(config.data.sale.default.amount);
 		}
+
+		// Every seat deploys its army, which is what makes it a member: the
+		// person's from the admin key the deploy holds, standing in for the
+		// person (`OFFLINE_DEPLOYMENT.accounts.admin` is hardhat's account #1),
+		// and the seats the world plays by themselves.
+		const chess = resolveChessConfig(world.deployments.get());
+		const stillToDeploy = () =>
+			countStillToDeploy({
+				accounts,
+				nextArmyOf: async (owner) =>
+					(await env.read(Game, {
+						functionName: 'getNextArmy',
+						args: [owner],
+					})) as bigint,
+			});
+		expect(await stillToDeploy()).toBe(seats);
+		await commitDeployment(human, '11');
+		expect(await stillToDeploy()).toBe(seats - 1);
+		const players = createOfflinePlayers({
+			provider: world.provider,
+			deployments: world.deployments,
+			config: chess,
+			players: await playedByTheWorld({env: world.env, table}),
+		});
+		await players.tick();
+		expect(await stillToDeploy()).toBe(0);
+		expect((await attendance()).waitedFor).toBe(BigInt(seats));
+		expect((await attendance()).committed).toBe(BigInt(seats));
 	}
 
-	it('stakes every seat at the table, because a cycle with one member hides nothing', async () => {
+	it('stakes every seat at the table, and every seat deploys an army with it', async () => {
 		await stakesEverySeat(SEATS_BY_DEFAULT);
 	});
 
@@ -287,15 +322,53 @@ describe('this game\u2019s offline world', () => {
 		// Twice more, as two more restores would run it.
 		await stakeForOfflinePlayer({env: world.env, player});
 		await stakeForOfflinePlayer({env: world.env, player});
+		expect(await reserveOf(player)).toBe(config.data.sale.default.amount);
 
-		const reserve = (await (
-			world.env as unknown as {
-				read: (deployment: unknown, args: unknown) => Promise<bigint>;
-			}
-		).read(world.deployments.get().contracts.Game, {
-			functionName: 'getReserve',
-			args: [BigInt(player)],
-		})) as bigint;
-		expect(reserve).toBe(config.data.sale.default.amount);
+		// AND ONCE THE STAKE IS IN AN ARMY the account's reserve is empty, which
+		// must not read as "has none": a restore after deploying buys nothing.
+		await commitDeployment(player, '22');
+		expect(await reserveOf(player)).toBe(0n);
+		await stakeForOfflinePlayer({env: world.env, player});
+		expect(await reserveOf(player)).toBe(0n);
 	});
 });
+
+/** The world's Game, through the deploy's own environment. */
+function gameEnv() {
+	const env = world!.env as unknown as {
+		read: (deployment: unknown, args: unknown) => Promise<unknown>;
+		execute: (deployment: unknown, args: unknown) => Promise<unknown>;
+	};
+	return {env, Game: world!.deployments.get().contracts.Game};
+}
+
+async function reserveOf(player: `0x${string}`): Promise<bigint> {
+	const {env, Game} = gameEnv();
+	return (await env.read(Game, {
+		functionName: 'getReserve',
+		args: [BigInt(player)],
+	})) as bigint;
+}
+
+/**
+ * Commit a deployment at the origin for `player`'s first army, signed by the
+ * key the deploy holds for it (the admin, hardhat's account #1).
+ */
+async function commitDeployment(player: `0x${string}`, secretByte: string) {
+	const {env, Game} = gameEnv();
+	const chess = resolveChessConfig(world!.deployments.get());
+	await env.execute(Game, {
+		account: player,
+		functionName: 'makeCommitment',
+		args: [
+			firstArmyOf(player),
+			buildMoveChain({
+				actions: deploymentAt(0n),
+				secret: `0x${secretByte.repeat(32)}`,
+				actionsPerReveal: chess.actionsPerReveal,
+			})[0].hash,
+			chess.stake,
+			'0x0000000000000000000000000000000000000000',
+		],
+	});
+}

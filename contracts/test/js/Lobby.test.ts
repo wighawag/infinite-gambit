@@ -4,23 +4,29 @@ import {network} from 'hardhat';
 import {parseEventLogs, type Abi} from 'viem';
 import {
 	commitmentHashFor,
-	enterGame,
+	fundAccount,
 	idOf,
 	revealTurn,
 	setupFixtures,
 	TURN_BOND,
 	CYCLE_POLICY,
-	type Placement,
+	type Move,
 } from './utils/index.js';
 
 /**
- * GAMES FOR A FIXED SET OF PLAYERS: the factory, the reference game's lobby
+ * GAMES FOR A FIXED SET OF PLAYERS: the factory, the game's lobby
  * implementation, and one table played from its creation to a forfeit.
+ *
+ * UNTIL CHESS SEATS ITS ARMIES AT A TABLE (`work/tasks/backlog/chess-tables.md`)
+ * a table keeps the template's rule: buying in seats the ACCOUNT, which has no
+ * pieces and so can only pass. What is pinned here is the mechanism (the
+ * clone, the roster, the start, the early advance, the forfeit, the end), not
+ * a game of chess.
  *
  * The roster's rules are pinned on the base by `CommitRevealRoster.test.ts`;
  * this pins that the reference game's deployment carries them: a table is an
  * address of its own, cloned from the lobby implementation, with the lobby's
- * config (`TimedWithEarlyAdvance`), its own board and its own roster, and the
+ * config (`TimedWithEarlyAdvance`), its own state and its own roster, and the
  * persistent world beside it keeps open entry.
  */
 
@@ -100,31 +106,26 @@ async function createTable(
 			})) as [bigint, bigint, boolean];
 			return {cycleNumber, lastCycleNumber, ended};
 		},
-		cell: async (cellID: bigint) =>
-			(await env.read(Table, {functionName: 'getCell', args: [cellID]})) as {
-				totalStake: bigint;
-				numClaimants: number;
-			},
 	};
 
-	async function commit(account: `0x${string}`, placements: Placement[]) {
+	async function commit(account: `0x${string}`, moves: Move[]) {
 		await env.execute(Table, {
 			account,
 			functionName: 'makeCommitment',
 			args: [
 				idOf(account),
-				commitmentHashFor(placements, SECRET, fixtures.actionsPerReveal),
+				commitmentHashFor(moves, SECRET, fixtures.actionsPerReveal),
 				TURN_BOND,
 				'0x0000000000000000000000000000000000000000',
 			],
 		});
 	}
 
-	async function reveal(account: `0x${string}`, placements: Placement[]) {
+	async function reveal(account: `0x${string}`, moves: Move[]) {
 		await revealTurn(tableFixtures, {
 			account,
 			identity: idOf(account),
-			placements,
+			moves,
 			secret: SECRET,
 			actionsPerReveal: fixtures.actionsPerReveal,
 		});
@@ -148,7 +149,7 @@ async function createTable(
 		commit,
 		reveal,
 		advance,
-		join: (account: `0x${string}`) => enterGame(tableFixtures, account),
+		join: (account: `0x${string}`) => fundAccount(tableFixtures, account),
 		start: (account: `0x${string}`) =>
 			env.execute(Table, {account, functionName: 'start'}),
 		forfeit: (member: `0x${string}`) =>
@@ -232,12 +233,13 @@ describe('games for a fixed set of players', function () {
 				args: [table.alice, 2, CYCLES, NO_OPTIONS],
 			}),
 		).toBeRejected();
-		// A member of the world is a member at once: no start.
-		await enterGame(table, table.bob);
+		// In the world, stake in an ACCOUNT makes nobody a member: only armies
+		// are, and an army is made by its deployment.
+		await fundAccount(table, table.bob);
 		const attendance = (await table.env.read(table.Game, {
 			functionName: 'getAttendance',
 		})) as {waitedFor: bigint};
-		expect(attendance.waitedFor).toEqual(1n);
+		expect(attendance.waitedFor).toEqual(0n);
 		// The table's seat is its own: the world's stake seated nobody there.
 		const [, members] = await table.read.roster();
 		expect(members).toEqual([idOf(table.alice)]);
@@ -268,40 +270,33 @@ describe('games for a fixed set of players', function () {
 		// Cycle one: everyone acts, and both phases close early.
 		const first = await table.read.cycle();
 		expect(first.commiting).toEqual(true);
-		const turns: [`0x${string}`, Placement[]][] = [
-			[table.creator, [{cellID: 1n}]],
-			[table.alice, [{cellID: 1n}, {cellID: 2n}]],
-			[table.bob, [{cellID: 3n}]],
+		const turns: [`0x${string}`, Move[]][] = [
+			[table.creator, []],
+			[table.alice, []],
+			[table.bob, []],
 		];
-		for (const [account, placements] of turns) {
-			await table.commit(account, placements);
+		for (const [account, moves] of turns) {
+			await table.commit(account, moves);
 		}
 		await table.advance();
 		const revealing = await table.read.cycle();
 		expect(revealing.commiting).toEqual(false);
 		expect(revealing.phaseEnd).toEqual(first.phaseEnd + 15n);
-		for (const [account, placements] of turns) {
-			await table.reveal(account, placements);
+		for (const [account, moves] of turns) {
+			await table.reveal(account, moves);
 		}
 		await table.advance();
 		const second = await table.read.cycle();
 		expect(second.cycleNumber).toEqual(first.cycleNumber + 1n);
 		expect(second.commiting).toEqual(true);
-		expect((await table.read.cell(1n)).numClaimants).toEqual(2);
-		// The world's board is not the table's.
-		const worldCell = (await table.env.read(table.Game, {
-			functionName: 'getCell',
-			args: [1n],
-		})) as {numClaimants: number};
-		expect(worldCell.numClaimants).toEqual(0);
 
 		// Cycle two: Bob is gone. Nothing closes early; the clock does.
-		await table.commit(table.creator, [{cellID: 4n}]);
+		await table.commit(table.creator, []);
 		await table.commit(table.alice, []);
 		await expect(table.advance()).toBeRejectedWith(/StillWaitingToCommit/);
 		await table.advanceToTime(Number(second.phaseEnd), true);
 		expect((await table.read.cycle()).commiting).toEqual(false);
-		await table.reveal(table.creator, [{cellID: 4n}]);
+		await table.reveal(table.creator, []);
 		await table.reveal(table.alice, []);
 		const revealEnd = (await table.read.cycle()).phaseEnd;
 		await table.advanceToTime(Number(revealEnd), true);
@@ -317,14 +312,13 @@ describe('games for a fixed set of players', function () {
 		);
 		await table.forfeit(table.bob);
 		expect((await table.read.attendance()).waitedFor).toEqual(2n);
-		await table.commit(table.alice, [{cellID: 5n}]);
+		await table.commit(table.alice, []);
 		await table.advance();
 		await table.reveal(table.creator, []);
-		await table.reveal(table.alice, [{cellID: 5n}]);
+		await table.reveal(table.alice, []);
 		await table.advance();
 		const fourth = await table.read.cycle();
 		expect(fourth.cycleNumber).toEqual(third.cycleNumber + 1n);
-		expect((await table.read.cell(5n)).numClaimants).toEqual(1);
 		await expect(table.join(table.bob)).toBeRejectedWith(/GameAlreadyStarted/);
 	});
 
@@ -346,22 +340,21 @@ describe('games for a fixed set of players', function () {
 
 		// Cycle one of two, closed early.
 		const first = await table.read.cycle();
-		await table.commit(table.creator, [{cellID: 1n}]);
-		await table.commit(table.alice, [{cellID: 2n}]);
+		await table.commit(table.creator, []);
+		await table.commit(table.alice, []);
 		await table.advance();
-		await table.reveal(table.creator, [{cellID: 1n}]);
-		await table.reveal(table.alice, [{cellID: 2n}]);
+		await table.reveal(table.creator, []);
+		await table.reveal(table.alice, []);
 		await table.advance();
 
 		// The last cycle: Alice commits and never reveals.
 		const last = await table.read.cycle();
 		expect(last.cycleNumber).toEqual(first.cycleNumber + 1n);
 		expect((await table.read.end()).lastCycleNumber).toEqual(last.cycleNumber);
-		await table.commit(table.creator, [{cellID: 3n}]);
-		await table.commit(table.alice, [{cellID: 4n}]);
+		await table.commit(table.creator, []);
+		await table.commit(table.alice, []);
 		await table.advance();
-		await table.reveal(table.creator, [{cellID: 3n}]);
-		expect((await table.read.cell(3n)).numClaimants).toEqual(1);
+		await table.reveal(table.creator, []);
 		const revealEnd = (await table.read.cycle()).phaseEnd;
 		await table.advanceToTime(Number(revealEnd), true);
 
@@ -388,25 +381,21 @@ describe('games for a fixed set of players', function () {
 		).toBeRejected();
 	});
 
-	it("keeps a table's commit and worst reveal under the lobby's declared gas", async function () {
+	it("keeps a table's commit and reveal under the lobby's declared gas", async function () {
 		const table = await createTable(2);
 		await table.join(table.creator);
 		await table.join(table.alice);
 		const startReceipt = await table.start(table.creator);
 
-		// The reveal's worst case, as `GasBudget.test.ts` builds it for the
-		// world: a full chunk of first claims, each in a different zone.
-		const cellAt = (x: number, y: number) =>
-			(BigInt.asUintN(32, BigInt(y)) << 32n) + BigInt.asUintN(32, BigInt(x));
-		const placements = Array.from({length: table.actionsPerReveal}, (_, i) => ({
-			cellID: cellAt(i * 40, 100),
-		}));
+		// A seated account can only pass until chess seats armies here, so a
+		// pass is the only submission there is to measure.
+		const moves: Move[] = [];
 		const commitReceipt = await table.env.execute(table.Table, {
 			account: table.creator,
 			functionName: 'makeCommitment',
 			args: [
 				idOf(table.creator),
-				commitmentHashFor(placements, SECRET, table.actionsPerReveal),
+				commitmentHashFor(moves, SECRET, table.actionsPerReveal),
 				TURN_BOND,
 				'0x0000000000000000000000000000000000000000',
 			],
@@ -418,7 +407,7 @@ describe('games for a fixed set of players', function () {
 			functionName: 'reveal',
 			args: [
 				idOf(table.creator),
-				placements,
+				moves,
 				SECRET,
 				'0x000000000000000000000000000000000000000000000000',
 				'0x0000000000000000000000000000000000000000',
