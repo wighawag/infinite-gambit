@@ -22,6 +22,12 @@ Capturing a king is how the game is won (checkmate means nothing). See `docs/adr
 - **Extend the "dead" predicate** (from `chess-deployment-collisions`) with captured armies, so the `advanceCycle` sweep stops waiting for them and the offline world keeps advancing after a capture.
 - The client shows the merge (the captured army changes colour/owner) and the captor's new stake.
 
+> FORWARD-POINTER (conductor, from what landed before this task; see the `## Decisions` of `chess-moves`, `chess-deployment-collisions` and `chess-collisions` in `work/tasks/done/`):
+> - **`ChessRules.settle` and `ChessRules.outcome` are one table in two functions** (`outcome` feeds the `getOutcomes` view and the client's "what happened" display). Add the king rows to BOTH, with tests on both.
+> - **The registry's king is "where the army's last king move took it"** (`_kingAt`, from `kingFrom`/`kingTo`/`kingMovedIn` on the army record, written only by the army's own reveals). That now has to become the resolved truth: a king that died in a collision or was captured is no longer there, and the owner/stake of a merged army follow the "captured into" pointer.
+> - **Extend the ONE `_isDead` predicate** in `UsingGameInternal.sol` (today: failed / cancelled / unrevealed deployment); `getAttendance` subtracts dead armies via `_effectiveAttendance`, and a dead army's commit reverts `NotInGame`. A captured army must stop being waited for AND be unable to commit; the captor keeps one move per cycle.
+> - **Stake moves are reserve moves** (`CommitReveal.debit`/`_addToReserve` between army ids): never let a captured army's reserve be withdrawable, and never credit an account id.
+
 ## Acceptance criteria
 
 - [ ] A lone capture of a king moves its stake to the captor king and its pieces to the captor army.
