@@ -1,0 +1,3 @@
+# The stake is the template's ERC20 reserve, redeemable for ETH, and only an exit can withdraw it
+
+A fixed stake is taken from the template's ERC20 reserve, which `StakeSale` sells for native ETH in one transaction. `StakeSale` gains a `redeem` at the same fixed price, so to a player it is ETH in and ETH out. We kept the reserve rather than holding native ETH in the game because the template's commit, forfeit and settlement code already works on it and other ERC20 stakes become possible later at no cost. The reserve's ordinary withdraw-to-leave path is disabled: the only way a stake leaves is a king reaching an exit square, otherwise a losing army could simply cash out.
