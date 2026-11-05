@@ -278,6 +278,11 @@ export async function deployGameWith(
 		startTime?: bigint;
 		/** THE CHUNK. Deliberately overridable: see `deployedActionsPerReveal`. */
 		actionsPerReveal?: bigint;
+		/**
+		 * The spawn grid's spacing (16 by default, the world's). A suite about
+		 * moves deploys at 6, the tightest grid, so armies meet in a cycle.
+		 */
+		spawnSpacing?: bigint;
 	},
 ) {
 	const {env} = fixtures;
@@ -293,7 +298,7 @@ export async function deployGameWith(
 		// line every branch has to rewrite.
 		tokens: fixtures.GameToken.address,
 		stake: DEFAULT_STAKE,
-		spawnSpacing: 16n,
+		spawnSpacing: options.spawnSpacing ?? 16n,
 		openSpawnPoints: 8n,
 		actionsPerReveal: options.actionsPerReveal ?? DEFAULT_ACTIONS_PER_REVEAL,
 		cyclePolicy: BigInt(options.cyclePolicy),
@@ -303,6 +308,7 @@ export async function deployGameWith(
 		{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
 		{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 		{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
+		{name: 'Simulation', artifact: artifacts.GameSimulation, args: [config]},
 		{name: 'Delegation', artifact: artifacts.GameDelegation, args: []},
 	];
 

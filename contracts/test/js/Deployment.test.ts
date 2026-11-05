@@ -619,7 +619,7 @@ describe('Deploying an army', function () {
 		}
 	});
 
-	it('lets a deployed army pass, and refuses a move until moves are a rule', async function () {
+	it('lets a deployed army pass, and move once it stands on the board', async function () {
 		const w = await world();
 		const army = await w.deploy(w.alice, spawn(0, 0));
 		await w.toRevealPhase();
@@ -645,8 +645,7 @@ describe('Deploying an army', function () {
 				secret: SECRET_A,
 				actionsPerReveal: w.actionsPerReveal,
 			});
-			if (moves.length === 0) await reveal;
-			else await expect(reveal).toBeRejectedWith(/IllegalMove/);
+			await reveal;
 			await w.toNextCycle();
 		}
 	});

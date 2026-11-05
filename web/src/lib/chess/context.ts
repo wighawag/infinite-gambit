@@ -54,6 +54,7 @@ import {
 // ---------------------------------------------------------------------------
 import {resolveChessConfig, type ChessConfig} from './config';
 import {
+	bondFor,
 	buildMoveCommitment,
 	createChessCommitReveal,
 	gameContract,
@@ -85,12 +86,20 @@ import {
 	emptyBoard,
 	zonesForCamera,
 	type BoardState,
+	type Piece,
 } from './board';
+import {squareAt} from './squares';
 import {mergeBoardView, type BoardView} from './view';
 import {createDeploymentPreview, withPreview} from './preview';
 import {createBytecodeSandbox} from '$lib/game/simulation';
 import {createGameRenderer, type GameSurface} from './render';
-import {createArmies, isLive, type ArmiesStore, type ArmyView} from './armies';
+import {
+	ARMY_STATUS,
+	createArmies,
+	isLive,
+	type ArmiesStore,
+	type ArmyView,
+} from './armies';
 import {
 	awaitedDeployersOn,
 	countStillToDeploy,
@@ -123,7 +132,7 @@ export type Game = {
 	submission: SubmissionStore<GameIdentity, Move, FuzdExtensions>;
 	revealSchedule: Readable<ScheduledReveal | undefined>;
 	cycleAdvance: CycleAdvanceStore;
-	/** Clicks into a planned deployment. */
+	/** Clicks into a planned deployment or move. */
 	planning: PlanningStore;
 	/**
 	 * The ACCOUNT's reserve: stake bought and not yet deployed, freely
@@ -239,6 +248,12 @@ export function createGameContext(core: CoreServices): GameContext {
 			$armies.step === 'Loaded' && ($army === undefined || !isLive($army)),
 	);
 
+	// An army acts from the cycle after it lands, and only while it stands.
+	const canMove = derived(
+		armies.activeArmy,
+		($army) => $army?.status === ARMY_STATUS.Deployed,
+	);
+
 	const refreshStake = () => Promise.all([reserve.update(), armies.update()]);
 
 	// Keyed by WHO PLAYS (an army), in the account data. Typed with the layers'
@@ -280,8 +295,9 @@ export function createGameContext(core: CoreServices): GameContext {
 
 	// THE GAME'S RULES, RUN FROM THEIR OWN BYTECODE: the Simulation route's code
 	// is read once and run in a sandbox, so the army drawn for a planned spawn
-	// point is the layout the board will resolve. Nothing is fetched until a
-	// spawn point is planned.
+	// point is the layout the board will resolve, and the squares highlighted
+	// for a selected piece are the moves the reveal will accept. Nothing is
+	// fetched until a spawn point is planned or a piece selected.
 	const sandbox = createBytecodeSandbox({
 		provider: core.publicClient,
 		contracts: {
@@ -305,6 +321,14 @@ export function createGameContext(core: CoreServices): GameContext {
 			forward: number;
 			moved: boolean;
 		}[];
+	const legalMoves = async (pieces: readonly Piece[], from: bigint) => [
+		...((await sandbox.call({
+			contract: 'rules',
+			abi: deployments.contracts.Game.abi,
+			functionName: 'legalMoves',
+			args: [pieces, from],
+		})) as unknown as readonly bigint[]),
+	];
 
 	// Under a manual cycle (the offline world) nothing moves until every army
 	// has acted, so a deployed army's pass has to be SENT: the player presses
@@ -409,11 +433,14 @@ export function createGameContext(core: CoreServices): GameContext {
 			}),
 			grant: SIGNER_GRANT,
 		},
-		planning: ({submission}) => {
+		planning: ({submission, onchainState}) => {
 			const planning = createPlanning({
 				submission,
 				needsDeployment,
+				canMove,
 				army: activeIdentity,
+				board: onchainState,
+				legalMoves,
 			});
 			const preview = createDeploymentPreview({plan: planning.plan, simulate});
 			return {...planning, plan: withPreview(planning.plan, preview)};
@@ -422,16 +449,18 @@ export function createGameContext(core: CoreServices): GameContext {
 		holdPlan: holdPlanUntilBoardReleases,
 		merge: mergeBoardView,
 		renderer: ({viewState}) => createGameRenderer({viewState}),
-		// The canvas reports WHERE, in squares and unsnapped; which spawn point
-		// that picks is this game's. Rounded because squares are centred on their
-		// integer coordinate.
+		// The canvas reports WHERE, in squares and unsnapped; which spawn point or
+		// square that picks is this game's. Rounded because squares are centred
+		// on their integer coordinate.
 		click: (position, {planning}) => {
 			const board = get(crg.onchainState);
 			if (board.step !== 'Loaded') return;
-			const picked = spawnPointNear(
-				{x: Math.round(position.x), y: Math.round(position.y)},
-				board.spawnPoints,
-			);
+			const square = {x: Math.round(position.x), y: Math.round(position.y)};
+			if (!get(needsDeployment)) {
+				planning.click(squareAt(square.x, square.y));
+				return;
+			}
+			const picked = spawnPointNear(square, board.spawnPoints);
 			if (picked !== undefined) planning.choose(picked);
 		},
 		start: () => {
@@ -451,8 +480,10 @@ export function createGameContext(core: CoreServices): GameContext {
 		},
 	});
 
-	const cost = derived(crg.game.planning.count, ($count) =>
-		$count > 0 ? config.stake : 0n,
+	// A deployment moves the stake out of the account's reserve; a move or a
+	// pass costs it nothing.
+	const cost = derived(crg.game.planning.actions, ($actions) =>
+		bondFor(config, $actions),
 	);
 
 	const revealSchedule = createScheduledReveal({

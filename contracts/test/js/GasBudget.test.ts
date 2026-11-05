@@ -6,9 +6,13 @@ import {
 	fundAccount,
 	commitDeployment,
 	revealDeployment,
+	commitmentChain,
+	commitmentHashFor,
 	squareAt,
+	TURN_BOND,
+	type Move,
 } from './utils/index.js';
-import {parseEther} from 'viem';
+import {parseEther, zeroAddress} from 'viem';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -27,12 +31,15 @@ import {parseEther} from 'viem';
  * the contracts, rather than in a player's wallet a release later.
  *
  * IT ASSERTS THE WORST CASE, NOT A TYPICAL ONE. A chess submission is one
- * action, and today it is a deployment or a pass. The worst commit is the
- * first DEPLOYMENT, when every slot it writes is cold: it creates the army,
- * moves the stake between two reserves, starts waiting for the army and then
- * commits. The worst reveal is a deployment's too, the first one ever, which
- * writes the whole open set of spawn points beside the spawn point's record.
- * Moves (`chess-moves`) will have a worse reveal, and it is measured here then.
+ * action: a deployment, a pass or a move. The worst commit is the first
+ * DEPLOYMENT, when every slot it writes is cold: it creates the army, moves
+ * the stake between two reserves, starts waiting for the army and then
+ * commits. The worst reveal is the most expensive of three: the first
+ * deployment ever (which writes the whole open set of spawn points beside the
+ * spawn point's record), a king's move (which reads the eight squares around
+ * its destination on its own footprint), and a slider's longest move, 7
+ * squares over a path of squares whose facts are many idle cycles old (each
+ * read resolves its record, and the origin and the destination fold theirs).
  *
  * IT IS TWO-SIDED, BECAUSE THE FIGURES ARE NOW CEILINGS. The client passes them
  * as the gas LIMIT on every commit and every reveal, so a transaction that needs
@@ -115,7 +122,65 @@ describe('the declared gas budget', function () {
 			{env, Game},
 			{account: player, army, spawnPoint, secret: SECRET, actionsPerReveal},
 		);
-		const revealUsed = BigInt(revealReceipt.gasUsed);
+		const deploymentRevealUsed = BigInt(revealReceipt.gasUsed);
+
+		// THE MOVES, by the same army, one per cycle.
+		let cycle = start + 2;
+		async function revealMove(m: Move): Promise<bigint> {
+			cycle += 1;
+			await advanceToCycleNumber(cycle, true);
+			await env.execute(Game, {
+				account: player,
+				functionName: 'makeCommitment',
+				args: [
+					army,
+					commitmentHashFor([m], SECRET, actionsPerReveal),
+					TURN_BOND,
+					zeroAddress,
+				],
+			});
+			await advanceToRevealPhase(cycle, true);
+			const {chunks} = commitmentChain([m], SECRET, actionsPerReveal);
+			const receipt = await env.execute(Game, {
+				account: player,
+				functionName: 'reveal',
+				args: [
+					army,
+					chunks[0].moves,
+					SECRET,
+					chunks[0].furtherActions,
+					zeroAddress,
+				],
+			});
+			return BigInt(receipt.gasUsed);
+		}
+		// The army stands on (0,-16) facing South: its king on (1,-17), next to
+		// the empty corner (2,-18), which it steps into; its queen on (-2,-16)
+		// behind the pawn on (-3,-16), which advances West.
+		const kingRevealUsed = await revealMove({
+			from: squareAt(1, -17),
+			to: squareAt(2, -18),
+		});
+		// The pawn walks 8 squares West, one a cycle, leaving a stale record on
+		// every square of the row; then the queen behind it slides 7 squares
+		// over them, many idle cycles later.
+		await revealMove({from: squareAt(-3, -16), to: squareAt(-4, -16)});
+		for (let x = -4; x > -11; x--) {
+			await revealMove({from: squareAt(x, -16), to: squareAt(x - 1, -16)});
+		}
+		cycle += 10;
+		const sliderRevealUsed = await revealMove({
+			from: squareAt(-2, -16),
+			to: squareAt(-9, -16),
+		});
+		const revealUsed = [
+			deploymentRevealUsed,
+			kingRevealUsed,
+			sliderRevealUsed,
+		].reduce((a, b) => (a > b ? a : b));
+		console.log(
+			`gas budget: reveals: deployment ${deploymentRevealUsed}, king ${kingRevealUsed}, 7-square slider ${sliderRevealUsed}`,
+		);
 
 		assert.ok(
 			commitUsed <= declaredCommit,
@@ -124,7 +189,7 @@ describe('the declared gas budget', function () {
 		);
 		assert.ok(
 			revealUsed <= declaredReveal,
-			`a deployment's reveal costs ${revealUsed} gas and the deployment declares revealGas ${declaredReveal}. ` +
+			`the worst reveal costs ${revealUsed} gas and the deployment declares revealGas ${declaredReveal}. ` +
 				`Raise it in contracts/rocketh/config.ts: a reveal that runs out of gas is a missed reveal.`,
 		);
 

@@ -41,6 +41,41 @@ abstract contract UsingGameStore is
         uint64 deployCycle;
         /// @notice the spiral index it revealed, plus one; zero until revealed
         uint32 spawnIndexPlusOne;
+        // ---- second slot: where its king went, written by its own reveals
+        /// @notice the cycle its king last moved in; zero while it stands
+        ///         where it was deployed
+        uint64 kingMovedIn;
+        /// @notice where that move took it
+        uint64 kingTo;
+        /// @notice where it stood before that move
+        uint64 kingFrom;
+    }
+
+    /// @notice What the reveals have recorded about one square.
+    /// @dev THE PER-SQUARE LAYER, and it holds facts rather than the board
+    ///      (`docs/adr/0002-order-free-lazy-resolution.md`): the piece that
+    ///      stood there at the start of `cycle`, and what `cycle`'s reveals
+    ///      ACCUMULATED about it (the piece leaving, how many pieces arrived,
+    ///      the lone arriver, whether a king arrived). What stands there in any
+    ///      later cycle is {ChessRules-settle} of the two, worked out when the
+    ///      square is read; `cycle` is the LAST TOUCHED cycle, so idle cycles
+    ///      cost nothing. A square no reveal ever touched has no record and
+    ///      reads as the layout of the army deployed over it, if any.
+    ///
+    ///      Three slots: the standing piece's army, everything small, and the
+    ///      arriver's army.
+    struct SquareRecord {
+        uint256 army;
+        uint64 cycle;
+        PieceKind kind;
+        Direction forward;
+        bool moved;
+        bool departed;
+        uint32 arrivals;
+        bool kingArrived;
+        PieceKind arriverKind;
+        Direction arriverForward;
+        uint256 arriverArmy;
     }
 
     /// @notice What the deployments revealed onto one spawn point add up to.
@@ -66,6 +101,16 @@ abstract contract UsingGameStore is
 
     /// @notice Deployments, by the spiral index of their spawn point.
     mapping(uint256 index => SpawnRecord) internal _spawns;
+
+    /// @notice The per-square layer, by packed position.
+    mapping(uint64 position => SquareRecord) internal _squares;
+
+    /// @notice THE ZONE INDEX: for each 16x16 zone (`PositionUtils.getZone`),
+    ///         a bit per square that has a record, so the viewport read finds
+    ///         them without reading every square in view.
+    /// @dev Only ever OR-ed into, so the set it holds is the same whatever
+    ///      order the reveals land in, and so is the order the read lists it.
+    mapping(uint64 zone => uint256 squares) internal _touchedSquares;
 
     /// @notice THE OPEN SET as it was last written: the spiral indices of the
     ///         open spawn points, and the first index never yet open.

@@ -20,6 +20,11 @@ interface UsingGameErrors is UsingCommitRevealErrors {
     /// @notice The spawn point was not open at the start of this cycle.
     error SpawnPointNotOpen(uint64 position);
 
-    /// @notice The move is not one this army may make.
+    /// @notice The move is not one this army may make on the board as it stood
+    ///         at the start of the cycle.
     error IllegalMove(uint64 from, uint64 to);
+
+    /// @notice A submission after an army's deployment is a pass (nothing) or
+    ///         exactly one move, in one chunk.
+    error OneMovePerCycle();
 }
