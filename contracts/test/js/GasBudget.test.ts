@@ -3,12 +3,12 @@ import assert from 'node:assert';
 import {network} from 'hardhat';
 import {
 	setupFixtures,
-	enterGame,
-	commitmentChain,
-	commitmentHashFor,
-	type Placement,
+	fundAccount,
+	commitDeployment,
+	revealDeployment,
+	squareAt,
 } from './utils/index.js';
-import {parseEther, zeroAddress} from 'viem';
+import {parseEther} from 'viem';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -17,7 +17,7 @@ import {parseEther, zeroAddress} from 'viem';
  * `commitGas` and `revealGas` are declared by the deploy
  * (`rocketh/config.ts`), recorded in the Game's `linkedData`, and read by the
  * client to size the gas stipend a new player is given. They used to be
- * constants in `web/src/lib/placement/config.ts`, which is INHERITED down this
+ * constants in the template game's client config, which is INHERITED down this
  * template tree while contracts are NOT - so a descendant budgeted with figures
  * measured against a game it does not run, in a file whose text did not differ.
  *
@@ -26,12 +26,13 @@ import {parseEther, zeroAddress} from 'viem';
  * expensive than the deployment claims fails HERE, in the suite that ships with
  * the contracts, rather than in a player's wallet a release later.
  *
- * IT ASSERTS THE WORST CASE, NOT A TYPICAL ONE. For the reveal that is a FULL
- * chunk of cells claimed for the first time, each in a different zone, because
- * `_place` appends to a per-zone index only on a cell's first claim: four first
- * claims across four zones is four new dynamic arrays and there is no more
- * expensive shape a single reveal can take. For the commit it is the FIRST one
- * a player makes, when every slot it writes is cold.
+ * IT ASSERTS THE WORST CASE, NOT A TYPICAL ONE. A chess submission is one
+ * action, and today it is a deployment or a pass. The worst commit is the
+ * first DEPLOYMENT, when every slot it writes is cold: it creates the army,
+ * moves the stake between two reserves, starts waiting for the army and then
+ * commits. The worst reveal is a deployment's too, the first one ever, which
+ * writes the whole open set of spawn points beside the spawn point's record.
+ * Moves (`chess-moves`) will have a worse reveal, and it is measured here then.
  *
  * IT IS TWO-SIDED, BECAUSE THE FIGURES ARE NOW CEILINGS. The client passes them
  * as the gas LIMIT on every commit and every reveal, so a transaction that needs
@@ -44,12 +45,6 @@ import {parseEther, zeroAddress} from 'viem';
 const {provider, networkHelpers} = await network.connect();
 const {deployAll} = setupFixtures(provider);
 
-function cellAt(x: number, y: number): bigint {
-	const ux = BigInt.asUintN(32, BigInt(x));
-	const uy = BigInt.asUintN(32, BigInt(y));
-	return (uy << 32n) + ux;
-}
-
 const SECRET =
 	'0x00000000000000000000000000000000000000000000000000000000000000a1';
 
@@ -61,9 +56,8 @@ const GENEROSITY_CEILING = 3n;
  *
  * Ten per cent, and the number is a judgement rather than a measurement, so
  * here is what it is buying. The case measured below is the worst case these
- * contracts can reach today - a full chunk of cells claimed for the first time,
- * each in a different zone - so the headroom is not covering a shape the test
- * missed. It covers the two things the test cannot see: a chain that prices
+ * contracts can reach today - the first deployment - so the headroom is not
+ * covering a shape the test missed. It covers the two things the test cannot see: a chain that prices
  * some opcode differently from the one this runs on, and the contracts growing
  * a little between one re-measurement and the next.
  *
@@ -101,66 +95,42 @@ describe('the declared gas budget', function () {
 		const declaredCommit = BigInt(linkedData.commitGas);
 		const declaredReveal = BigInt(linkedData.revealGas);
 
-		const player = unnamedAccounts[0];
+		const player = unnamedAccounts[0] as `0x${string}`;
 		const {cycleNumber: start} = getCycleNumber(await getTimestamp());
 		await advanceToCycleNumber(start + 2, true);
-		const identity = await enterGame({env, Game, GameToken}, player, {
-			amount: parseEther('100'),
-		});
+		await fundAccount({env, Game, GameToken}, player);
 
-		// The worst case a chunk can reach: every cell fresh, every cell in a
-		// different zone.
-		const turn: Placement[] = Array.from(
-			{length: actionsPerReveal},
-			(_, i) => ({cellID: cellAt(i * 40, 100)}),
+		// The first deployment ever: every slot cold, and the reveal writes the
+		// whole open set. The last spawn point of that set, so the reveal reads
+		// all of it before finding its own.
+		const spawnPoint = squareAt(0, -16);
+		const {army, receipt: commitReceipt} = await commitDeployment(
+			{env, Game},
+			{owner: player, spawnPoint, secret: SECRET, actionsPerReveal},
 		);
-		const {chunks} = commitmentChain(turn, SECRET, actionsPerReveal);
-
-		// A FIRST commit, which is the cold-slot case.
-		const commitReceipt = await env.execute(Game, {
-			account: player,
-			functionName: 'makeCommitment',
-			args: [
-				identity,
-				commitmentHashFor(turn, SECRET, actionsPerReveal),
-				parseEther('10'),
-				zeroAddress,
-			],
-		});
 		const commitUsed = BigInt(commitReceipt.gasUsed);
 
-		const {cycleNumber} = getCycleNumber(await getTimestamp());
-		await advanceToRevealPhase(cycleNumber, true);
-		const revealReceipt = await env.execute(Game, {
-			account: player,
-			functionName: 'reveal',
-			args: [
-				identity,
-				chunks[0].placements,
-				SECRET,
-				chunks[0].furtherActions,
-				zeroAddress,
-			],
-		});
+		await advanceToRevealPhase(start + 2, true);
+		const revealReceipt = await revealDeployment(
+			{env, Game},
+			{account: player, army, spawnPoint, secret: SECRET, actionsPerReveal},
+		);
 		const revealUsed = BigInt(revealReceipt.gasUsed);
 
 		assert.ok(
 			commitUsed <= declaredCommit,
-			`a first commit costs ${commitUsed} gas and the deployment declares commitGas ${declaredCommit}. ` +
-				`Raise it in contracts/rocketh/config.ts: the client sizes a new player's gas stipend from it, ` +
-				`and if it is ever passed as a LIMIT this is a missed reveal rather than a slow one.`,
+			`a first deployment commit costs ${commitUsed} gas and the deployment declares commitGas ${declaredCommit}. ` +
+				`Raise it in contracts/rocketh/config.ts: it is the gas LIMIT of every commit.`,
 		);
 		assert.ok(
 			revealUsed <= declaredReveal,
-			`a full fresh chunk of ${actionsPerReveal} costs ${revealUsed} gas and the deployment declares revealGas ${declaredReveal}. ` +
-				`Raise it in contracts/rocketh/config.ts, and note that a chunk is what this bounds: ` +
-				`raising actionsPerReveal raises this figure roughly in proportion.`,
+			`a deployment's reveal costs ${revealUsed} gas and the deployment declares revealGas ${declaredReveal}. ` +
+				`Raise it in contracts/rocketh/config.ts: a reveal that runs out of gas is a missed reveal.`,
 		);
 
-		// WITH ROOM TO SPARE, because the figure is a CEILING and not a
-		// reservation: the client passes it as the gas limit, so a transaction that
-		// needs more does not cost more, it runs OUT OF GAS. On a reveal that is a
-		// missed reveal and the stake is forfeited.
+		// THE HEADROOM. Passing the checks above is not enough for a figure that
+		// is a LIMIT: a contract change of a few per cent would then be a missed
+		// reveal in production with every suite green.
 		const required = (measured: bigint) =>
 			(measured * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n;
 		assert.ok(
@@ -171,12 +141,12 @@ describe('the declared gas budget', function () {
 		assert.ok(
 			declaredReveal >= required(revealUsed),
 			`revealGas is declared at ${declaredReveal} against a measured ${revealUsed}, which is less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
-				`It is passed as a gas LIMIT on every reveal, and a reveal that runs out of gas is a missed reveal, which forfeits the stake.`,
+				`It is passed as a gas LIMIT on every reveal, and a reveal that runs out of gas is a missed reveal.`,
 		);
 
-		// AND THE OTHER DIRECTION, loosely. A budget that has drifted far above
-		// what the contracts cost is not dangerous, but it over-funds every
-		// stipend and it means nobody has re-measured in a long time.
+		// And not absurdly generous: an over-declared limit still prices a
+		// player's credits, so a figure far above the truth has simply not been
+		// re-measured.
 		assert.ok(
 			declaredCommit <= commitUsed * GENEROSITY_CEILING,
 			`commitGas is declared at ${declaredCommit} against a measured ${commitUsed}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
@@ -187,20 +157,14 @@ describe('the declared gas budget', function () {
 		);
 
 		console.log(
-			`gas budget: commit ${commitUsed}/${declaredCommit}, reveal ${revealUsed}/${declaredReveal} at ${actionsPerReveal} actions per reveal`,
+			`gas budget: commit ${commitUsed}/${declaredCommit}, reveal ${revealUsed}/${declaredReveal}`,
 		);
 	});
 
-	it('covers a first commit that pays a reveal scheduler a fresh account', async function () {
-		// THE COMMIT CARRIES A PAYMENT when a game hands the skeleton a reveal
-		// scheduler (`RevealScheduler`, P3): `makeCommitment` forwards `msg.value`
-		// to `payee`, the scheduler's account for this player (fuzd's remote
-		// account on `with/fuzd`). The first time, that account holds nothing, and
-		// sending value to an empty account is the dearest call there is (the
-		// value transfer, the cold account, and creating it). It is the first
-		// commit a scheduled player makes, so a budget measured without it makes
-		// every player's first scheduled turn run out of gas: measured at 152,154
-		// against the 150,000 this used to declare.
+	it('covers a first deployment commit that pays a reveal scheduler a fresh account', async function () {
+		// A game with a reveal scheduler makes the commit carry its payment,
+		// forwarded to `payee`; the first payment goes to an account that holds
+		// nothing, which costs the value transfer and creating the account.
 		const fixtures = await networkHelpers.loadFixture(deployAll);
 		const {
 			env,
@@ -215,19 +179,11 @@ describe('the declared gas budget', function () {
 		} = fixtures;
 		const declaredCommit = BigInt(linkedData.commitGas);
 
-		const player = unnamedAccounts[0];
+		const player = unnamedAccounts[0] as `0x${string}`;
 		const {cycleNumber: start} = getCycleNumber(await getTimestamp());
 		await advanceToCycleNumber(start + 2, true);
-		const identity = await enterGame({env, Game, GameToken}, player, {
-			amount: parseEther('100'),
-		});
-		const turn: Placement[] = Array.from(
-			{length: actionsPerReveal},
-			(_, i) => ({cellID: cellAt(i * 40, 100)}),
-		);
+		await fundAccount({env, Game, GameToken}, player);
 
-		// An address nothing has ever touched: the scheduler's account before its
-		// first payment.
 		const freshPayee = '0x00000000000000000000000000000000000f00d1';
 		const balanceBefore = await provider.request({
 			method: 'eth_getBalance',
@@ -235,17 +191,17 @@ describe('the declared gas budget', function () {
 		});
 		assert.strictEqual(BigInt(balanceBefore as string), 0n);
 
-		const receipt = await env.execute(Game, {
-			account: player,
-			functionName: 'makeCommitment',
-			args: [
-				identity,
-				commitmentHashFor(turn, SECRET, actionsPerReveal),
-				parseEther('10'),
-				freshPayee,
-			],
-			value: parseEther('0.0012'),
-		});
+		const {receipt} = await commitDeployment(
+			{env, Game},
+			{
+				owner: player,
+				spawnPoint: squareAt(0, 0),
+				secret: SECRET,
+				actionsPerReveal,
+				payee: freshPayee,
+				value: parseEther('0.0012'),
+			},
+		);
 		const used = BigInt(receipt.gasUsed);
 		const balanceAfter = await provider.request({
 			method: 'eth_getBalance',
@@ -259,9 +215,9 @@ describe('the declared gas budget', function () {
 
 		assert.ok(
 			declaredCommit >= (used * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
-			`a first commit paying a fresh payee costs ${used} gas and the deployment declares commitGas ${declaredCommit}, ` +
+			`a first deployment commit paying a fresh payee costs ${used} gas and the deployment declares commitGas ${declaredCommit}, ` +
 				`which is less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. It is the gas LIMIT of every commit, ` +
-				`so a scheduled player's first turn would run out of gas. Raise it in contracts/rocketh/config.ts.`,
+				`so a scheduled player's first deployment would run out of gas. Raise it in contracts/rocketh/config.ts.`,
 		);
 		console.log(`gas budget: paid first commit ${used}/${declaredCommit}`);
 	});
@@ -270,11 +226,6 @@ describe('the declared gas budget', function () {
 		const fixtures = await networkHelpers.loadFixture(deployAll);
 		const {linkedData} = fixtures;
 
-		// `creditsGasMultiplier` prices ONE user action, which since the reveal
-		// became chunked is a commit plus one reveal STEP. It is derived from
-		// these two in `rocketh/config.ts` rather than typed out again, because
-		// the last time it was a second copy it merged cleanly into a branch
-		// whose contracts cost 30% less and priced a credit 58% too high.
 		const sum = BigInt(linkedData.commitGas) + BigInt(linkedData.revealGas);
 		assert.ok(sum > 0n, 'the deployment declares no gas budget at all');
 	});

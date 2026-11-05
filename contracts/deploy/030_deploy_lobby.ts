@@ -2,7 +2,7 @@ import {Abi_GameToken} from '../generated/abis/GameToken.js';
 import {Abi_IGameLobby} from '../generated/abis/IGameLobby.js';
 import {Abi_CommitRevealGameFactory} from '../generated/abis/CommitRevealGameFactory.js';
 import {deployScript, artifacts} from '../rocketh/deploy.js';
-import {parseEther, zeroAddress} from 'viem';
+import {zeroAddress} from 'viem';
 
 /**
  * GAMES FOR A FIXED SET OF PLAYERS, beside the persistent world.
@@ -28,7 +28,9 @@ export default deployScript(
 			revealPhaseDuration: data.Lobby.revealPhaseDuration,
 			time: zeroAddress,
 			tokens: GameToken.address,
-			placementCost: parseEther('1'),
+			stake: data.Lobby.stake,
+			spawnSpacing: data.Lobby.spawnSpacing,
+			openSpawnPoints: data.Lobby.openSpawnPoints,
 			actionsPerReveal: data.Lobby.actionsPerReveal,
 			cyclePolicy: data.Lobby.cyclePolicy,
 		};

@@ -1,7 +1,7 @@
 import {Abi_GameToken} from '../generated/abis/GameToken.js';
 import {Abi_IGame} from '../generated/abis/IGame.js';
 import {deployScript, artifacts} from '../rocketh/deploy.js';
-import {parseEther, zeroAddress} from 'viem';
+import {zeroAddress} from 'viem';
 
 export default deployScript(
 	async ({get, deployViaProxy, deployViaRouter, namedAccounts, data}) => {
@@ -15,7 +15,13 @@ export default deployScript(
 			revealPhaseDuration: data.Game.revealPhaseDuration,
 			time: zeroAddress,
 			tokens: GameToken.address,
-			placementCost: parseEther('1'),
+			// THE STAKE, what one army holds, and the spawn grid: where armies
+			// may be deployed and how many free spawn points are open at once.
+			// All recorded in `linkedData` below, which is where the client
+			// reads them.
+			stake: data.Game.stake,
+			spawnSpacing: data.Game.spawnSpacing,
+			openSpawnPoints: data.Game.openSpawnPoints,
 			// THE CHUNK: how many actions one reveal transaction may carry. Recorded
 			// in `linkedData` below like everything else the client has to agree with
 			// the contract about, and this one is not optional: a client that split a

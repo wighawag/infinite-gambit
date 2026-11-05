@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {setupNeeded as frameworkSetupNeeded} from '$lib/game/core/commit-reveal-game';
-import {stakeNeeded} from '$lib/placement/context';
+import {stakeNeeded} from '$lib/chess/context';
+import {ARMY_STATUS} from '$lib/chess/armies';
 import type {DelegationValue} from '$lib/onchain/delegation';
 
 /**
@@ -30,7 +31,9 @@ const authorised: DelegationValue = {
 	withdrawn: false,
 };
 
-const staked = {step: 'Loaded', amount: 100n};
+/** One army's stake, as this test's deployment declares it. */
+const STAKE = 100n;
+const staked = {step: 'Loaded', amount: STAKE};
 
 /**
  * The gate as this game composes it: the framework's two ends (signed in,
@@ -40,11 +43,17 @@ function setupNeeded(params: {
 	identity: `0x${string}` | undefined;
 	delegation: DelegationValue;
 	reserve: {step: string; amount?: bigint};
+	army?: {status: (typeof ARMY_STATUS)[keyof typeof ARMY_STATUS]};
 }) {
 	return frameworkSetupNeeded({
 		account: params.identity,
 		delegation: params.delegation,
-		stake: stakeNeeded(params.reserve),
+		stake: stakeNeeded({
+			reserve: params.reserve,
+			army: params.army,
+			armiesLoaded: true,
+			stake: STAKE,
+		}),
 	});
 }
 
@@ -153,5 +162,31 @@ describe('what stands between a player and their first move', () => {
 				reserve: staked,
 			}),
 		).toEqual({step: 'authorise'});
+	});
+
+	it('needs no stake for an army that is deploying or on the board', () => {
+		// The account's stake moved INTO the army when its deployment was
+		// committed, so the account's reserve is empty and that is fine.
+		for (const status of [ARMY_STATUS.Deploying, ARMY_STATUS.Deployed]) {
+			expect(
+				setupNeeded({
+					identity: ACCOUNT,
+					delegation: authorised,
+					reserve: {step: 'Loaded', amount: 0n},
+					army: {status},
+				}),
+			).toBeUndefined();
+		}
+	});
+
+	it('asks for a stake again when the army failed and the reserve cannot pay for another', () => {
+		expect(
+			setupNeeded({
+				identity: ACCOUNT,
+				delegation: authorised,
+				reserve: {step: 'Loaded', amount: STAKE - 1n},
+				army: {status: ARMY_STATUS.Failed},
+			}),
+		).toEqual({step: 'stake'});
 	});
 });

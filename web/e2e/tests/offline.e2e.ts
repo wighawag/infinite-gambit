@@ -173,54 +173,22 @@ describe('Playing offline', () => {
 		// A manual cycle starts at 2 and moves for no reason except a transaction.
 		await expect(page.getByText('cycle 2')).toBeVisible({timeout: 30_000});
 
-		// Plan one placement, through the canvas, because the click path is where
-		// the bugs are (see game.e2e.ts).
 		const canvas = page.locator('canvas');
 		await expect(canvas).toBeVisible({timeout: 30_000});
-		const box = await canvas.boundingBox();
-		if (!box) throw new Error('the canvas has no layout box');
-		await page.mouse.click(
-			box.x + box.width / 2 + 40,
-			box.y + box.height / 2 + 30,
-		);
 
-		await page.getByRole('button', {name: /commit now/i}).click();
+		// ONLY ARMIES ARE MEMBERS, so the person's first submission is a
+		// DEPLOYMENT: pick an open spawn point (nearest the origin first) and
+		// deploy. The seats the world plays deploy beside them.
+		const spawnPoints = page.getByTestId('spawn-point');
+		await expect(spawnPoints.first()).toBeVisible({timeout: 30_000});
+		await spawnPoints.first().click();
+		await page.getByTestId('commit-deployment').click();
 
-		// THE WHOLE CLAIM IN TWO ASSERTIONS. The reveal only happens if somebody
-		// called `advanceCycle` after the commit - a reveal sent in the commit
-		// phase is refused with `InCommitmentPhase` - and cycle 3 only happens if
-		// somebody called it again after the reveal. Nothing in `web/src` did
-		// either until `game/core/advance.ts`.
-		await expect(
-			page.getByText('Revealed. Your placements are on the board.'),
-		).toBeVisible({timeout: 60_000});
-		await expect(page.getByText('cycle 3')).toBeVisible({timeout: 60_000});
-
-		// AND THE OTHER TWO PUT SOMETHING ON THE BOARD, which no count of
-		// transactions can tell you. A player that committed and revealed an empty
-		// turn would satisfy every assertion above and leave the human looking at a
-		// board with one cell on it.
-		//
-		// The chain is minted for this page, so the board started EMPTY and an
-		// absolute count is meaningful here - which it is not in the suites that run
-		// against the shared local chain (see the stake fixture on why those assert
-		// on a change). The claimant count rather than the stake, because a
-		// placement is free on one branch of this template and a stake assertion
-		// would be trivially true there.
-		//
-		// SUMMED OVER THE BOARD RATHER THAN COUNTING CELLS, which is the difference
-		// between an assertion and a coin toss: three players placing one cell each
-		// is three claimants however many of them chose the same cell, and a played
-		// turn is a deterministic function of the cycle, so a collision would be a
-		// permanent failure rather than a flake.
-		//
-		// A FLOOR AND NOT AN EQUALITY, because on a deployment where a placement is
-		// free this quantity is not what its name says. `_place` counts a claimant
-		// when the player's stake on the cell was zero, so at a zero placement cost
-		// it is still zero afterwards and every placement counts again - measured at
-		// nine for three rounds on that branch against seven here. That is a defect
-		// in the contract and not in this test; it is recorded on the `work` branch
-		// and is deliberately not fixed from here.
+		// The deployment lands at the end of its cycle, and the army stands on the
+		// board from the next one.
+		await expect(page.getByTestId('army-status')).toHaveText('On the board.', {
+			timeout: 60_000,
+		});
 		await expect
 			.poll(
 				() =>
@@ -229,10 +197,41 @@ describe('Playing offline', () => {
 					const stop = globalThis.context.viewState.subscribe((v) => (view = v));
 					if (typeof stop === 'function') stop();
 					if (view.step !== 'Loaded') return -1;
-					return [...view.cells.values()].reduce((n, c) => n + c.numClaimants, 0);
+					return view.pieces.size;
 				})()`),
 				{timeout: 30_000},
 			)
-			.toBeGreaterThanOrEqual(3);
+			.toBeGreaterThanOrEqual(20);
+
+		// Then every seat holds an army the cycle waits for, and the person's
+		// pass is what moves it on.
+		await expect
+			.poll(
+				() =>
+					page.evaluate(`(async () => {
+					const world = globalThis.offlineWorld;
+					const records = world.world.deployments.get();
+					const read = (functionName) => world.context.publicClient.readContract({
+						address: records.contracts.Game.address,
+						abi: records.contracts.Game.abi,
+						functionName,
+					});
+					return Number((await read('getAttendance')).waitedFor);
+				})()`),
+				{timeout: 60_000},
+			)
+			.toBe(3);
+		const pass = page.getByTestId('pass');
+		await expect(pass).toBeVisible({timeout: 30_000});
+		const before = await page.evaluate(`(() => {
+			let info;
+			const stop = globalThis.context.game.cycleInfo.subscribe((v) => (info = v));
+			if (typeof stop === 'function') stop();
+			return info.currentCycleNumber;
+		})()`);
+		await pass.click();
+		await expect(page.getByText(`cycle ${Number(before) + 1}`)).toBeVisible({
+			timeout: 60_000,
+		});
 	});
 });

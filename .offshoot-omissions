@@ -123,7 +123,7 @@ web/src/lib/context/app.ts
 # sentence, because its SUBJECT is very much this repo's: "greetings belong to the
 # ACCOUNT, not to the key that signs them". That property holds here too and is
 # asserted here too - on the chain, by "Game delegation behind the router" in
-# `contracts/test/js/Game.test.ts`, and in a browser by every game suite, which
+# `contracts/test/js/Delegation.test.ts`, and in a browser by every game suite, which
 # cannot commit at all unless the signer is a registered delegate. What could not
 # survive is the way in: it posted a greeting and read back whose it was.
 web/e2e/tests/demo.e2e.ts
@@ -147,3 +147,34 @@ web/test/lib/view/pending-operations.test.ts
 # (fuzd changes who sends the reveal), and it runs on main and with/pixi-js.
 # `scripts/rehearse-lan.sh` therefore needs this branch's suites named.
 web/e2e/tests/faucet.e2e.ts
+
+# ---------------------------------------------------------------------------
+# THE TEMPLATE'S REFERENCE GAME, `placement`, replaced by chess
+# (`work/tasks/done/chess-army-deployment.md`, spec `infinite-chess`).
+#
+# The template ships a game of shared cells so that its seams are exercised;
+# this repo is a FINAL GAME and plays chess through those same seams instead.
+# The game's own client lives in `web/src/lib/chess` (aliased as
+# `$app-specific` in `web/svelte.config.js`), so a cascade that touches the
+# reference game conflicts here, and the resolution is always to keep it
+# deleted and port whatever framework change it carried into `$lib/chess`.
+#
+# The reference game's client: its composition, config, commit-reveal adapter,
+# storage format, board reader and indexer, planning, preview, strategy,
+# renderer and HUD. Every one has a chess counterpart in `web/src/lib/chess`,
+# except the indexer: chess reads the board through the contract's resolving
+# views and keeps no indexer for state
+# (`docs/adr/0007-rules-live-only-in-the-contract.md`).
+web/src/lib/placement
+
+# Its unit tests, which went with it. The chess client's are in
+# `web/test/lib/chess`.
+web/test/lib/placement
+
+# Its contract suite: placements, cell shares, chunked turns of several
+# placements, and the delegation tests. The chess suite that replaces it is
+# `contracts/test/js/Deployment.test.ts` (including the order-independence
+# test the commit-reveal rules ask for); the delegation tests moved, adapted
+# to armies, to `contracts/test/js/Delegation.test.ts`; chunking is the base's
+# and stays covered by `CommitRevealBase.test.ts`.
+contracts/test/js/Game.test.ts

@@ -6,15 +6,26 @@ import {UsingCommitRevealEvents} from "../../commit-reveal/interfaces/UsingCommi
 
 /// @dev THE MECHANISM'S EVENTS ARE INHERITED from the commit-reveal base
 ///      (`src/commit-reveal/`): reserve, commitment, reveal, settlement, cycle
-///      and attendance. Its reveal event carries no actions, because the base
-///      never sees them; what a reveal did to the board is {Placed}, one per
-///      placement, which is this game's.
+///      and attendance. What is declared here is this game's.
 ///
-///      `player` IS A `uint256` IN EVERY EVENT HERE, and it is the same
-///      `uint256` the store keys by: whatever this game means by a player,
-///      never an address that a token game would have to truncate into.
+///      Events are for history, never for state: the board is read through the
+///      resolving views (`docs/adr/0007-rules-live-only-in-the-contract.md`).
 interface UsingGameEvents is UsingGameTypes, UsingCommitRevealEvents {
-    /// @notice A player took a share of a cell. Cells are shared, so this does
-    ///         not imply anyone lost it.
-    event Placed(uint256 indexed player, uint64 indexed cellID, uint256 stake);
+    /// @notice A deployment was committed, which created the army and moved the
+    ///         stake from its owner's reserve into its own.
+    event ArmyCreated(
+        uint256 indexed army,
+        address indexed owner,
+        uint64 cycleNumber,
+        uint256 stake
+    );
+
+    /// @notice A deployment was revealed. Whether it lands is decided when the
+    ///         cycle is over, by how many deployments revealed the same spawn
+    ///         point, so this says nothing about the outcome.
+    event DeploymentRevealed(
+        uint256 indexed army,
+        uint64 indexed spawnPoint,
+        uint64 cycleNumber
+    );
 }

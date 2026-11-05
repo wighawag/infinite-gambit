@@ -29,12 +29,12 @@
  *   secret's domain separation, the stake and the submission's storage key are
  *   all keyed by it, and it is what changes shape between games.
  *
- * ON `main` THEY HOLD THE SAME VALUE, because the template is deliberately an
- * address game (decision 3 in HANDOFF). That is exactly why the names have to
- * be separated HERE and now: while the two are equal, nothing forces a caller
- * to say which one it meant, so the day they stop being equal every one of
- * those sites has to be re-read and judged. Separating the names while the
- * values agree is free; separating the values first is not.
+ * IN CHESS THEY ARE DIFFERENT VALUES OF DIFFERENT TYPES. Who plays is an ARMY
+ * (`CONTEXT.md`): a `uint256` id, `nonce << 160 | owner`, owned by the account
+ * and acted for by its signer. An account may own several armies; the client
+ * plays one at a time, chosen by `$lib/chess/armies.ts`. The template kept
+ * the two names apart while their values agreed, which is what made this a
+ * change of one alias rather than of every call site.
  */
 import type {Readable} from 'svelte/store';
 import type {PlayerIdentity} from './core/seams';
@@ -50,32 +50,19 @@ import type {PlayerIdentity} from './core/seams';
  * this file: reveal-or-die's is `bigint`, which is the entire identity
  * difference between that repo and this one.
  */
-export type GameIdentity = `0x${string}`;
+export type GameIdentity = bigint;
 
 /**
  * THE SAME LINE, ON THE OTHER SIDE OF THE ABI.
  *
- * The contract keys every player by a `uint256` and never by an address (see
- * `IGame.sol` and `UsingCommitReveal._playerOf`), because twenty bytes holds
- * every account and does not hold every token id: reveal-or-die's are
- * `owner << 96 | subID` and conquest's are derived the same way, so a game
- * that truncated would alias two players onto one reserve with nothing raised
- * anywhere.
- *
- * So SOMETHING has to widen this game's identity into that argument, and it is
- * this function, for the same reason the alias above is one line: every call
- * site that spelled the conversion out would be a shared file the branch has
- * to edit. `with/nft-identity` changes it to the identity itself, because
- * there the identity already IS the number the contract wants.
- *
- * NOT A FORMATTER, and the distinction is what keeps it honest: it is the one
- * place that knows how THIS game's identity is spelled on chain, which is the
- * same job `_playerOf` does in Solidity. The two have to agree, and the e2e
- * submission is what proves they do - a disagreement surfaces as a commitment
- * filed under an identity the reveal cannot find.
+ * The contract keys every player by a `uint256` (see `IGame.sol` and
+ * `UsingGameInternal._playerOf`), and an army id already IS that number, so
+ * this is the identity itself. It is still a function, and still the one
+ * place that says so, because a disagreement with `_playerOf` surfaces as a
+ * commitment filed under an identity the reveal cannot find.
  */
 export function onchainIdentity(identity: GameIdentity): bigint {
-	return BigInt(identity);
+	return identity;
 }
 
 /**
@@ -113,34 +100,10 @@ void _identityIsCarryable;
 export type ActiveIdentityStore = Readable<GameIdentity | undefined>;
 
 /**
- * The identity PROVIDER: where the active identity comes from.
- *
- * D6 requires that identity be a SELECTION rather than a derivation, even
- * where there is exactly one of them, so that several identities per account
- * stays cheap to add later. What that rule actually demands is that every
- * consumer take an `ActiveIdentityStore` and that nothing reconstruct the
- * identity from the account for itself - which is what the rest of this app
- * now does. This function is where the one construction lives.
- *
- * THIS GAME DOES NOT CHOOSE. It is an address game, so there is exactly one
- * identity per account and it is the account's own address; the honest
- * description is not "the identity is the account" but "this game has one
- * identity per account, and that is its address".
- *
- * A GAME THAT DOES CHOOSE REPLACES THIS FUNCTION, and that is the shape to
- * expect rather than a signature with a selection parameter bolted on. The
- * evidence is reveal-or-die, which was checked rather than guessed at: its
- * identity comes from `world/active-avatar.ts`, a store that reads what the
- * account has in custody, drops avatars with no life left, prefers one
- * already in the world and remembers the choice per owner across reloads.
- * None of that can be passed in as a list of candidates, and a `candidates`
- * parameter here would have been an unexercised guess at a shape the one real
- * consumer does not have. So a choosing game supplies its own store, and the
- * only thing this module insists on is the TYPE it has to satisfy.
+ * THE IDENTITY PROVIDER IS THE GAME'S. This game CHOOSES: an account may own
+ * several armies, and before its first deployment it owns none, so the
+ * identity is the account's NEXT army (the one its deployment will create).
+ * See `createArmies` in `$lib/chess/armies.ts`, which satisfies
+ * {@link ActiveIdentityStore} with a store that reads the account's armies
+ * off the chain.
  */
-export function createActiveIdentity(params: {
-	/** Who is signed in, which is the only candidate this game has. */
-	account: Readable<`0x${string}` | undefined>;
-}): ActiveIdentityStore {
-	return params.account;
-}

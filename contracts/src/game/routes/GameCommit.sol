@@ -9,17 +9,28 @@ contract GameCommit is IGameCommit, UsingGameInternal {
 
     /// @inheritdoc IGameCommit
     function addToReserve(uint256 player, uint256 amount) external {
+        // An army's reserve is its stake: funded once, by its deployment, from
+        // its owner's reserve, and by nothing else.
+        if (_isArmyId(player)) {
+            revert InvalidPlayer(player);
+        }
         if (amount > 0) {
-            // Paid by msg.sender, CREDITED to `player`. These are deliberately
-            // allowed to differ: a player's moves are signed by a local key that
-            // never holds funds, while the stake is paid from the wallet that
-            // does. Without this split the wallet would have to sign every commit
-            // and reveal, and an email/social account (which has no wallet at
-            // all) could not play.
+            // Paid by msg.sender, CREDITED to `player`: the stake is paid from
+            // the wallet holding the funds, the game is played by a local key
+            // that holds none. A gift to someone else's reserve is safe, since
+            // only its owner can withdraw it.
             //
-            // Safe to leave open: topping up someone else's reserve is a gift,
-            // and the reserve can only ever be withdrawn by its owner.
-            _addToReserve(player, amount);
+            // CREDITED WITHOUT TAKING A SEAT. Only armies are waited for: an
+            // account that became a member by buying stake would stall every
+            // policy that waits for everyone, since an account never commits.
+            // AT A TABLE the template's rule still holds until this game seats
+            // its armies there (`work/tasks/backlog/chess-tables.md`): the
+            // credited account takes the seat, and can only pass.
+            if (_roster().seats != 0) {
+                _addToReserve(player, amount);
+            } else {
+                CommitReveal.deposit(player, amount);
+            }
             TOKENS.transferFrom(msg.sender, address(this), amount);
         }
     }
@@ -29,9 +40,9 @@ contract GameCommit is IGameCommit, UsingGameInternal {
         if (amount > 0) {
             // `msg.sender` and NOT `_playerOf`, which is the whole point of
             // this function: a delegate may spend the reserve on playing and
-            // may never take it out. An address game can spell the identity
-            // that owns a reserve as the caller because the two are the same
-            // thing; a game where they are not owns this route.
+            // may never take it out. And it is only ever an ACCOUNT's reserve,
+            // because no army id is an address: an army's stake does not leave
+            // through here.
             _withdrawFromReserve(uint256(uint160(msg.sender)), amount);
             TOKENS.transfer(msg.sender, amount);
         }
@@ -44,7 +55,13 @@ contract GameCommit is IGameCommit, UsingGameInternal {
         uint256 bond,
         address payable payee
     ) external payable {
-        _makeCommitment(_playerOf(msg.sender, player), commitmentHash, bond);
+        uint256 resolved = _playerOf(msg.sender, player);
+        // A commitment for an army that does not exist yet is its deployment:
+        // `_playerOf` only lets that through for the owner's next army.
+        if (_isArmyId(resolved) && _armies[resolved].owner == address(0)) {
+            _createArmy(resolved);
+        }
+        _makeCommitment(resolved, commitmentHash, bond);
 
         // extra steps for which we do not intend to track via events
         if (payee != address(0) && msg.value != 0) {

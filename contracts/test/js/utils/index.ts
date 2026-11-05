@@ -23,8 +23,31 @@ type DeploymentEnvironment = Awaited<
 	ReturnType<typeof loadAndExecuteDeploymentsFromFiles>
 >;
 
-/** One placement, matching the contract's `Placement` struct. */
-export type Placement = {cellID: bigint};
+/**
+ * One move, matching the contract's `Move` struct. A deployment is one too:
+ * from and to the spawn point.
+ */
+export type Move = {from: bigint; to: bigint};
+
+/** Pack a square the way `PositionUtils` does: y in the high 32 bits. */
+export function squareAt(x: number, y: number): bigint {
+	const ux = BigInt.asUintN(32, BigInt(x));
+	const uy = BigInt.asUintN(32, BigInt(y));
+	return (uy << 32n) + ux;
+}
+
+/** The inverse of {@link squareAt}. */
+export function xyOf(square: bigint): {x: number; y: number} {
+	return {
+		x: Number(BigInt.asIntN(32, square & 0xffffffffn)),
+		y: Number(BigInt.asIntN(32, square >> 32n)),
+	};
+}
+
+/** The submission that deploys an army at `spawnPoint`. */
+export function deploymentAt(spawnPoint: bigint): Move[] {
+	return [{from: spawnPoint, to: spawnPoint}];
+}
 
 /**
  * THE CHUNK a game deployed by {@link deployGameWith} accepts.
@@ -34,7 +57,10 @@ export type Placement = {cellID: bigint};
  * `actionsPerReveal` off its record instead - see `setupFixtures` - because that
  * one is whatever the deploy config says and must not be assumed.
  */
-export const DEFAULT_ACTIONS_PER_REVEAL = 4n;
+export const DEFAULT_ACTIONS_PER_REVEAL = 1n;
+
+/** What one army holds, in a game deployed by {@link deployGameWith}. */
+export const DEFAULT_STAKE = parseEther('10');
 
 /** `bytes24(0)`: what a chunk carries when there is nothing after it. */
 export const NO_FURTHER_ACTIONS =
@@ -42,7 +68,7 @@ export const NO_FURTHER_ACTIONS =
 
 /** One reveal transaction's worth of a turn, and what it promises after it. */
 export type Chunk = {
-	placements: Placement[];
+	moves: Move[];
 	furtherActions: `0x${string}`;
 };
 
@@ -66,7 +92,7 @@ export type Chunk = {
  * would be a second chance at the one mistake that costs a player money.
  */
 export function commitmentChain(
-	placements: readonly Placement[],
+	moves: readonly Move[],
 	secret: `0x${string}`,
 	actionsPerReveal: number,
 ): {head: `0x${string}`; chunks: Chunk[]} {
@@ -74,9 +100,9 @@ export function commitmentChain(
 		throw new Error('a chunk of zero actions can never be revealed');
 	}
 
-	const split: Placement[][] = [];
-	for (let i = 0; i < placements.length; i += actionsPerReveal) {
-		split.push(placements.slice(i, i + actionsPerReveal));
+	const split: Move[][] = [];
+	for (let i = 0; i < moves.length; i += actionsPerReveal) {
+		split.push(moves.slice(i, i + actionsPerReveal));
 	}
 	// An empty turn is still ONE chunk: it is committed, it is revealed, and it
 	// resolves to nothing. Without this it would have no head at all.
@@ -85,26 +111,32 @@ export function commitmentChain(
 	const chunks: Chunk[] = [];
 	let next: `0x${string}` = NO_FURTHER_ACTIONS;
 	for (let i = split.length - 1; i >= 0; i--) {
-		chunks.unshift({placements: split[i], furtherActions: next});
+		chunks.unshift({moves: split[i], furtherActions: next});
 		next = hashChunk(split[i], secret, next);
 	}
 
 	return {head: next, chunks};
 }
 
-/** `bytes24(keccak256(abi.encode(secret, placements, furtherActions)))`. */
+/** `bytes24(keccak256(abi.encode(secret, moves, furtherActions)))`. */
 function hashChunk(
-	placements: readonly Placement[],
+	moves: readonly Move[],
 	secret: `0x${string}`,
 	furtherActions: `0x${string}`,
 ): `0x${string}` {
 	const encoded = encodeAbiParameters(
 		[
 			{type: 'bytes32'},
-			{type: 'tuple[]', components: [{name: 'cellID', type: 'uint64'}]},
+			{
+				type: 'tuple[]',
+				components: [
+					{name: 'from', type: 'uint64'},
+					{name: 'to', type: 'uint64'},
+				],
+			},
 			{type: 'bytes24'},
 		],
-		[secret, placements as Placement[], furtherActions],
+		[secret, moves as Move[], furtherActions],
 	);
 	return keccak256(encoded).slice(0, 50) as `0x${string}`;
 }
@@ -116,11 +148,11 @@ function hashChunk(
  * the turn.
  */
 export function commitmentHashFor(
-	placements: readonly Placement[],
+	moves: readonly Move[],
 	secret: `0x${string}`,
 	actionsPerReveal: number,
 ): `0x${string}` {
-	return commitmentChain(placements, secret, actionsPerReveal).head;
+	return commitmentChain(moves, secret, actionsPerReveal).head;
 }
 
 /**
@@ -136,14 +168,14 @@ export async function revealTurn(
 	options: {
 		account: `0x${string}`;
 		identity: bigint;
-		placements: readonly Placement[];
+		moves: readonly Move[];
 		secret: `0x${string}`;
 		actionsPerReveal: number;
 	},
 ): Promise<void> {
 	const {env, Game} = fixtures;
 	const {chunks} = commitmentChain(
-		options.placements,
+		options.moves,
 		options.secret,
 		options.actionsPerReveal,
 	);
@@ -153,7 +185,7 @@ export async function revealTurn(
 			functionName: 'reveal',
 			args: [
 				options.identity,
-				chunk.placements,
+				chunk.moves,
 				options.secret,
 				chunk.furtherActions,
 				zeroAddress,
@@ -244,7 +276,6 @@ export async function deployGameWith(
 		commitPhaseDuration: bigint;
 		revealPhaseDuration: bigint;
 		startTime?: bigint;
-		placementCost?: bigint;
 		/** THE CHUNK. Deliberately overridable: see `deployedActionsPerReveal`. */
 		actionsPerReveal?: bigint;
 	},
@@ -261,7 +292,9 @@ export async function deployGameWith(
 		// this repo changes - and a caller that spelled it out would be the
 		// line every branch has to rewrite.
 		tokens: fixtures.GameToken.address,
-		placementCost: options.placementCost ?? parseEther('1'),
+		stake: DEFAULT_STAKE,
+		spawnSpacing: 16n,
+		openSpawnPoints: 8n,
 		actionsPerReveal: options.actionsPerReveal ?? DEFAULT_ACTIONS_PER_REVEAL,
 		cyclePolicy: BigInt(options.cyclePolicy),
 	};
@@ -287,84 +320,43 @@ export async function deployGameWith(
 }
 
 /**
- * The identity an ACCOUNT plays as, in a game whose identity is the account.
+ * The id an ACCOUNT's reserve is kept under: its address, widened.
  *
- * The contract keys every player by a `uint256` and never by an address, so
- * that a game keying by an avatar, a character or an empire puts its token id
- * in the same slot without changing a signature (see
- * `UsingCommitReveal._playerOf`). This template is an address game, so the
- * widening happens here, and it happens in ONE function so that the suites read
- * as "this account's reserve" rather than as arithmetic.
- *
- * Deliberately not applied to `GameToken.mint` or `approve`: those really do
- * take an address, and a helper that got used on them would be hiding the
- * distinction it exists to draw.
+ * Accounts hold stake not yet deployed (`addToReserve` credits one), and only
+ * at a table are they members. Deliberately not applied to `GameToken.mint`
+ * or `approve`: those really do take an address.
  */
 export function idOf(account: `0x${string}`): bigint {
 	return BigInt(account);
 }
 
 /**
- * GET AN ACCOUNT INTO THE GAME, and hand back the identity it plays as.
- *
- * Every suite here needs this and none of them is about it, which is why it is
- * one function rather than three calls repeated six times. It is also the ONE
- * place a game with a different identity model has to differ: on this template
- * a player is an account with a staked reserve, so entering is mint, approve
- * and `addToReserve`, and the identity is the account itself. On
- * `with/nft-identity` the same call buys an avatar into the game's custody and
- * returns its token id, and the suites that use it are unchanged.
- *
- * `payer` is separable because it genuinely is: the wallet holding the money
- * and the key playing the game are different addresses by design (see the
- * delegation suite), and topping up someone else's reserve is a gift rather
- * than an attack, since only its owner can withdraw it.
+ * The id of `owner`'s `nonce`th army (`nonce << 160 | owner`), which is who
+ * plays: every army id is above any address-derived one.
  */
-/**
- * WHAT ONE TURN BONDS, in a game that bonds anything.
- *
- * Here a placement is paid for out of the reserve, so a commitment has to set
- * some of it aside; on a branch whose stake is custody of a token there is
- * nothing to bond and this is zero. It is a constant rather than a number in
- * each suite so that a suite about the ROUND never has to name what is at
- * stake.
- */
-export const TURN_BOND = parseEther('5');
-
-/**
- * STOP BEING A MEMBER, by whatever leaving means here.
- *
- * The cycle waits for members, so something has to be able to stop being one:
- * that is what keeps a game with no clock from being frozen by somebody who
- * walked away. On this game membership is a funded reserve, so leaving is
- * taking all of it back out. It settles nothing and costs nothing beyond the
- * departure, which is the point - leaving the set the cycle waits for and
- * being punished for going silent are different questions.
- */
-export async function leaveGame(
-	fixtures: {env: any; Game: any},
-	account: `0x${string}`,
-	_identity: bigint,
-): Promise<void> {
-	const {env, Game} = fixtures;
-	const reserve = (await env.read(Game, {
-		functionName: 'getReserve',
-		args: [idOf(account)],
-	})) as bigint;
-	await env.execute(Game, {
-		account,
-		functionName: 'withdrawFromReserve',
-		args: [reserve],
-	});
+export function armyIdOf(owner: `0x${string}`, nonce: number): bigint {
+	return (BigInt(nonce) << 160n) | BigInt(owner);
 }
 
-export async function enterGame(
+/**
+ * WHAT A PASS BONDS: nothing. An army's stake is its reserve and the freeze is
+ * what a missed reveal costs it, so a submission after the deployment bonds
+ * nothing. A suite about the ROUND names this rather than a number.
+ */
+export const TURN_BOND = 0n;
+
+/**
+ * PUT STAKE IN AN ACCOUNT'S RESERVE, paid by `payer` (the account itself by
+ * default). Stake bought, not yet deployed: it makes nobody a member, except
+ * at a table, where the credited account takes a seat.
+ */
+export async function fundAccount(
 	fixtures: {env: any; Game: any; GameToken: any},
 	account: `0x${string}`,
 	options?: {amount?: bigint; payer?: `0x${string}`},
 ): Promise<bigint> {
 	const {env, Game, GameToken} = fixtures;
-	const amount = options?.amount ?? parseEther('10');
+	const amount = options?.amount ?? DEFAULT_STAKE;
 	const payer = options?.payer ?? account;
 
 	await env.execute(GameToken, {
@@ -386,6 +378,78 @@ export async function enterGame(
 	return idOf(account);
 }
 
+/**
+ * COMMIT A DEPLOYMENT, which creates the army: the owner's next army id, its
+ * stake moved out of the owner's reserve, waited for from this cycle. Sent by
+ * `sender` (the owner by default; a delegate of the owner works too). Returns
+ * the army.
+ */
+export async function commitDeployment(
+	fixtures: {env: any; Game: any},
+	options: {
+		owner: `0x${string}`;
+		sender?: `0x${string}`;
+		spawnPoint: bigint;
+		secret: `0x${string}`;
+		actionsPerReveal: number;
+		bond?: bigint;
+		payee?: `0x${string}`;
+		value?: bigint;
+	},
+): Promise<{army: bigint; receipt: any}> {
+	const {env, Game} = fixtures;
+	const army = (await env.read(Game, {
+		functionName: 'getNextArmy',
+		args: [options.owner],
+	})) as bigint;
+	const receipt = await env.execute(Game, {
+		account: options.sender ?? options.owner,
+		functionName: 'makeCommitment',
+		args: [
+			army,
+			commitmentHashFor(
+				deploymentAt(options.spawnPoint),
+				options.secret,
+				options.actionsPerReveal,
+			),
+			options.bond ?? DEFAULT_STAKE,
+			options.payee ?? zeroAddress,
+		],
+		...(options.value ? {value: options.value} : {}),
+	});
+	return {army, receipt};
+}
+
+/** Reveal an army's deployment at `spawnPoint`. */
+export async function revealDeployment(
+	fixtures: {env: any; Game: any},
+	options: {
+		account: `0x${string}`;
+		army: bigint;
+		spawnPoint: bigint;
+		secret: `0x${string}`;
+		actionsPerReveal: number;
+	},
+): Promise<any> {
+	const {env, Game} = fixtures;
+	const {chunks} = commitmentChain(
+		deploymentAt(options.spawnPoint),
+		options.secret,
+		options.actionsPerReveal,
+	);
+	return env.execute(Game, {
+		account: options.account,
+		functionName: 'reveal',
+		args: [
+			options.army,
+			chunks[0].moves,
+			options.secret,
+			chunks[0].furtherActions,
+			zeroAddress,
+		],
+	});
+}
+
 export function setupFixtures(provider: EthereumProvider) {
 	return {
 		async deployAll() {
@@ -402,7 +466,9 @@ export function setupFixtures(provider: EthereumProvider) {
 				commitPhaseDuration: string;
 				revealPhaseDuration: string;
 				time: `0x${string}`;
-				placementCost: string;
+				stake: string;
+				spawnSpacing: string;
+				openSpawnPoints: string;
 				actionsPerReveal: string;
 				// NOT members of the on-chain `Config`: the contract never reads a
 				// gas figure. They are recorded on the deployment because they are
@@ -499,6 +565,8 @@ export function setupFixtures(provider: EthereumProvider) {
 				 * parameter exists to make impossible for the client.
 				 */
 				actionsPerReveal: Number(linkedData.actionsPerReveal),
+				/** What one army holds, read off the deployment's record. */
+				stake: BigInt(linkedData.stake),
 				getCycleNumber,
 				getTimestamp,
 				// Exposed because a game deployed INSIDE a test has a schedule of

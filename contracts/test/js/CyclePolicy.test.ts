@@ -3,19 +3,22 @@ import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not 
 import {network} from 'hardhat';
 import {
 	setupFixtures,
-	enterGame,
-	leaveGame,
+	fundAccount,
+	commitDeployment,
+	revealDeployment,
 	deployGameWith,
 	cycleClock,
+	idOf,
+	squareAt,
 	CYCLE_POLICY,
 	TURN_BOND,
 	commitmentHashFor,
 	revealTurn,
 	DEFAULT_ACTIONS_PER_REVEAL,
 	type CyclePolicy,
-	type Placement,
+	type Move,
 } from './utils/index.js';
-import {zeroAddress} from 'viem';
+import {parseEther, zeroAddress} from 'viem';
 
 const {provider, networkHelpers} = await network.connect();
 const {deployAll} = setupFixtures(provider);
@@ -23,11 +26,16 @@ const {deployAll} = setupFixtures(provider);
 /** What the games deployed in this suite will accept in one reveal. */
 const CHUNK = Number(DEFAULT_ACTIONS_PER_REVEAL);
 
-function cellAt(x: number, y: number): bigint {
-	const ux = BigInt.asUintN(32, BigInt(x));
-	const uy = BigInt.asUintN(32, BigInt(y));
-	return (uy << 32n) + ux;
-}
+/**
+ * WHAT A SUBMISSION IS, in a suite about the cycle: a pass. An army's only
+ * submission besides its deployment is a pass until moves are a rule, and the
+ * cycle counts submissions, not what is in them. Two secrets make two
+ * different commitments of the same pass.
+ */
+const PASS: Move[] = [];
+
+/** The first open spawn points, one per army a suite deploys. */
+const SPAWN_POINTS = [squareAt(0, 0), squareAt(16, 0), squareAt(16, 16)];
 
 const SECRET_A =
 	'0x0000000000000000000000000000000000000000000000000000000000000a11';
@@ -74,27 +82,69 @@ async function gameOn(policy: CyclePolicy, players = 2) {
 	});
 
 	const accounts = unnamedAccounts.slice(0, players) as `0x${string}`[];
-	const identities: bigint[] = [];
-	for (const account of accounts) {
-		// THE WHOLE FIXTURE BAG, with the game to enter overriding the deployed
-		// one. What entering costs and what an identity IS are the game's, and
-		// they are the one thing `utils` exists to differ about between this
-		// repo's branches: a suite that named the way in would be the file that
-		// has to be rewritten on every branch instead of the one that already is.
-		identities.push(await enterGame({...fixtures, Game}, account));
-	}
 
-	// START AT THE TOP OF A COMMIT PHASE, and do it AFTER the setup rather than
+	// START AT THE TOP OF A COMMIT PHASE, and do it AFTER the deploy rather than
 	// before it. The chain's clock is wall-clock here, so a suite that just
 	// starts committing gets whatever phase the minute happens to be in: these
 	// tests were flaky in exactly that way, reverting `InRevealPhase` on about
-	// one run in four - and a quarter of a 40-second cycle is precisely the
-	// reveal phase's share of it. Advancing before the setup would not do,
-	// because every deploy and every stake mines a block and spends a second of
-	// the window the test still needs.
-	if (!manual) {
+	// one run in four.
+	async function toTopOfNextCycle() {
 		const {cycleNumber} = clock.getCycleNumber(await fixtures.getTimestamp());
-		await fixtures.advanceToTime(clock.cycleStartTime(cycleNumber + 2), true);
+		await fixtures.advanceToTime(clock.cycleStartTime(cycleNumber + 1), true);
+	}
+	if (!manual) await toTopOfNextCycle();
+
+	// ONLY ARMIES ARE MEMBERS, and an army is made by its deployment, which is
+	// itself a cycle's submission: committed, revealed, landed. So every army
+	// is deployed in one cycle and the suite starts at the top of the next,
+	// with every army waited for and nobody having acted. What a member IS is
+	// the one thing `utils` exists to differ about between games.
+	const identities: bigint[] = [];
+	for (let k = 0; k < accounts.length; k++) {
+		await fundAccount({...fixtures, Game}, accounts[k]);
+		const {army} = await commitDeployment(
+			{env, Game},
+			{
+				owner: accounts[k],
+				spawnPoint: SPAWN_POINTS[k],
+				secret: SECRET_A,
+				actionsPerReveal: CHUNK,
+			},
+		);
+		identities.push(army);
+	}
+	if (accounts.length > 0) {
+		if (manual) {
+			await env.execute(Game, {
+				account: accounts[0],
+				functionName: 'advanceCycle',
+				args: [],
+			});
+		} else {
+			const {cycleNumber} = clock.getCycleNumber(await fixtures.getTimestamp());
+			await fixtures.advanceToTime(clock.revealStartTime(cycleNumber), true);
+		}
+		for (let k = 0; k < accounts.length; k++) {
+			await revealDeployment(
+				{env, Game},
+				{
+					account: accounts[k],
+					army: identities[k],
+					spawnPoint: SPAWN_POINTS[k],
+					secret: SECRET_A,
+					actionsPerReveal: CHUNK,
+				},
+			);
+		}
+		if (manual) {
+			await env.execute(Game, {
+				account: accounts[0],
+				functionName: 'advanceCycle',
+				args: [],
+			});
+		} else {
+			await toTopOfNextCycle();
+		}
 	}
 
 	async function cycle(): Promise<Cycle> {
@@ -111,7 +161,7 @@ async function gameOn(policy: CyclePolicy, players = 2) {
 
 	function commit(
 		i: number,
-		placements: Placement[],
+		moves: Move[],
 		secret: `0x${string}`,
 		// An EMPTY turn bonds nothing, which is what an idle player's automatic
 		// commit sends, and it is the case where a bond locks no reserve.
@@ -122,7 +172,7 @@ async function gameOn(policy: CyclePolicy, players = 2) {
 			functionName: 'makeCommitment',
 			args: [
 				identities[i],
-				commitmentHashFor(placements, secret, CHUNK),
+				commitmentHashFor(moves, secret, CHUNK),
 				bond,
 				zeroAddress,
 			],
@@ -132,18 +182,17 @@ async function gameOn(policy: CyclePolicy, players = 2) {
 	/**
 	 * Reveal a whole turn, however many transactions it takes.
 	 *
-	 * Every turn in this suite is one placement and so one chunk, which is the
-	 * point: what these tests are about is the CYCLE, and the cycle's tally
-	 * counts turns rather than transactions. Going through the shared helper is
-	 * what keeps that true if one of them ever plans a longer turn.
+	 * Every turn in this suite is one chunk, which is the point: what these
+	 * tests are about is the CYCLE, and the cycle's tally counts turns rather
+	 * than transactions.
 	 */
-	function reveal(i: number, placements: Placement[], secret: `0x${string}`) {
+	function reveal(i: number, moves: Move[], secret: `0x${string}`) {
 		return revealTurn(
 			{env, Game},
 			{
 				account: accounts[i],
 				identity: identities[i],
-				placements,
+				moves,
 				secret,
 				actionsPerReveal: CHUNK,
 			},
@@ -182,8 +231,8 @@ async function gameOn(policy: CyclePolicy, players = 2) {
 describe('Cycle policy', function () {
 	it('refuses to be pushed when the clock is the only thing that decides', async function () {
 		const game = await gameOn(CYCLE_POLICY.Timed);
-		await game.commit(0, [{cellID: cellAt(1, 1)}], SECRET_A);
-		await game.commit(1, [{cellID: cellAt(2, 1)}], SECRET_B);
+		await game.commit(0, PASS, SECRET_A);
+		await game.commit(1, PASS, SECRET_B);
 
 		// Unanimous, and still refused: a purely timed cycle has nothing for a
 		// transaction to do, so offering one would let a caller look like they
@@ -192,12 +241,11 @@ describe('Cycle policy', function () {
 	});
 
 	it('will not advance a game nobody is waiting for', async function () {
-		const game = await gameOn(CYCLE_POLICY.Manual, 1);
-
-		// The one member leaves, so unanimity has no denominator. Without this
-		// refusal a single caller could spin an empty game forward as fast as
-		// they liked.
-		await leaveGame(game, game.accounts[0], game.identities[0]);
+		// No army, so unanimity has no denominator. Without this refusal a
+		// single caller could spin an empty game forward as fast as they liked.
+		// Funding an ACCOUNT does not change that: only armies are members.
+		const game = await gameOn(CYCLE_POLICY.Manual, 0);
+		await fundAccount(game, game.unnamedAccounts[0] as `0x${string}`);
 		expect((await game.attendance()).waitedFor).toEqual(0n);
 
 		await expect(game.advance()).toBeRejectedWith(/NoOneToWaitFor/);
@@ -229,23 +277,39 @@ describe('Cycle policy', function () {
 		expect((await game.attendance()).committed).toEqual(0n);
 	});
 
-	it('will not let a player stop being waited for with a turn still open', async function () {
+	it("will not let an army stop being waited for by emptying its owner's reserve", async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 2);
 
 		// An EMPTY turn, which bonds nothing - what an idle player's automatic
-		// commit sends. A zero bond locks no reserve, so without a rule of its
-		// own this player could empty their reserve, cease to be waited for,
-		// and leave the cycle counting their commitment while no longer
-		// counting them. One member would then satisfy unanimity for two and
-		// close the commit phase on somebody who had not acted.
-		// Rejected, and again the COUNTS are the assertion: this game refuses it
-		// as a reserve that cannot be emptied, and a game whose stake is custody
-		// of a token refuses the withdrawal itself. Both keep the denominator
-		// from shrinking under a commitment that is still outstanding.
+		// commit sends. Where membership is a funded reserve, a player could
+		// otherwise empty theirs, cease to be waited for, and leave the cycle
+		// counting their commitment while no longer counting them: one member
+		// would then satisfy unanimity for two.
+		//
+		// HERE THE STAKE IS THE ARMY'S, and the owner cannot reach it: what the
+		// owner withdraws is their ACCOUNT reserve, which no army's membership
+		// depends on. The COUNTS are the assertion.
 		await game.commit(0, [], SECRET_A, 0n);
+		const owner = game.accounts[0];
+		await fundAccount(game, owner, {amount: parseEther('1')});
+		await game.env.execute(game.Game, {
+			account: owner,
+			functionName: 'withdrawFromReserve',
+			args: [parseEther('1')],
+		});
 		await expect(
-			leaveGame(game, game.accounts[0], game.identities[0]),
-		).toBeRejected();
+			game.env.execute(game.Game, {
+				account: owner,
+				functionName: 'withdrawFromReserve',
+				args: [1n],
+			}),
+		).toBeRejectedWith(/ReserveTooLow/);
+		expect(
+			await game.env.read(game.Game, {
+				functionName: 'getReserve',
+				args: [idOf(owner)],
+			}),
+		).toEqual(0n);
 
 		const attendance = await game.attendance();
 		expect(attendance.waitedFor).toEqual(2n);
@@ -256,9 +320,9 @@ describe('Cycle policy', function () {
 	it('forgets the tally when the cycle turns over', async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 1);
 
-		await game.commit(0, [{cellID: cellAt(2, 2)}], SECRET_A);
+		await game.commit(0, PASS, SECRET_A);
 		await game.advance();
-		await game.reveal(0, [{cellID: cellAt(2, 2)}], SECRET_A);
+		await game.reveal(0, PASS, SECRET_A);
 		await game.advance();
 
 		// A tally that survived the boundary would report last cycle's
@@ -275,8 +339,8 @@ describe('Cycle policy', function () {
 	it('moves on unanimity and never on a majority', async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 3);
 
-		await game.commit(0, [{cellID: cellAt(1, 1)}], SECRET_A);
-		await game.commit(1, [{cellID: cellAt(2, 1)}], SECRET_B);
+		await game.commit(0, PASS, SECRET_A);
+		await game.commit(1, PASS, SECRET_B);
 
 		// Two of three is a majority and it is not enough. If it were, the two
 		// fast players would have closed the phase on the third, which is the
@@ -284,27 +348,7 @@ describe('Cycle policy', function () {
 		// and committing bought nothing.
 		await expect(game.advance()).toBeRejectedWith(/StillWaitingToCommit/);
 
-		await game.commit(2, [{cellID: cellAt(3, 1)}], SECRET_A);
-		await game.advance();
-		expect((await game.cycle()).commiting).toEqual(false);
-	});
-
-	it('stops waiting for a member who leaves, which is what unblocks the cycle', async function () {
-		const game = await gameOn(CYCLE_POLICY.Manual, 2);
-
-		await game.commit(0, [{cellID: cellAt(1, 1)}], SECRET_A);
-		await expect(game.advance()).toBeRejectedWith(/StillWaitingToCommit/);
-
-		// The silent member takes their reserve out, which is this game's way of
-		// leaving. It settles nothing and costs nothing beyond the departure;
-		// what it does is remove them from the denominator, and that is the
-		// whole of what stops an absent player freezing a game with no clock.
-		await leaveGame(game, game.accounts[1], game.identities[1]);
-
-		const attendance = await game.attendance();
-		expect(attendance.waitedFor).toEqual(1n);
-		expect(attendance.committed).toEqual(1n);
-
+		await game.commit(2, PASS, SECRET_A);
 		await game.advance();
 		expect((await game.cycle()).commiting).toEqual(false);
 	});
@@ -312,8 +356,8 @@ describe('Cycle policy', function () {
 	it('counts a replaced commitment once, not twice', async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 2);
 
-		await game.commit(0, [{cellID: cellAt(1, 1)}], SECRET_A);
-		await game.commit(0, [{cellID: cellAt(9, 9)}], SECRET_A);
+		await game.commit(0, PASS, SECRET_A);
+		await game.commit(0, PASS, SECRET_A);
 
 		// One player changing their mind must not satisfy unanimity for two.
 		expect((await game.attendance()).committed).toEqual(1n);
@@ -323,8 +367,8 @@ describe('Cycle policy', function () {
 	it('gives back the vote of a player who cancels', async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 2);
 
-		await game.commit(0, [{cellID: cellAt(1, 1)}], SECRET_A);
-		await game.commit(1, [{cellID: cellAt(2, 1)}], SECRET_B);
+		await game.commit(0, PASS, SECRET_A);
+		await game.commit(1, PASS, SECRET_B);
 		await game.env.execute(game.Game, {
 			account: game.accounts[1],
 			functionName: 'cancelCommitment',
@@ -338,13 +382,13 @@ describe('Cycle policy', function () {
 	it('will not leave a cycle while one of its commitments is still open', async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 2);
 
-		const placementsA = [{cellID: cellAt(1, 1)}];
-		const placementsB = [{cellID: cellAt(2, 1)}];
-		await game.commit(0, placementsA, SECRET_A);
-		await game.commit(1, placementsB, SECRET_B);
+		const movesA = PASS;
+		const movesB = PASS;
+		await game.commit(0, movesA, SECRET_A);
+		await game.commit(1, movesB, SECRET_B);
 		await game.advance();
 
-		await game.reveal(0, placementsA, SECRET_A);
+		await game.reveal(0, movesA, SECRET_A);
 
 		// THE SAME ORDER-INDEPENDENCE RULE, ONE LEVEL UP. If this advanced, the
 		// second player's reveal would land in a cycle that had moved on and
@@ -353,7 +397,7 @@ describe('Cycle policy', function () {
 		// reveal still in the mempool has not been counted and this refuses.
 		await expect(game.advance()).toBeRejectedWith(/StillWaitingToReveal/);
 
-		await game.reveal(1, placementsB, SECRET_B);
+		await game.reveal(1, movesB, SECRET_B);
 		const before = await game.cycle();
 		await game.advance();
 		const after = await game.cycle();
@@ -364,9 +408,9 @@ describe('Cycle policy', function () {
 	it('advances a manual cycle into the REVEAL phase, never past it', async function () {
 		const game = await gameOn(CYCLE_POLICY.Manual, 1);
 
-		const placements = [{cellID: cellAt(4, 4)}];
+		const moves = PASS;
 		const before = await game.cycle();
-		await game.commit(0, placements, SECRET_A);
+		await game.commit(0, moves, SECRET_A);
 		await game.advance();
 		const after = await game.cycle();
 
@@ -379,7 +423,7 @@ describe('Cycle policy', function () {
 		expect(after.cycleNumber).toEqual(before.cycleNumber);
 		expect(after.commiting).toEqual(false);
 
-		await game.reveal(0, placements, SECRET_A);
+		await game.reveal(0, moves, SECRET_A);
 	});
 
 	it('opens the reveal phase early without moving the deadline', async function () {
@@ -388,8 +432,8 @@ describe('Cycle policy', function () {
 		const before = await game.cycle();
 		expect(before.commiting).toEqual(true);
 
-		await game.commit(0, [{cellID: cellAt(1, 1)}], SECRET_A);
-		await game.commit(1, [{cellID: cellAt(2, 1)}], SECRET_B);
+		await game.commit(0, PASS, SECRET_A);
+		await game.commit(1, PASS, SECRET_B);
 		await game.advance();
 
 		const after = await game.cycle();
@@ -418,25 +462,25 @@ describe('Cycle policy', function () {
 	it('still accepts a reveal at the nominal time after an early open', async function () {
 		const game = await gameOn(CYCLE_POLICY.TimedWithEarlyAdvance, 1);
 
-		const placements = [{cellID: cellAt(5, 5)}];
-		await game.commit(0, placements, SECRET_A);
+		const moves = PASS;
+		await game.commit(0, moves, SECRET_A);
 		await game.advance();
 
 		// What a scheduler handed a `revealDueAt` at commit time would do: turn
 		// up at the nominal reveal time, long after the window opened early.
 		const {cycleNumber} = game.clock.getCycleNumber(await game.getTimestamp());
 		await game.advanceToTime(game.clock.revealStartTime(cycleNumber) + 1, true);
-		await game.reveal(0, placements, SECRET_A);
+		await game.reveal(0, moves, SECRET_A);
 	});
 
 	it('runs the next cycle from the advance, which is what makes it faster', async function () {
 		const game = await gameOn(CYCLE_POLICY.TimedWithEarlyAdvance, 1);
 
-		const placements = [{cellID: cellAt(6, 6)}];
+		const moves = PASS;
 		const before = await game.cycle();
-		await game.commit(0, placements, SECRET_A);
+		await game.commit(0, moves, SECRET_A);
 		await game.advance();
-		await game.reveal(0, placements, SECRET_A);
+		await game.reveal(0, moves, SECRET_A);
 		await game.advance();
 
 		const after = await game.cycle();
@@ -454,25 +498,25 @@ describe('Cycle policy', function () {
 	it('falls back to the clock when a member never commits', async function () {
 		const game = await gameOn(CYCLE_POLICY.TimedWithEarlyAdvance, 2);
 
-		const placements = [{cellID: cellAt(7, 7)}];
-		await game.commit(0, placements, SECRET_A);
+		const moves = PASS;
+		await game.commit(0, moves, SECRET_A);
 		await expect(game.advance()).toBeRejectedWith(/StillWaitingToCommit/);
 
 		// Nobody is timed out by anybody: the clock is the protection, so a
 		// silent member costs this game its early turnaround and nothing else.
 		await game.waitForRevealPhase();
 		expect((await game.cycle()).commiting).toEqual(false);
-		await game.reveal(0, placements, SECRET_A);
+		await game.reveal(0, moves, SECRET_A);
 	});
 
 	it('never advances as a rider on the last reveal', async function () {
 		const game = await gameOn(CYCLE_POLICY.TimedWithEarlyAdvance, 1);
 
-		const placements = [{cellID: cellAt(8, 8)}];
-		await game.commit(0, placements, SECRET_A);
+		const moves = PASS;
+		await game.commit(0, moves, SECRET_A);
 		await game.advance();
 		const before = await game.cycle();
-		await game.reveal(0, placements, SECRET_A);
+		await game.reveal(0, moves, SECRET_A);
 		const after = await game.cycle();
 
 		// Revealing last is not a different function from revealing first. If

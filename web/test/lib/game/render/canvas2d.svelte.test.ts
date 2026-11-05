@@ -4,8 +4,9 @@ import {writable} from 'svelte/store';
 import type {ViewStateStore, ViewStateValue} from '$lib/game/core/seams';
 import {createCamera} from '$lib/game/render/camera';
 import {createCanvasEventEmitter} from '$lib/game/render/events';
-import {createImmediateBoardRenderer} from '$lib/placement/render/board-immediate';
-import type {BoardView, CellView} from '$lib/placement/view';
+import {createChessBoardRenderer} from '$lib/chess/render/board';
+import type {BoardView, PieceView} from '$lib/chess/view';
+import {squareAt} from '$lib/chess/squares';
 import Harness from './Canvas2DHarness.svelte';
 
 /**
@@ -26,51 +27,28 @@ import Harness from './Canvas2DHarness.svelte';
 
 const SIZE = {width: 240, height: 180};
 
-/** `#4f8cff`, the confirmed fill, and `#ffd166`, the planned outline. */
-const CONFIRMED = {r: 0x4f, g: 0x8c, b: 0xff};
-const PLANNED = {r: 0xff, g: 0xd1, b: 0x66};
+/**
+ * `#ffd166`: the colour this client's own army is drawn in, and the open
+ * spawn points' outline.
+ */
+const YOURS = {r: 0xff, g: 0xd1, b: 0x66};
 const BACKGROUND = {r: 0x0b, g: 0x10, b: 0x20};
 
 type Colour = {r: number; g: number; b: number};
 
-/**
- * What a colour drawn at `alpha` over the background actually looks like.
- *
- * Computed rather than hardcoded, because the alpha is not decoration: a
- * claimed cell is drawn at `min(0.35 + 0.2 * claimants, 0.95)`, so the number
- * of players on a cell IS the opacity, and that rule is shared with the pixi
- * host's `CellObject`. Asserting the blend rather than the raw colour is what
- * makes this test notice the rule changing, instead of only noticing that
- * something blue was painted.
- */
-function over(colour: Colour, alpha: number, background = BACKGROUND): Colour {
-	return {
-		r: colour.r * alpha + background.r * (1 - alpha),
-		g: colour.g * alpha + background.g * (1 - alpha),
-		b: colour.b * alpha + background.b * (1 - alpha),
-	};
+/** The army the tests play as. */
+const YOU = 7n << 160n;
+
+function piece(x: number, y: number, army = YOU): [bigint, PieceView] {
+	const position = squareAt(x, y);
+	return [
+		position,
+		{position, army, kind: 1, forward: 0, moved: false, position2d: {x, y}},
+	];
 }
 
-/** The opacity `board-immediate.ts` gives a cell with this many claimants. */
-const claimantAlpha = (n: number) => Math.min(0.35 + 0.2 * n, 0.95);
-
-function cell(
-	x: number,
-	y: number,
-	over: Partial<CellView> = {},
-): [bigint, CellView] {
-	const id = BigInt(x) * 1_000_000n + BigInt(y);
-	return [
-		id,
-		{
-			cellID: id,
-			totalStake: 0n,
-			numClaimants: 0,
-			position: {x, y},
-			planned: false,
-			...over,
-		},
-	];
+function board(pieces: [bigint, PieceView][]): BoardView {
+	return {pieces: new Map(pieces), spawnPoints: [], ghost: [], you: YOU};
 }
 
 function setup(options: {showGrid?: boolean} = {}) {
@@ -79,14 +57,14 @@ function setup(options: {showGrid?: boolean} = {}) {
 		subscribe: store.subscribe,
 		status: writable({loading: false}),
 	};
-	// A scale of exactly 10 CSS pixels per game unit, so a cell's screen
-	// position is arithmetic a reader can check by hand rather than a number
-	// this test copied out of the camera.
+	// A scale of exactly 5 CSS pixels per square, so a square's screen
+	// position is arithmetic a reader can check by hand, and small enough that
+	// the renderer draws a plain disc with no glyph over its middle.
 	const {cameraControl} = createCamera({
-		initialVisible: {width: SIZE.width / 10, height: SIZE.height / 10},
+		initialVisible: {width: SIZE.width / 5, height: SIZE.height / 5},
 		limits: {minWidth: 1, minHeight: 1, maxWidth: 1000, maxHeight: 1000},
 	});
-	const renderer = createImmediateBoardRenderer({viewState});
+	const renderer = createChessBoardRenderer({viewState});
 	const eventEmitter = createCanvasEventEmitter();
 
 	const screen = render(Harness, {
@@ -120,7 +98,7 @@ function pixelAt(canvas: HTMLCanvasElement, x: number, y: number) {
 
 /** Where a game-unit point lands on screen, in CSS pixels. */
 function screenOf(x: number, y: number) {
-	return {x: SIZE.width / 2 + x * 10, y: SIZE.height / 2 + y * 10};
+	return {x: SIZE.width / 2 + x * 5, y: SIZE.height / 2 + y * 5};
 }
 
 function isNear(actual: Colour, expected: Colour, tolerance = 4) {
@@ -144,102 +122,70 @@ describe('the canvas-2d host', () => {
 			const ratio = window.devicePixelRatio || 1;
 			expect(canvas().width).toBe(Math.round(SIZE.width * ratio));
 			expect(canvas().height).toBe(Math.round(SIZE.height * ratio));
-			// `#0b1020`. Without `beginFrame` the canvas is transparent black,
-			// which has alpha 0 and would fail here rather than passing by
-			// looking dark.
 			const at = pixelAt(canvas(), 4, 4);
 			expect(at.a).toBe(255);
-			expect(isNear(at, {r: 0x0b, g: 0x10, b: 0x20}, 2)).toBe(true);
+			expect(isNear(at, BACKGROUND, 2)).toBe(true);
 		});
 	});
 
 	/**
-	 * The load-bearing assertion in this file.
-	 *
-	 * A claimed cell is drawn `fillRect(x - 0.35, y - 0.35, 0.7, 0.7)` in GAME
-	 * units, and the camera transform is the only thing that turns that into
-	 * pixels. So this fails if `applyCamera` stops agreeing with the camera, if
-	 * `beginFrame` stops accounting for the device pixel ratio, or if the
-	 * renderer starts drawing in pixels the way the pixi one does.
+	 * The load-bearing assertion in this file: the camera transform is the only
+	 * thing that turns a square into pixels, and the renderer draws its pieces
+	 * in screen space from that same transform.
 	 */
-	it('paints a claimed cell where the camera says it is', async () => {
+	it('paints a piece where the camera says its square is', async () => {
 		const {store, canvas} = setup();
-		store.set({
-			step: 'Loaded',
-			cycleNumber: 1,
-			cells: new Map([cell(0, 0, {numClaimants: 2, totalStake: 5n})]),
-		});
+		store.set({step: 'Loaded', cycleNumber: 1, ...board([piece(2, 1)])});
 
-		const expected = over(CONFIRMED, claimantAlpha(2));
 		await painted(() => {
-			const at = screenOf(0, 0);
-			expect(isNear(pixelAt(canvas(), at.x, at.y), expected)).toBe(true);
+			const at = screenOf(2, 1);
+			expect(isNear(pixelAt(canvas(), at.x, at.y), YOURS)).toBe(true);
 		});
-
-		// And the fill really is 0.7 of a unit, not the whole cell: a point
-		// just inside the cell's own square but outside the inset is background.
-		// This is the half that a "draw something blue" assertion misses, and
-		// the inset is what distinguishes a claimed cell from a planned one.
-		const edge = screenOf(0.45, 0);
-		expect(isNear(pixelAt(canvas(), edge.x, edge.y), BACKGROUND)).toBe(true);
-
-		// One more claimant is one step more opaque. This is the assertion that
-		// makes the alpha rule load-bearing rather than incidental.
-		expect(claimantAlpha(3)).toBeGreaterThan(claimantAlpha(2));
+		// And not over the whole square: its corner stays background.
+		const corner = screenOf(2.48, 1.48);
+		expect(isNear(pixelAt(canvas(), corner.x, corner.y), BACKGROUND)).toBe(
+			true,
+		);
 	});
 
-	it('outlines a planned cell without filling it', async () => {
+	it('outlines an open spawn point', async () => {
 		const {store, canvas} = setup();
 		store.set({
 			step: 'Loaded',
 			cycleNumber: 1,
-			cells: new Map([cell(1, 0, {planned: true})]),
+			...board([]),
+			spawnPoints: [
+				{spawnPoint: squareAt(0, 0), position: {x: 0, y: 0}, nearest: []},
+			],
 		});
 
 		await painted(() => {
-			// The outline is on the cell boundary, half a unit from its centre.
-			const border = screenOf(1, -0.5);
-			expect(isNear(pixelAt(canvas(), border.x, border.y), PLANNED)).toBe(true);
+			// The outline runs round the footprint, three and a half squares out,
+			// two pixels wide: read a pixel wholly inside it.
+			const border = screenOf(-3.55, 0);
+			expect(isNear(pixelAt(canvas(), border.x, border.y), YOURS, 40)).toBe(
+				true,
+			);
 		});
-
-		// The middle stays background: a planned cell must never read as
-		// confirmed, which is the one thing a commit-reveal board has to say.
-		const middle = screenOf(1, 0);
-		const at = pixelAt(canvas(), middle.x, middle.y);
-		expect(isNear(at, PLANNED)).toBe(false);
-		expect(isNear(at, CONFIRMED)).toBe(false);
+		// The middle stays background: nothing stands there yet.
+		const middle = screenOf(0, 0);
+		expect(isNear(pixelAt(canvas(), middle.x, middle.y), BACKGROUND)).toBe(
+			true,
+		);
 	});
 
-	/**
-	 * Culling is the immediate renderer's own job, and it is the one piece of
-	 * logic in `board-immediate.ts` that is not a drawing call. The state store
-	 * is camera-scoped but a zone is 16 cells wide, so it legitimately hands
-	 * over cells that are off screen.
-	 */
-	it('does not draw a cell the camera cannot see', async () => {
+	it('does not draw a piece the camera cannot see', async () => {
 		const {store, canvas} = setup();
 		store.set({
 			step: 'Loaded',
 			cycleNumber: 1,
-			cells: new Map([
-				cell(0, 0, {numClaimants: 1}),
-				cell(500, 500, {numClaimants: 4}),
-			]),
+			...board([piece(0, 0), piece(500, 500)]),
 		});
 
 		await painted(() => {
 			const at = screenOf(0, 0);
-			expect(
-				isNear(
-					pixelAt(canvas(), at.x, at.y),
-					over(CONFIRMED, claimantAlpha(1)),
-				),
-			).toBe(true);
+			expect(isNear(pixelAt(canvas(), at.x, at.y), YOURS)).toBe(true);
 		});
-		// Nothing from the far cell bled into the visible area: with no culling
-		// the fill lands at a wildly out-of-range coordinate, which canvas
-		// silently discards, so the assertion that has teeth is the positive one
-		// above plus the background staying background everywhere else.
 		for (const [x, y] of [
 			[10, 10],
 			[SIZE.width - 10, SIZE.height - 10],
@@ -248,26 +194,15 @@ describe('the canvas-2d host', () => {
 		}
 	});
 
-	/**
-	 * Immediate mode redraws everything every frame, so a cell that goes away
-	 * has to actually disappear. If `beginFrame` ever stopped clearing, the
-	 * board would accumulate every cell it had ever seen, and the symptom would
-	 * be stale stake shown as current.
-	 */
 	it('clears what it drew last frame', async () => {
 		const {store, canvas} = setup();
-		store.set({
-			step: 'Loaded',
-			cycleNumber: 1,
-			cells: new Map([cell(0, 0, {numClaimants: 2})]),
-		});
-		const expected = over(CONFIRMED, claimantAlpha(2));
+		store.set({step: 'Loaded', cycleNumber: 1, ...board([piece(0, 0)])});
 		await painted(() => {
 			const at = screenOf(0, 0);
-			expect(isNear(pixelAt(canvas(), at.x, at.y), expected)).toBe(true);
+			expect(isNear(pixelAt(canvas(), at.x, at.y), YOURS)).toBe(true);
 		});
 
-		store.set({step: 'Loaded', cycleNumber: 2, cells: new Map()});
+		store.set({step: 'Loaded', cycleNumber: 2, ...board([])});
 		await painted(() => {
 			const at = screenOf(0, 0);
 			expect(isNear(pixelAt(canvas(), at.x, at.y), BACKGROUND)).toBe(true);
@@ -276,25 +211,19 @@ describe('the canvas-2d host', () => {
 
 	it('follows the camera when it pans', async () => {
 		const {store, cameraControl, canvas} = setup();
-		store.set({
-			step: 'Loaded',
-			cycleNumber: 1,
-			cells: new Map([cell(0, 0, {numClaimants: 2})]),
-		});
-		const expected = over(CONFIRMED, claimantAlpha(2));
+		store.set({step: 'Loaded', cycleNumber: 1, ...board([piece(0, 0)])});
 		await painted(() => {
 			const at = screenOf(0, 0);
-			expect(isNear(pixelAt(canvas(), at.x, at.y), expected)).toBe(true);
+			expect(isNear(pixelAt(canvas(), at.x, at.y), YOURS)).toBe(true);
 		});
 
-		// Drag the content right by 30 CSS pixels: the cell moves with it.
+		// Drag the content right by 30 CSS pixels: the piece moves with it.
 		cameraControl.handle({type: 'pan', dx: 30, dy: 0});
 		await painted(() => {
 			const moved = screenOf(0, 0);
-			expect(isNear(pixelAt(canvas(), moved.x + 30, moved.y), expected)).toBe(
+			expect(isNear(pixelAt(canvas(), moved.x + 30, moved.y), YOURS)).toBe(
 				true,
 			);
-			// and it is no longer where it was
 			expect(isNear(pixelAt(canvas(), moved.x, moved.y), BACKGROUND)).toBe(
 				true,
 			);

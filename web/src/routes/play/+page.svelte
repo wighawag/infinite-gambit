@@ -1,20 +1,18 @@
 <!--
-	The template's game.
+	The game: infinite chess.
 
-	A grid of shared cells: click to plan placements, the submission commits as the
-	phase closes, and reveals in the reveal phase. It exists to prove the seams
-	in `$lib/game/core/seams.ts` fit together - the state store, the
-	commit-reveal adapter, the view merge and the renderer are all exercised
-	here, against a real chain.
+	Buy a stake, pick an open spawn point in secret, and the army stands on the
+	board once the cycle is over. Everything is decided in `$lib/chess`; this
+	page only mounts the board, the HUD and the acquisition dialog.
 -->
 <script lang="ts">
 	import {browser} from '$app/environment';
 	import {getAppContext} from '$lib';
 	import DefaultHead from '$lib/metadata/DefaultHead.svelte';
-	import GameHud from '$lib/placement/ui/GameHud.svelte';
+	import GameHud from '$lib/chess/ui/GameHud.svelte';
 	import AcquireModal from '$lib/game/acquire/AcquireModal.svelte';
-	import {loadCanvasComponent} from '$lib/placement/render';
-	import {STAKE} from '$lib/placement/stake';
+	import {loadCanvasComponent} from '$lib/chess/render';
+	import {STAKE} from '$lib/chess/stake';
 	import {gridTileCells} from '$lib/game/render/grid';
 
 	const context = getAppContext();
@@ -41,7 +39,7 @@
 	 * prerendering resolves dependencies differently and succeeds. It shows up
 	 * only in `pnpm web:dev`.
 	 *
-	 * WHICH canvas is not decided here: `$lib/placement/render` names it, next to
+	 * WHICH canvas is not decided here: `$lib/chess/render` names it, next to
 	 * the renderer that has to match it. Both hosts take the same props, so this
 	 * page is identical whichever is chosen.
 	 */
@@ -79,7 +77,7 @@
 <div class="relative h-full w-full overflow-hidden">
 	<!-- A canvas host needs a real canvas, so it only mounts in the browser; the
 	     page still prerenders (see ADR-0002). Which host that is belongs to
-	     `$lib/placement/render`, and differs by branch, so this page does not
+	     `$lib/chess/render`, and differs by branch, so this page does not
 	     name one. -->
 	{#if canvasModule}
 		{#await canvasModule then { default: GameCanvas }}
@@ -109,7 +107,7 @@
 		<!-- A surface over the board rather than part of it, and inside the `{#if}`
 	     because it means nothing without a canvas under it. The rail is shared;
 	     the sentence describing what is bought is this game's, and it lives with
-	     the rest of the stake's vocabulary in `$lib/placement/stake` so that a
+	     the rest of the stake's vocabulary in `$lib/chess/stake` so that a
 	     branch which stakes something else does not have to edit this route. -->
 		<AcquireModal
 			acquisition={game.acquisition}
