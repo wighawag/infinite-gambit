@@ -4,7 +4,7 @@ slug: chess-moves
 spec: infinite-chess
 blockedBy: [chess-army-deployment]
 covers: [9, 10, 11, 12, 16, 17, 18, 19, 20]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -61,3 +61,9 @@ git fetch <remote> && git switch -c work/chess-moves <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-moves.md work/tasks/done/chess-moves.md
 ```
+
+## Applied answers 2026-11-05
+
+### q1: 'task:chess-moves' was bounced — how should we proceed?
+
+keep. Retry the build. The previous attempt died with "Response was truncated: the model reached its output token limit" (the miro MCP OAuth line is harness noise, ignore it), and nothing was saved. Write large files INCREMENTALLY: create a file with a skeleton, then grow it with several edit calls of at most about 300 lines each; never emit a single tool call or final message longer than that. Keep the final report short (a summary plus the Decisions block).
