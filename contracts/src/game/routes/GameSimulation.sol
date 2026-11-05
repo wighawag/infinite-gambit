@@ -26,4 +26,47 @@ contract GameSimulation is IGameSimulation, UsingGameInternal {
         if (!onGrid) revert NotASpawnPoint(spawnPoint);
         return ChessRules.layout(spawnPoint, army);
     }
+
+    /// @inheritdoc IGameSimulation
+    function legalMoves(
+        Piece[] calldata board,
+        uint64 from
+    ) external pure returns (uint64[] memory destinations) {
+        // LOAD, from what the caller handed in rather than from storage: the
+        // board as it stood at the start of the cycle, as `getPieces` returns
+        // it. Then the reveal's own rule, square by square.
+        Piece memory piece = _onBoard(board, from);
+        if (piece.kind == PieceKind.None) return destinations;
+        uint64[] memory candidates = ChessRules.candidateMoves(piece);
+        destinations = new uint64[](candidates.length);
+        uint256 n = 0;
+        for (uint256 c = 0; c < candidates.length; c++) {
+            (bool shapeOk, uint64[] memory squares) = ChessRules.moveSquares(
+                piece,
+                candidates[c]
+            );
+            if (!shapeOk) continue;
+            Piece[] memory contents = new Piece[](squares.length);
+            for (uint256 i = 0; i < squares.length; i++) {
+                contents[i] = _onBoard(board, squares[i]);
+            }
+            if (ChessRules.isLegalMove(piece, candidates[c], contents)) {
+                destinations[n++] = candidates[c];
+            }
+        }
+        assembly {
+            mstore(destinations, n)
+        }
+    }
+
+    /// @dev What `board` has on `position`: kind `None` if nothing.
+    function _onBoard(
+        Piece[] calldata board,
+        uint64 position
+    ) private pure returns (Piece memory piece) {
+        for (uint256 i = 0; i < board.length; i++) {
+            if (board[i].position == position) return board[i];
+        }
+        piece.position = position;
+    }
 }

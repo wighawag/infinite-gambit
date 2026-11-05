@@ -3,9 +3,16 @@
  * game's action and penalty.
  *
  * What this game decides is what a missed submission costs when its chunks are
- * shown: a deployment forfeits the stake, a pass forfeits nothing
- * (`UsingGameInternal._acknowledgeMissedReveal`). Today the only submission
- * with an action in it is a deployment, so the count says which it was.
+ * shown: a deployment forfeits the stake, a move or a pass forfeits nothing
+ * here (`UsingGameInternal._acknowledgeMissedReveal`; what a missed move costs
+ * is the freeze, `docs/adr/0005-missed-reveal-freezes-the-army.md`).
+ *
+ * The base only says how many actions were missed, and a deployment and a
+ * move are both one, so the count cannot tell them apart. The BOND can: the
+ * base caps the penalty at it, a deployment bonds the stake and everything
+ * else bonds nothing (`./commit-reveal.ts`, `bondFor`). So the penalty is the
+ * stake, and the cap makes it the stake for a deployment and zero for the
+ * rest, which is what the contract charges.
  */
 import type {Readable} from 'svelte/store';
 import {
@@ -24,6 +31,17 @@ export {
 	type MissedRevealState,
 	type MissedRevealStore,
 } from '$lib/game/core/commit-reveal/missed-reveal';
+
+/**
+ * What settling a missed reveal WITH its chunks forfeits, before the base
+ * caps it at the bond: the stake. See the file comment for why the bond, not
+ * the count, decides between a deployment and a move.
+ */
+export function missedRevealPenalty(
+	config: Pick<ChessConfig, 'stake'>,
+): bigint {
+	return config.stake;
+}
 
 export function createMissedReveal(params: {
 	deps: MissedRevealDeps;
@@ -46,7 +64,7 @@ export function createMissedReveal(params: {
 		encoding: MOVE_ENCODING,
 		onchainIdentity,
 		actionsPerReveal: config.actionsPerReveal,
-		penaltyFor: (count) => (count > 0 ? config.stake : 0n),
+		penaltyFor: () => missedRevealPenalty(config),
 		identity: params.identity,
 		committedTurn: params.committedTurn,
 		onSettled: params.onSettled,

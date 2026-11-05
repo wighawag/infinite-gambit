@@ -6,7 +6,9 @@
  * onchain state: a deployment is real to the player and invisible to everyone
  * else until it is revealed, and the client is the only thing that can show
  * it. A planned army is drawn as a GHOST of the pieces the contract says it
- * would stand on (`./preview.ts`), never merged into the confirmed board.
+ * would stand on (`./preview.ts`), never merged into the confirmed board, and
+ * a planned move as a mark from its square to its destination: the piece
+ * stays where the chain has it until the cycle is over.
  */
 import type {ViewMerge} from '$lib/view';
 import type {BoardState, Piece} from './board';
@@ -28,6 +30,15 @@ export type BoardView = {
 	ghost: readonly PieceView[];
 	/** The army this client plays, for telling its pieces apart. */
 	you?: bigint;
+	/** The piece the player has selected to move, if any. */
+	selected?: Position;
+	/**
+	 * Where the selected piece may move, by the contract's rule run in the
+	 * sandbox (`legalMoves`). Empty until it answers.
+	 */
+	destinations?: readonly Position[];
+	/** The move the player has planned this cycle, if any. */
+	plannedMove?: {from: Position; to: Position};
 };
 
 export type LocalPlan = {
@@ -40,6 +51,12 @@ export type LocalPlan = {
 	 * for exactly this spawn point.
 	 */
 	preview?: readonly Piece[];
+	/** The one move planned this cycle, for a deployed army. */
+	move?: {from: bigint; to: bigint};
+	/** The piece selected to move. */
+	selected?: bigint;
+	/** Its legal destinations, once the sandbox has answered. */
+	destinations?: readonly bigint[];
 };
 
 const withPosition = (piece: Piece): PieceView => ({
@@ -77,5 +94,17 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 		...(planned ? {planned} : {}),
 		ghost: (local.preview ?? []).map(withPosition),
 		...(local.army !== undefined ? {you: local.army} : {}),
+		...(local.selected !== undefined
+			? {selected: positionOf(local.selected)}
+			: {}),
+		destinations: (local.destinations ?? []).map(positionOf),
+		...(local.move
+			? {
+					plannedMove: {
+						from: positionOf(local.move.from),
+						to: positionOf(local.move.to),
+					},
+				}
+			: {}),
 	};
 };

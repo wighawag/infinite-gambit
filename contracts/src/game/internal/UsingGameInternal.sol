@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.0;
 
-import "./UsingGameStore.sol";
+import "./UsingGameBoard.sol";
 import "../interfaces/UsingGameEvents.sol";
 import "../interfaces/UsingGameErrors.sol";
 import "../../utils/PositionUtils.sol";
@@ -19,8 +19,8 @@ import {Delegation} from "@etherplay/delegation/contracts/Delegation.sol";
 ///
 ///      The rules themselves are {ChessRules}: pure, and shared by the reveal,
 ///      the resolving views and the simulation route.
-abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
-    constructor(Config memory config) UsingGameStore(config) {}
+abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
+    constructor(Config memory config) UsingGameBoard(config) {}
 
     // ------------------------------------------------------------------------
     // WHO PLAYS: ARMIES
@@ -85,7 +85,10 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
         _armies[army] = ArmyRecord({
             owner: owner,
             deployCycle: cycleNumber,
-            spawnIndexPlusOne: 0
+            spawnIndexPlusOne: 0,
+            kingMovedIn: 0,
+            kingTo: 0,
+            kingFrom: 0
         });
         _armyIds.push(army);
         CommitReveal.withdraw(uint256(uint160(owner)), STAKE);
@@ -122,11 +125,15 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
 
         if (_isDeploying(player, chunk.cycleNumber)) {
             _revealDeployment(player, moves, furtherActions, chunk.cycleNumber);
-        } else if (moves.length != 0) {
-            // A PASS IS ALL ANY OTHER SUBMISSION CAN BE, for now: moves are the
-            // next rule this game gains. An account seated at a table has no
-            // pieces at all, so a pass is all it will ever submit.
-            revert IllegalMove(moves[0].from, moves[0].to);
+        } else if (moves.length != 0 || furtherActions != bytes24(0)) {
+            // ONE MOVE PER ARMY PER CYCLE (story 9): a submission is a pass
+            // (nothing) or exactly one move, in one chunk. A move is validated
+            // against the start-of-cycle board, so an account seated at a
+            // table, which has no pieces, can only ever pass.
+            if (moves.length != 1 || furtherActions != bytes24(0)) {
+                revert OneMovePerCycle();
+            }
+            _revealMove(player, moves[0], chunk.cycleNumber);
         }
 
         _closeChunk(chunk, 0);
@@ -260,24 +267,6 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
     // RESOLVING
     // ------------------------------------------------------------------------
 
-    /// @notice Whether a deployment has LANDED on the spawn point with spiral
-    ///         index `index` before `cycleNumber`, and which army it was.
-    /// @dev Resolved from the accumulated record: one deployment revealed in a
-    ///      cycle that is over. The current cycle's reveals are not on the
-    ///      board until it ends, so an army acts from the cycle after its
-    ///      deployment and no move committed before it can reach it.
-    function _landedBefore(
-        uint256 index,
-        uint64 cycleNumber
-    ) internal view returns (bool landed, uint256 army) {
-        SpawnRecord storage spawn = _spawns[index];
-        uint64 cycle = spawn.cycle;
-        if (cycle != 0 && cycle < cycleNumber && spawn.count == 1) {
-            return (true, spawn.army);
-        }
-        return (false, 0);
-    }
-
     /// @notice THE OPEN SET at the start of `cycleNumber`: the spiral indices
     ///         of the free spawn points nearest the origin, and the next fresh
     ///         index after them, and whether that differs from what is
@@ -332,7 +321,7 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
         (bool landed, uint256 landedArmy) = _landedBefore(index, cycleNumber);
         if (landed && landedArmy == id) {
             view_.status = ArmyStatus.Deployed;
-            view_.king = ChessRules.kingOf(view_.spawnPoint);
+            view_.king = _kingAt(id, view_.spawnPoint, cycleNumber);
         } else {
             // Either more than one deployment revealed this spawn point in the
             // army's cycle, or the record has been started again since, which
@@ -343,11 +332,16 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
 
     /// @notice Every piece on the squares from (`minX`,`minY`) to
     ///         (`maxX`,`maxY`), resolved for `cycleNumber`.
-    /// @dev A square is covered by at most one spawn point's footprint (the
-    ///      spacing is at least the footprint's width), and a footprint reaches
-    ///      at most 3 squares left of / below its spawn point and 2 right of /
-    ///      above it, so the spawn points to resolve are those within that
-    ///      margin of the rectangle.
+    /// @dev TWO SOURCES, NEVER BOTH FOR ONE SQUARE. A square some reveal has
+    ///      touched has a record and is resolved from it ({_squareAt}), found
+    ///      through the zone index; every other square holds what the
+    ///      deployment over it laid there, if one has landed. A square is
+    ///      covered by at most one spawn point's footprint (the spacing is at
+    ///      least the footprint's width), and a footprint reaches at most 3
+    ///      squares left of / below its spawn point and 2 right of / above it,
+    ///      so the spawn points to lay out are those within that margin of the
+    ///      rectangle. The order of the answer depends only on what is on the
+    ///      board, never on the order of the reveals that put it there.
     function _piecesIn(
         int32 minX,
         int32 minY,
@@ -355,22 +349,58 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
         int32 maxY,
         uint64 cycleNumber
     ) internal view returns (Piece[] memory pieces) {
+        if (maxX < minX || maxY < minY) return new Piece[](0);
         Rect memory rect = Rect(minX, minY, maxX, maxY);
-        Grid memory grid = _gridAround(rect);
-        if (grid.i1 < grid.i0 || grid.j1 < grid.j0) return new Piece[](0);
+        uint64[] memory spawnPoints;
+        uint256[] memory armies;
+        (spawnPoints, armies) = _landedAround(rect, cycleNumber);
+        uint64[] memory touched = _touchedIn(rect);
 
-        // TWO PASSES, so the memory is what the board HOLDS in view rather than
-        // twenty pieces for every spawn point the rectangle could reach: an
-        // empty viewport costs one read per spawn point and nothing else.
-        uint256 points = uint256(
-            (grid.i1 - grid.i0 + 1) * (grid.j1 - grid.j0 + 1)
+        pieces = new Piece[](
+            spawnPoints.length * ChessRules.ARMY_SIZE + touched.length
         );
-        uint64[] memory spawnPoints = new uint64[](points);
-        uint256[] memory armies = new uint256[](points);
-        uint256 landed = 0;
+        uint256 n = 0;
+        for (uint256 k = 0; k < spawnPoints.length; k++) {
+            n = _appendArmy(
+                pieces,
+                n,
+                rect,
+                ChessRules.layout(spawnPoints[k], armies[k])
+            );
+        }
+        for (uint256 k = 0; k < touched.length; k++) {
+            Piece memory piece = _squareAt(touched[k], cycleNumber);
+            if (piece.kind == PieceKind.None) continue;
+            pieces[n] = piece;
+            n++;
+        }
+        assembly {
+            mstore(pieces, n)
+        }
+    }
+
+    /// @dev The spawn points whose deployment has landed and whose footprint
+    ///      can reach `rect`, and their armies.
+    function _landedAround(
+        Rect memory rect,
+        uint64 cycleNumber
+    )
+        private
+        view
+        returns (uint64[] memory spawnPoints, uint256[] memory armies)
+    {
         int256 s = int256(uint256(SPAWN_SPACING));
-        for (int256 j = grid.j0; j <= grid.j1; j++) {
-            for (int256 i = grid.i0; i <= grid.i1; i++) {
+        int256 i0 = _ceilDiv(int256(rect.minX) - 2, s);
+        int256 i1 = _floorDiv(int256(rect.maxX) + 3, s);
+        int256 j0 = _ceilDiv(int256(rect.minY) - 2, s);
+        int256 j1 = _floorDiv(int256(rect.maxY) + 3, s);
+        if (i1 < i0 || j1 < j0) return (spawnPoints, armies);
+        uint256 points = uint256((i1 - i0 + 1) * (j1 - j0 + 1));
+        spawnPoints = new uint64[](points);
+        armies = new uint256[](points);
+        uint256 landed = 0;
+        for (int256 j = j0; j <= j1; j++) {
+            for (int256 i = i0; i <= i1; i++) {
                 (bool isLanded, uint256 army) = _landedBefore(
                     ChessRules.spiralIndex(i, j),
                     cycleNumber
@@ -384,40 +414,69 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
                 landed++;
             }
         }
+        assembly {
+            mstore(spawnPoints, landed)
+            mstore(armies, landed)
+        }
+    }
 
-        pieces = new Piece[](landed * ChessRules.ARMY_SIZE);
+    /// @dev Every square in `rect` that has a record, zone by zone and in the
+    ///      zone index's bit order.
+    function _touchedIn(
+        Rect memory rect
+    ) private view returns (uint64[] memory squares) {
+        int32 zx0 = PositionUtils.zoneCoord(rect.minX);
+        int32 zx1 = PositionUtils.zoneCoord(rect.maxX);
+        int32 zy0 = PositionUtils.zoneCoord(rect.minY);
+        int32 zy1 = PositionUtils.zoneCoord(rect.maxY);
+        uint256 total = 0;
+        uint256 zones = uint256(int256(zx1 - zx0 + 1) * int256(zy1 - zy0 + 1));
+        uint256[] memory bits = new uint256[](zones);
+        uint256 z = 0;
+        for (int32 zy = zy0; zy <= zy1; zy++) {
+            for (int32 zx = zx0; zx <= zx1; zx++) {
+                uint256 b = _touchedSquares[
+                    (uint64(uint32(zy)) << 32) + uint64(uint32(zx))
+                ];
+                bits[z++] = b;
+                for (; b != 0; b &= b - 1) total++;
+            }
+        }
+        squares = new uint64[](total);
         uint256 n = 0;
-        for (uint256 k = 0; k < landed; k++) {
-            n = _appendArmy(
-                pieces,
-                n,
-                rect,
-                ChessRules.layout(spawnPoints[k], armies[k])
-            );
+        z = 0;
+        for (int32 zy = zy0; zy <= zy1; zy++) {
+            for (int32 zx = zx0; zx <= zx1; zx++) {
+                n = _appendZone(squares, n, rect, zx, zy, bits[z++]);
+            }
         }
         assembly {
-            mstore(pieces, n)
+            mstore(squares, n)
         }
     }
 
-    /// @dev The spawn grid points, as grid coordinates, whose footprint can
-    ///      reach `rect`.
-    struct Grid {
-        int256 i0;
-        int256 i1;
-        int256 j0;
-        int256 j1;
-    }
-
-    function _gridAround(Rect memory rect) private view returns (Grid memory) {
-        int256 s = int256(uint256(SPAWN_SPACING));
-        return
-            Grid({
-                i0: _ceilDiv(int256(rect.minX) - 2, s),
-                i1: _floorDiv(int256(rect.maxX) + 3, s),
-                j0: _ceilDiv(int256(rect.minY) - 2, s),
-                j1: _floorDiv(int256(rect.maxY) + 3, s)
-            });
+    /// @dev Append the squares of zone (`zx`,`zy`) whose bit is set in `b`
+    ///      and that lie in `rect`.
+    function _appendZone(
+        uint64[] memory squares,
+        uint256 n,
+        Rect memory rect,
+        int32 zx,
+        int32 zy,
+        uint256 b
+    ) private pure returns (uint256) {
+        int32 x0 = zx * 16 - 8;
+        int32 y0 = zy * 16 - 8;
+        for (uint256 k = 0; b != 0; k++) {
+            if (b & (uint256(1) << k) == 0) continue;
+            b &= ~(uint256(1) << k);
+            int32 x = x0 + int32(int256(k % 16));
+            int32 y = y0 + int32(int256(k / 16));
+            if (x < rect.minX || x > rect.maxX) continue;
+            if (y < rect.minY || y > rect.maxY) continue;
+            squares[n++] = PositionUtils.fromXY(x, y);
+        }
+        return n;
     }
 
     /// @dev A viewport, inclusive on every side.
@@ -428,33 +487,24 @@ abstract contract UsingGameInternal is UsingGameStore, UsingGameEvents {
         int32 maxY;
     }
 
-    /// @dev Copy the pieces of `army` that stand inside `rect` to `pieces`
-    ///      from index `n`, and return the index after the last.
+    /// @dev Copy the pieces of `army` that stand inside `rect`, on squares no
+    ///      reveal has touched, to `pieces` from index `n`, and return the
+    ///      index after the last.
     function _appendArmy(
         Piece[] memory pieces,
         uint256 n,
         Rect memory rect,
         Piece[] memory army
-    ) private pure returns (uint256) {
+    ) private view returns (uint256) {
         for (uint256 p = 0; p < army.length; p++) {
-            (int32 x, int32 y) = PositionUtils.toXY(army[p].position);
+            uint64 position = army[p].position;
+            (int32 x, int32 y) = PositionUtils.toXY(position);
             if (x < rect.minX || x > rect.maxX) continue;
             if (y < rect.minY || y > rect.maxY) continue;
+            if (_squares[position].cycle != 0) continue;
             pieces[n] = army[p];
             n++;
         }
         return n;
-    }
-
-    function _floorDiv(int256 a, int256 b) private pure returns (int256) {
-        int256 q = a / b;
-        if (a % b != 0 && (a < 0) != (b < 0)) q -= 1;
-        return q;
-    }
-
-    function _ceilDiv(int256 a, int256 b) private pure returns (int256) {
-        int256 q = a / b;
-        if (a % b != 0 && (a < 0) == (b < 0)) q += 1;
-        return q;
     }
 }

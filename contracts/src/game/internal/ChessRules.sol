@@ -208,6 +208,335 @@ library ChessRules {
         return PositionUtils.fromXY(sx + 1 - ri, sy - 3 + ci);
     }
 
+    /// @notice The piece an army deployed at `spawnPoint` has on `position`
+    ///         before anything moves: kind `None` off its footprint and on its
+    ///         four empty corners. The inverse of {layout}, one square at a
+    ///         time, which is what lets a square be read without laying the
+    ///         whole army out.
+    function layoutAt(
+        uint64 spawnPoint,
+        uint256 army,
+        uint64 position
+    ) internal pure returns (T.Piece memory piece) {
+        piece.position = position;
+        (int32 sx, int32 sy) = PositionUtils.toXY(spawnPoint);
+        (int32 x, int32 y) = PositionUtils.toXY(position);
+        T.Direction face = facing(spawnPoint);
+        int256 r;
+        int256 c;
+        if (face == T.Direction.North) {
+            (r, c) = (int256(y) - sy + 2, int256(x) - sx + 3);
+        } else if (face == T.Direction.East) {
+            (r, c) = (int256(x) - sx + 2, int256(sy) + 2 - y);
+        } else if (face == T.Direction.South) {
+            (r, c) = (int256(sy) + 1 - y, int256(sx) + 2 - x);
+        } else {
+            (r, c) = (int256(sx) + 1 - x, int256(y) - sy + 3);
+        }
+        if (r < 0 || r > 3 || c < 0 || c > 5) return piece;
+        (T.PieceKind kind, T.Direction forward) = _canonical(
+            uint256(r),
+            uint256(c)
+        );
+        if (kind == T.PieceKind.None) return piece;
+        piece.army = army;
+        piece.kind = kind;
+        piece.forward = _rotate(forward, face);
+    }
+
+    // ------------------------------------------------------------------------
+    // MOVES
+    // ------------------------------------------------------------------------
+    //
+    // A move is judged against the board as it stood at the START of the
+    // cycle, and only that board: what other armies reveal in the same cycle
+    // can never make it legal or illegal (story 12). The rule is split in two
+    // around what it has to read, so that the reveal (which reads storage) and
+    // the simulation route (which is handed the board) run the same code:
+    //
+    //   1. {moveSquares}: from the piece and the destination alone, whether
+    //      the move has a legal SHAPE, and which squares' contents decide the
+    //      rest. `squares[0]` is always the destination; a slider's path and a
+    //      pawn's skipped square follow it, and a king's eight neighbours of
+    //      the destination do.
+    //   2. {isLegalMove}: given what stood on each of those squares, whether
+    //      the move is legal.
+    //
+    // No castling, no en passant and no promotion: none of them has a shape
+    // here, so all three are simply illegal moves. No check: a king may move
+    // onto an attacked square (story 19). But a king may not move next to
+    // another army's king, measured on the start-of-cycle board, except onto
+    // that king's own square, which is a capture: that is what makes two kings
+    // arriving on one square impossible
+    // (`docs/adr/0003-collision-table-king-survives-a-crowd.md`).
+
+    /// @notice How far a rook, a bishop or a queen may slide (story 16).
+    uint256 internal constant SLIDER_RANGE = 7;
+
+    /// @notice Whether `piece` moving to `to` has a legal shape, and the
+    ///         squares whose start-of-cycle contents decide whether it is
+    ///         legal. `squares[0]` is `to`.
+    function moveSquares(
+        T.Piece memory piece,
+        uint64 to
+    ) internal pure returns (bool shapeOk, uint64[] memory squares) {
+        (int32 fx, int32 fy) = PositionUtils.toXY(piece.position);
+        (int32 toX, int32 toY) = PositionUtils.toXY(to);
+        int256 dx = int256(toX) - fx;
+        int256 dy = int256(toY) - fy;
+        if (dx == 0 && dy == 0) return (false, squares);
+        T.PieceKind kind = piece.kind;
+        if (kind == T.PieceKind.Pawn) return _pawnSquares(piece, to, dx, dy);
+        int256 ax = _abs(dx);
+        int256 ay = _abs(dy);
+        if (kind == T.PieceKind.Knight) {
+            bool jump = (ax == 1 && ay == 2) || (ax == 2 && ay == 1);
+            return jump ? (true, _one(to)) : (false, squares);
+        }
+        if (kind == T.PieceKind.King) {
+            if (ax > 1 || ay > 1) return (false, squares);
+            return (true, _kingSquares(to));
+        }
+        bool straight = dx == 0 || dy == 0;
+        bool diagonalLine = ax == ay;
+        bool lineOk =
+            (kind == T.PieceKind.Rook && straight) ||
+                (kind == T.PieceKind.Bishop && diagonalLine) ||
+                (kind == T.PieceKind.Queen && (straight || diagonalLine));
+        if (!lineOk) return (false, squares);
+        int256 distance = ax > ay ? ax : ay;
+        if (uint256(distance) > SLIDER_RANGE) return (false, squares);
+        return (true, _path(fx, fy, dx / distance, dy / distance, distance));
+    }
+
+    /// @dev A pawn's move: one forward, two forward on its first move (the
+    ///      skipped square follows the destination), or one diagonally forward.
+    function _pawnSquares(
+        T.Piece memory piece,
+        uint64 to,
+        int256 dx,
+        int256 dy
+    ) private pure returns (bool, uint64[] memory squares) {
+        (int256 px, int256 py) = _step(piece.forward);
+        if (dx == px && dy == py) return (true, _one(to));
+        if (dx == 2 * px && dy == 2 * py) {
+            if (piece.moved) return (false, squares);
+            squares = new uint64[](2);
+            squares[0] = to;
+            squares[1] = PositionUtils.offset(
+                piece.position,
+                int32(px),
+                int32(py)
+            );
+            return (true, squares);
+        }
+        bool diagonal =
+            px == 0 ? (dy == py && _abs(dx) == 1) : (dx == px && _abs(dy) == 1);
+        return diagonal ? (true, _one(to)) : (false, squares);
+    }
+
+    /// @dev The destination of a king's move, then its eight neighbours.
+    function _kingSquares(
+        uint64 to
+    ) private pure returns (uint64[] memory squares) {
+        squares = new uint64[](9);
+        squares[0] = to;
+        uint256 n = 1;
+        for (int32 oy = -1; oy <= 1; oy++) {
+            for (int32 ox = -1; ox <= 1; ox++) {
+                if (ox == 0 && oy == 0) continue;
+                squares[n++] = PositionUtils.offset(to, ox, oy);
+            }
+        }
+    }
+
+    /// @dev A slide of `distance` steps of (`sx`,`sy`) from (`fx`,`fy`): the
+    ///      destination, then every square passed over.
+    function _path(
+        int32 fx,
+        int32 fy,
+        int256 sx,
+        int256 sy,
+        int256 distance
+    ) private pure returns (uint64[] memory squares) {
+        squares = new uint64[](uint256(distance));
+        squares[0] = PositionUtils.fromXY(
+            int32(fx + sx * distance),
+            int32(fy + sy * distance)
+        );
+        for (int256 k = 1; k < distance; k++) {
+            squares[uint256(k)] = PositionUtils.fromXY(
+                int32(fx + sx * k),
+                int32(fy + sy * k)
+            );
+        }
+    }
+
+    /// @notice Whether `piece` may move to `to`, given `contents`: what stood
+    ///         at the start of the cycle on each of {moveSquares}' squares, in
+    ///         the same order (kind `None` for an empty square).
+    function isLegalMove(
+        T.Piece memory piece,
+        uint64 to,
+        T.Piece[] memory contents
+    ) internal pure returns (bool) {
+        (bool shapeOk, uint64[] memory squares) = moveSquares(piece, to);
+        if (!shapeOk || contents.length != squares.length) return false;
+        T.Piece memory target = contents[0];
+        bool empty = target.kind == T.PieceKind.None;
+        bool enemy = !empty && target.army != piece.army;
+
+        if (piece.kind == T.PieceKind.Pawn) {
+            (int256 px, ) = _step(piece.forward);
+            (int32 fx, int32 fy) = PositionUtils.toXY(piece.position);
+            (int32 toX, int32 toY) = PositionUtils.toXY(to);
+            // A diagonal leaves the line the pawn advances along.
+            bool diagonal = px == 0 ? toX != fx : toY != fy;
+            if (diagonal) return enemy; // it only ever captures
+            for (uint256 i = 0; i < contents.length; i++) {
+                if (contents[i].kind != T.PieceKind.None) return false;
+            }
+            return true;
+        }
+        if (!empty && !enemy) return false; // never onto one's own piece
+        if (piece.kind == T.PieceKind.King) {
+            for (uint256 i = 1; i < contents.length; i++) {
+                if (
+                    contents[i].kind == T.PieceKind.King &&
+                    contents[i].army != piece.army
+                ) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        // A slider's path must be empty; a knight has none.
+        for (uint256 i = 1; i < contents.length; i++) {
+            if (contents[i].kind != T.PieceKind.None) return false;
+        }
+        return true;
+    }
+
+    /// @notice Every square `piece` could move to by shape alone, before the
+    ///         board is consulted: what the simulation route filters with
+    ///         {isLegalMove} to list a piece's legal destinations.
+    function candidateMoves(
+        T.Piece memory piece
+    ) internal pure returns (uint64[] memory moves) {
+        (int32 fx, int32 fy) = PositionUtils.toXY(piece.position);
+        T.PieceKind kind = piece.kind;
+        uint256 n = 0;
+        if (kind == T.PieceKind.Pawn) {
+            (int256 px, int256 py) = _step(piece.forward);
+            moves = new uint64[](4);
+            moves[n++] = PositionUtils.fromXY(int32(fx + px), int32(fy + py));
+            if (!piece.moved) {
+                moves[n++] = PositionUtils.fromXY(
+                    int32(fx + 2 * px),
+                    int32(fy + 2 * py)
+                );
+            }
+            // The two diagonals: forward plus one step across.
+            (int256 qx, int256 qy) = (py, px);
+            moves[n++] = PositionUtils.fromXY(
+                int32(fx + px + qx),
+                int32(fy + py + qy)
+            );
+            moves[n++] = PositionUtils.fromXY(
+                int32(fx + px - qx),
+                int32(fy + py - qy)
+            );
+        } else if (kind == T.PieceKind.Knight || kind == T.PieceKind.King) {
+            moves = new uint64[](8);
+            for (int32 oy = -2; oy <= 2; oy++) {
+                for (int32 ox = -2; ox <= 2; ox++) {
+                    int32 a = ox < 0 ? -ox : ox;
+                    int32 b = oy < 0 ? -oy : oy;
+                    bool ok =
+                        kind == T.PieceKind.Knight
+                            ? (a == 1 && b == 2) || (a == 2 && b == 1)
+                            : a <= 1 && b <= 1 && (a + b) > 0;
+                    if (ok) moves[n++] = PositionUtils.fromXY(fx + ox, fy + oy);
+                }
+            }
+        } else if (
+            kind == T.PieceKind.Rook ||
+            kind == T.PieceKind.Bishop ||
+            kind == T.PieceKind.Queen
+        ) {
+            moves = new uint64[](8 * SLIDER_RANGE);
+            for (int32 oy = -1; oy <= 1; oy++) {
+                for (int32 ox = -1; ox <= 1; ox++) {
+                    if (ox == 0 && oy == 0) continue;
+                    bool diagonalLine = ox != 0 && oy != 0;
+                    if (kind == T.PieceKind.Rook && diagonalLine) continue;
+                    if (kind == T.PieceKind.Bishop && !diagonalLine) continue;
+                    for (int32 k = 1; k <= int32(int256(SLIDER_RANGE)); k++) {
+                        moves[n++] = PositionUtils.fromXY(
+                            fx + ox * k,
+                            fy + oy * k
+                        );
+                    }
+                }
+            }
+        }
+        assembly {
+            mstore(moves, n)
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // RESOLVING A SQUARE
+    // ------------------------------------------------------------------------
+
+    /// @notice What stands on a square once one cycle's accumulated facts are
+    ///         applied to what stood there at its start
+    ///         (`docs/adr/0002-order-free-lazy-resolution.md`).
+    /// @param standing what stood there at the start of the cycle
+    /// @param departed whether that piece moved away in the cycle
+    /// @param arrivals how many pieces arrived in the cycle
+    /// @param arriver the piece that arrived, meaningful when `arrivals` is 1
+    /// @dev FROM COUNTS AND IDENTITIES ALONE, so it cannot depend on the order
+    ///      the reveals landed in. One arrival takes the square, whatever
+    ///      stood there (a capture, or a plain move onto an empty square). Two
+    ///      or more arrivals all fail, and the square is left as if none had
+    ///      come: empty if its piece moved away, still held if it stayed. A
+    ///      piece never bounces back to where it came from. King squares
+    ///      behave like any other until the king's rows of the collision table
+    ///      are a rule (`work/tasks/backlog/chess-king-capture-merge.md`).
+    function settle(
+        T.Piece memory standing,
+        bool departed,
+        uint256 arrivals,
+        T.Piece memory arriver
+    ) internal pure returns (T.Piece memory) {
+        if (arrivals == 1) {
+            arriver.position = standing.position;
+            return arriver;
+        }
+        if (departed) {
+            T.Piece memory empty;
+            empty.position = standing.position;
+            return empty;
+        }
+        return standing;
+    }
+
+    /// @dev The unit step a pawn facing `forward` advances by.
+    function _step(
+        T.Direction forward
+    ) private pure returns (int256 x, int256 y) {
+        if (forward == T.Direction.North) return (0, 1);
+        if (forward == T.Direction.East) return (1, 0);
+        if (forward == T.Direction.South) return (0, -1);
+        return (-1, 0);
+    }
+
+    function _one(uint64 square) private pure returns (uint64[] memory one) {
+        one = new uint64[](1);
+        one[0] = square;
+    }
+
     /// @dev `direction` turned as far clockwise as North is to `face`.
     function _rotate(
         T.Direction direction,

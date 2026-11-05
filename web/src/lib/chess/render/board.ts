@@ -18,6 +18,9 @@ import type {BoardView, PieceView} from '../view';
 import {glyphOf, armyColour, YOUR_COLOUR} from './style';
 
 const SPAWN_COLOUR = '#ffd166';
+const SELECTED_COLOUR = '#ffd166';
+const DESTINATION_COLOUR = 'rgba(120, 220, 140, 0.45)';
+const PLANNED_COLOUR = '#7ee08a';
 const LIGHT_SQUARE = 'rgba(255, 255, 255, 0.05)';
 /** Below this many pixels per square there is no room for a glyph. */
 const MIN_GLYPH_SCALE = 6;
@@ -65,6 +68,30 @@ export function createChessBoardRenderer(params: {
 					context.fillRect(x - 3.5, y - 3.5, 7, 7);
 					context.globalAlpha = 1;
 				}
+			}
+
+			// The selected piece and where the contract says it may go.
+			if (view.selected) {
+				context.strokeStyle = SELECTED_COLOUR;
+				context.lineWidth = 3 / scale;
+				context.strokeRect(view.selected.x - 0.5, view.selected.y - 0.5, 1, 1);
+			}
+			context.fillStyle = DESTINATION_COLOUR;
+			for (const {x, y} of view.destinations ?? []) {
+				context.fillRect(x - 0.5, y - 0.5, 1, 1);
+			}
+			// The planned move: both squares outlined, joined by a line. The piece
+			// itself stays where the chain has it until the cycle is over.
+			if (view.plannedMove) {
+				const {from, to} = view.plannedMove;
+				context.strokeStyle = PLANNED_COLOUR;
+				context.lineWidth = 3 / scale;
+				context.strokeRect(from.x - 0.5, from.y - 0.5, 1, 1);
+				context.strokeRect(to.x - 0.5, to.y - 0.5, 1, 1);
+				context.beginPath();
+				context.moveTo(from.x, from.y);
+				context.lineTo(to.x, to.y);
+				context.stroke();
 			}
 
 			// From here on in screen space: see the file comment.

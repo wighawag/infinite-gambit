@@ -71,8 +71,11 @@ interface IGameReveal is UsingGameTypes {
     ///
     ///      An army whose deployment was committed this cycle reveals that
     ///      deployment: exactly one move, from and to the spawn point, which
-    ///      must have been open at the START of the cycle. Any other army may
-    ///      only pass (an empty submission) until moves arrive.
+    ///      must have been open at the START of the cycle. Any other submission
+    ///      is a pass (no move) or exactly ONE move of one of the army's
+    ///      pieces, legal on the board as it stood at the START of the cycle
+    ///      ({IGameSimulation-legalMoves}); anything else reverts
+    ///      {OneMovePerCycle} or {IllegalMove}.
     function reveal(
         uint256 player,
         Move[] calldata moves,
@@ -178,6 +181,21 @@ interface IGameSimulation is UsingGameTypes {
         uint64 spawnPoint,
         uint256 army
     ) external view returns (Piece[] memory pieces);
+
+    /// @notice Every square the piece on `from` may move to, by the rule the
+    ///         reveal applies, judged against `board`: the board as it stood at
+    ///         the start of the cycle, as {IGameGetters-getPieces} returns it.
+    ///         Empty if `board` has nothing on `from`.
+    /// @dev Reads nothing: the client runs it in its sandbox to highlight a
+    ///      selected piece's legal destinations, so the highlight is the rule
+    ///      and not a copy of it. It only judges what `board` holds, so pass it
+    ///      every piece within reach (8 squares around `from` is enough: the
+    ///      slider range is 7 and a king looks one square past its
+    ///      destination).
+    function legalMoves(
+        Piece[] calldata board,
+        uint64 from
+    ) external pure returns (uint64[] memory destinations);
 }
 
 interface IGame is

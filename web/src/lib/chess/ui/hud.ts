@@ -25,6 +25,7 @@ import {SignerOutOfFundsError} from '$lib/game/core/commit-reveal/errors';
 import type {SetupNeeded} from '../context';
 import {ARMY_STATUS, type ArmyView} from '../armies';
 import {nearestLabel, type SpawnPointView} from '../spawn-points';
+import {positionOf} from '../squares';
 import type {BoardView} from '../view';
 import type {ViewStateValue} from '$lib/game/core/seams';
 import type {CyclePhase} from '$lib/game/core/cycle-phase';
@@ -121,6 +122,11 @@ export type HudModel = {
 		}[];
 		picked?: string;
 	};
+	/**
+	 * Set while the army this client plays stands on the board and may move:
+	 * the one move planned this cycle, if any.
+	 */
+	moving?: {planned?: string};
 	/**
 	 * Set when the plan cannot be submitted as it stands.
 	 *
@@ -620,6 +626,24 @@ export function describeDeployment(params: {
 	};
 }
 
+/** A square's coordinates, as a player reads them. */
+function squareLabel(square: bigint): string {
+	const {x, y} = positionOf(square);
+	return `(${x}, ${y})`;
+}
+
+/** The planned move, while the army stands on the board and may move. */
+export function describeMoving(params: {
+	army: Pick<ArmyView, 'status'> | undefined;
+	move: Move | undefined;
+}): HudModel['moving'] {
+	if (params.army?.status !== ARMY_STATUS.Deployed) return undefined;
+	const {move} = params;
+	return move
+		? {planned: `${squareLabel(move.from)} to ${squareLabel(move.to)}`}
+		: {};
+}
+
 export function createHud(context: Context): Readable<HudModel> {
 	const {game} = context;
 
@@ -642,6 +666,7 @@ export function createHud(context: Context): Readable<HudModel> {
 			game.needsDeployment,
 			game.armies.activeArmy,
 			context.viewState,
+			game.planning.move,
 		],
 		([
 			$twoPhase,
@@ -661,6 +686,7 @@ export function createHud(context: Context): Readable<HudModel> {
 			$needsDeployment,
 			$army,
 			$view,
+			$move,
 		]): HudModel => {
 			const savedTurn = describeSavedTurn($savedTurn as SavedTurn);
 			const submission = describeSubmission($submission);
@@ -742,6 +768,10 @@ export function createHud(context: Context): Readable<HudModel> {
 				deployment: describeDeployment({
 					needsDeployment: $needsDeployment as boolean,
 					view: $view as ViewStateValue<BoardView>,
+				}),
+				moving: describeMoving({
+					army: $army as ArmyView | undefined,
+					move: $move as Move | undefined,
 				}),
 
 				submissionLabel: submission.label,

@@ -62,6 +62,16 @@ export function spawnPointOf(actions: readonly Move[]): bigint | undefined {
 }
 
 /**
+ * The move a submission makes, if it is one: a single `Move` whose `from` and
+ * `to` differ (one move per army per cycle). A deployment is not a move.
+ */
+export function moveOf(actions: readonly Move[]): Move | undefined {
+	if (actions.length !== 1) return undefined;
+	const [move] = actions;
+	return move.from !== move.to ? move : undefined;
+}
+
+/**
  * What a submission bonds: the stake for a deployment, nothing for anything
  * else. The deployment's commit moves the stake into the new army's reserve
  * and bonds it there, so a deployment that is never revealed has its stake to

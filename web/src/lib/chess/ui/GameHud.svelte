@@ -291,6 +291,12 @@
 					<dt class="text-muted-foreground">Cost</dt>
 					<dd>{$hud.costLabel}</dd>
 				{/if}
+				{#if $hud.moving}
+					<dt class="text-muted-foreground">Move</dt>
+					<dd data-testid="planned-move">
+						{$hud.moving.planned ?? 'select a piece'}
+					</dd>
+				{/if}
 				<dt class="text-muted-foreground">Reserve</dt>
 				<dd>{$hud.reserveLabel}</dd>
 			</dl>
@@ -333,6 +339,16 @@
 						onclick={() => submission.commit()}
 					>
 						Deploy
+					</Button>
+				{/if}
+				{#if $hud.moving}
+					<Button
+						size="sm"
+						disabled={!$hud.canCommit}
+						data-testid="commit-move"
+						onclick={() => submission.commit()}
+					>
+						Commit move
 					</Button>
 				{/if}
 				{#if $hud.canPass}
@@ -380,8 +396,11 @@
 					Pick an open spawn point (on the board or in the list) and deploy.
 					Nobody sees where until the reveal; two armies revealing the same
 					spawn point both fail.
+				{:else if $hud.moving}
+					Select one of your pieces, then one of the highlighted squares. One
+					move per cycle, hidden until the reveal; it lands when the cycle ends.
 				{:else}
-					Your army acts from the cycle after it lands. Moves come next.
+					Your army acts from the cycle after it lands.
 				{/if}
 			</p>
 		{/if}
