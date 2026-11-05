@@ -4,7 +4,7 @@ slug: chess-king-capture-merge
 spec: infinite-chess
 blockedBy: [chess-collisions]
 covers: [26, 27, 28, 29, 30]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -70,3 +70,9 @@ git fetch <remote> && git switch -c work/chess-king-capture-merge <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-king-capture-merge.md work/tasks/done/chess-king-capture-merge.md
 ```
+
+## Applied answers 2026-11-05
+
+### q1: 'task:chess-king-capture-merge' was bounced — how should we proceed?
+
+keep. Retry the build. The previous attempt died after about 25 minutes of reading with "Response was truncated: the model reached its output token limit": one reply spent all 16,384 output tokens on reasoning before acting (the miro MCP OAuth line is harness noise, ignore it). Nothing was saved. Work in small steps: decide one piece at a time and act on it (write or edit a file, run a test) before planning the next, rather than planning the whole task in one reply. Grow large files with several edits of at most about 300 lines each, and keep the final report short (a summary plus the Decisions block).
