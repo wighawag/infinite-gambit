@@ -25,6 +25,7 @@ import type {OnchainStateValue} from '$lib/game/core/seams';
 import type {SubmissionState, SubmissionStore} from '$lib/game/core/submission';
 import type {GameIdentity} from '$lib/game/identity';
 import type {LocalPlan} from '$lib/chess/view';
+import {noOutcomes} from '$lib/chess/outcomes';
 
 /**
  * A MOVE, END TO END, on this game's own offline world: the legal destinations
@@ -94,7 +95,13 @@ async function boardAround(): Promise<OnchainStateValue<BoardState>> {
 	})) as [Parameters<typeof pieceOf>[0][], bigint];
 	const pieces = new Map<bigint, Piece>();
 	for (const r of raw) pieces.set(r.position, pieceOf(r));
-	return {step: 'Loaded', pieces, spawnPoints: [], armies: []};
+	return {
+		step: 'Loaded',
+		pieces,
+		spawnPoints: [],
+		armies: [],
+		outcomes: noOutcomes(),
+	};
 }
 
 function fakeSubmission(): SubmissionStore<GameIdentity, Move> {

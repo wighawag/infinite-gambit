@@ -90,6 +90,22 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         bool moved;
     }
 
+    /// @notice What the last closed cycle did to one square: a capture, a
+    ///         collision, or both kinds of nothing (never returned).
+    /// @dev Resolved by `ChessRules.outcome`, the same table the board is.
+    struct SquareOutcome {
+        uint64 position;
+        /// @notice how many pieces arrived there and died in a collision: all
+        ///         of them when two or more arrived, zero otherwise
+        uint32 died;
+        /// @notice the piece that stayed there and was captured by the only
+        ///         piece to arrive; kind `None` if nothing was captured
+        Piece captured;
+        /// @notice what stands there now: the captor, the piece that stayed
+        ///         through a collision, or kind `None`
+        Piece piece;
+    }
+
     /// @notice Where an army's deployment is, resolved.
     enum ArmyStatus {
         /// @notice no such army

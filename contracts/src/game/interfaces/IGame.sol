@@ -168,6 +168,28 @@ interface IGameGetters is UsingGameTypes {
         int32 maxY
     ) external view returns (Piece[] memory pieces, uint64 cycleNumber);
 
+    /// @notice WHAT THE LAST CLOSED CYCLE DID inside a rectangle of the board,
+    ///         bounds inclusive: every square where a piece was captured or
+    ///         pieces died in a collision, in no meaningful order.
+    /// @return outcomes one entry per such square
+    /// @return cycleNumber the cycle they happened in: the one before the
+    ///         current cycle
+    /// @dev Read from the same accumulated facts as {getPieces}, which a
+    ///      square keeps until a reveal of a later cycle touches it. So the
+    ///      answer is complete during the next commit phase, and during its
+    ///      reveal phase it can only LOSE squares, never report a wrong one: a
+    ///      reader that wants the whole picture keeps the union of what it read
+    ///      for the same `cycleNumber`.
+    function getOutcomes(
+        int32 minX,
+        int32 minY,
+        int32 maxX,
+        int32 maxY
+    )
+        external
+        view
+        returns (SquareOutcome[] memory outcomes, uint64 cycleNumber);
+
     /// @notice The spawn points a deployment committed now may reveal: the
     ///         free ones nearest the origin, in spiral order, as they stood at
     ///         the start of the current cycle.

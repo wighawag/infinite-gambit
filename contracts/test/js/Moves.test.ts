@@ -1,23 +1,8 @@
 import {expect} from 'earl';
 import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not support vitest
 import {network} from 'hardhat';
-import {
-	setupFixtures,
-	deployGameWith,
-	cycleClock,
-	fundAccount,
-	commitDeployment,
-	revealDeployment,
-	commitmentHashFor,
-	commitmentChain,
-	revealTurn,
-	squareAt,
-	xyOf,
-	CYCLE_POLICY,
-	TURN_BOND,
-	type Move,
-} from './utils/index.js';
-import {zeroAddress} from 'viem';
+import {setupFixtures, commitmentChain, squareAt, xyOf} from './utils/index.js';
+import {movesWorld, SECRET, at, move, type Piece} from './utils/moves-world.js';
 
 /**
  * MOVES: one per army per cycle, judged against the board as it stood at the
@@ -28,8 +13,8 @@ import {zeroAddress} from 'viem';
  * own cases are asserted through that route on boards written out by hand, and
  * the reveal is held to the route on a real board.
  *
- * The game here is deployed on the TIGHTEST spawn grid (spacing 6), so that
- * armies stand next to each other and meet in a cycle:
+ * The game here is the tight-grid world of `utils/moves-world.ts` (spacing 6),
+ * so that armies stand next to each other and meet in a cycle:
  *
  *   alice, spawn (0,0), facing North        bob, spawn (6,0), facing East
  *
@@ -43,214 +28,10 @@ import {zeroAddress} from 'viem';
 
 const {provider, networkHelpers} = await network.connect();
 const {deployAll} = setupFixtures(provider);
-
-const COMMIT_PHASE = 60n;
-const REVEAL_PHASE = 30n;
-const clock = cycleClock({
-	startTime: 0,
-	commitPhaseDuration: Number(COMMIT_PHASE),
-	revealPhaseDuration: Number(REVEAL_PHASE),
+const world = movesWorld({
+	deployAll,
+	loadFixture: networkHelpers.loadFixture,
 });
-
-const SECRET =
-	'0x00000000000000000000000000000000000000000000000000000000000c0de1';
-
-const KIND = ['.', 'P', 'N', 'B', 'R', 'Q', 'K'] as const;
-const DIRECTION = ['N', 'E', 'S', 'W'] as const;
-
-type Piece = {
-	position: bigint;
-	army: bigint;
-	kind: number;
-	forward: number;
-	moved: boolean;
-};
-
-const at = (x: number, y: number) => squareAt(x, y);
-const move = (from: [number, number], to: [number, number]): Move => ({
-	from: at(...from),
-	to: at(...to),
-});
-
-/** A piece as one comparable line: kind, square, army, forward, moved. */
-function describePiece(piece: Piece): string {
-	const {x, y} = xyOf(piece.position);
-	return `${KIND[piece.kind]}@${x},${y}#${piece.army}:${DIRECTION[piece.forward]}${piece.moved ? '*' : ''}`;
-}
-
-async function deployMovesWorld() {
-	const f = await deployAll();
-	const Game = await deployGameWith(f, {
-		name: 'Game_moves',
-		cyclePolicy: CYCLE_POLICY.Timed,
-		commitPhaseDuration: COMMIT_PHASE,
-		revealPhaseDuration: REVEAL_PHASE,
-		spawnSpacing: 6n,
-	});
-	return {...f, Game};
-}
-
-/** The tight-grid game, at the top of a commit phase, with helpers. */
-async function world() {
-	const f = await networkHelpers.loadFixture(deployMovesWorld);
-	let cycle = clock.getCycleNumber(await f.getTimestamp()).cycleNumber + 1;
-	await f.advanceToTime(clock.cycleStartTime(cycle), true);
-	const [alice, bob, carol, dave] = f.unnamedAccounts as `0x${string}`[];
-	const actionsPerReveal = 1;
-
-	const w = {
-		...f,
-		alice,
-		bob,
-		carol,
-		dave,
-		cycle: () => cycle,
-		async toRevealPhase() {
-			await f.advanceToTime(clock.revealStartTime(cycle), true);
-		},
-		async toNextCycle() {
-			cycle += 1;
-			await f.advanceToTime(clock.cycleStartTime(cycle), true);
-		},
-		/** Commit deployments for `owners` at their spawn points, in one cycle. */
-		async commitDeployments(
-			deployments: readonly [`0x${string}`, [number, number]][],
-		): Promise<bigint[]> {
-			const armies: bigint[] = [];
-			for (const [owner, [i, j]] of deployments) {
-				await fundAccount(f, owner);
-				const {army} = await commitDeployment(f, {
-					owner,
-					spawnPoint: at(i * 6, j * 6),
-					secret: SECRET,
-					actionsPerReveal,
-				});
-				armies.push(army);
-			}
-			return armies;
-		},
-		revealDeployment(
-			owner: `0x${string}`,
-			army: bigint,
-			[i, j]: [number, number],
-		) {
-			return revealDeployment(f, {
-				account: owner,
-				army,
-				spawnPoint: at(i * 6, j * 6),
-				secret: SECRET,
-				actionsPerReveal,
-			});
-		},
-		/** Deploy armies in one cycle and move on to the cycle they act in. */
-		async deploy(
-			deployments: readonly [`0x${string}`, [number, number]][],
-		): Promise<bigint[]> {
-			const armies = await w.commitDeployments(deployments);
-			await w.toRevealPhase();
-			for (let k = 0; k < deployments.length; k++) {
-				await w.revealDeployment(
-					deployments[k][0],
-					armies[k],
-					deployments[k][1],
-				);
-			}
-			await w.toNextCycle();
-			return armies;
-		},
-		async commit(owner: `0x${string}`, army: bigint, moves: readonly Move[]) {
-			await f.env.execute(f.Game, {
-				account: owner,
-				functionName: 'makeCommitment',
-				args: [
-					army,
-					commitmentHashFor(moves, SECRET, actionsPerReveal),
-					TURN_BOND,
-					zeroAddress,
-				],
-			});
-		},
-		reveal(owner: `0x${string}`, army: bigint, moves: readonly Move[]) {
-			return revealTurn(f, {
-				account: owner,
-				identity: army,
-				moves,
-				secret: SECRET,
-				actionsPerReveal,
-			});
-		},
-		/**
-		 * Play one cycle: commit every submission, reveal them in the order
-		 * given (or reversed), and move on to the next cycle.
-		 */
-		async play(
-			submissions: readonly {
-				owner: `0x${string}`;
-				army: bigint;
-				moves: readonly Move[];
-			}[],
-			order: 'forward' | 'reverse' = 'forward',
-		) {
-			for (const s of submissions) await w.commit(s.owner, s.army, s.moves);
-			await w.toRevealPhase();
-			const reveals =
-				order === 'forward' ? submissions : [...submissions].reverse();
-			for (const s of reveals) await w.reveal(s.owner, s.army, s.moves);
-			await w.toNextCycle();
-		},
-		/** The board around the armies, as sorted lines. */
-		async board(): Promise<string[]> {
-			const [pieces] = (await f.env.read(f.Game, {
-				functionName: 'getPieces',
-				args: [-12, -12, 18, 18],
-			})) as [Piece[], bigint];
-			return pieces.map(describePiece).sort();
-		},
-		async pieces(): Promise<Piece[]> {
-			const [pieces] = (await f.env.read(f.Game, {
-				functionName: 'getPieces',
-				args: [-12, -12, 18, 18],
-			})) as [Piece[], bigint];
-			return [...pieces];
-		},
-		async pieceAt(x: number, y: number): Promise<string | undefined> {
-			const [pieces] = (await f.env.read(f.Game, {
-				functionName: 'getPieces',
-				args: [x, y, x, y],
-			})) as [Piece[], bigint];
-			return pieces.length === 0 ? undefined : describePiece(pieces[0]);
-		},
-		async registry() {
-			const [armies] = (await f.env.read(f.Game, {
-				functionName: 'getArmies',
-				args: [0n, 10n],
-			})) as readonly [
-				readonly {id: bigint; status: number; king: bigint; stake: bigint}[],
-				bigint,
-			];
-			return armies.map((a) => ({
-				id: a.id,
-				status: a.status,
-				king: xyOf(a.king),
-				stake: a.stake,
-			}));
-		},
-		async legalMoves(from: [number, number]): Promise<string[]> {
-			const pieces = await w.pieces();
-			const destinations = (await f.env.read(f.Game, {
-				functionName: 'legalMoves',
-				args: [pieces, at(...from)],
-			})) as bigint[];
-			return destinations
-				.map((d) => {
-					const {x, y} = xyOf(d);
-					return `${x},${y}`;
-				})
-				.sort();
-		},
-	};
-	return w;
-}
 
 // ----------------------------------------------------------------------------
 // THE RULE, on boards written out by hand

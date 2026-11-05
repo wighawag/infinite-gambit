@@ -555,6 +555,52 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         }
     }
 
+    /// @notice The captures and collisions of `cycleNumber` on the squares of
+    ///         the rectangle whose record still holds that cycle's facts.
+    /// @dev See {IGameGetters-getOutcomes}. Only a record OF `cycleNumber` is
+    ///      read, so an older one (an idle square) and a newer one (a reveal of
+    ///      the open cycle) are both skipped, and the resolution is
+    ///      {ChessRules-settle} and {ChessRules-outcome} on the facts the board
+    ///      read folds in, so the two cannot disagree.
+    function _outcomesIn(
+        int32 minX,
+        int32 minY,
+        int32 maxX,
+        int32 maxY,
+        uint64 cycleNumber
+    ) internal view returns (SquareOutcome[] memory outcomes) {
+        if (maxX < minX || maxY < minY) return outcomes;
+        uint64[] memory touched = _touchedIn(Rect(minX, minY, maxX, maxY));
+        outcomes = new SquareOutcome[](touched.length);
+        uint256 n = 0;
+        for (uint256 k = 0; k < touched.length; k++) {
+            SquareRecord storage record = _squares[touched[k]];
+            if (record.cycle != cycleNumber || record.arrivals == 0) continue;
+            Piece memory standing = Piece({
+                position: touched[k],
+                army: record.army,
+                kind: record.kind,
+                forward: record.forward,
+                moved: record.moved
+            });
+            (Piece memory captured, uint256 died) = ChessRules.outcome(
+                standing,
+                record.departed,
+                record.arrivals
+            );
+            if (died == 0 && captured.kind == PieceKind.None) continue;
+            outcomes[n++] = SquareOutcome({
+                position: touched[k],
+                died: uint32(died),
+                captured: captured,
+                piece: _squareAt(touched[k], cycleNumber + 1)
+            });
+        }
+        assembly {
+            mstore(outcomes, n)
+        }
+    }
+
     /// @dev The spawn points whose deployment has landed and whose footprint
     ///      can reach `rect`, and their armies.
     function _landedAround(

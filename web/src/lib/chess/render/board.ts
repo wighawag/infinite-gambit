@@ -22,6 +22,10 @@ const SELECTED_COLOUR = '#ffd166';
 const DESTINATION_COLOUR = 'rgba(120, 220, 140, 0.45)';
 const PLANNED_COLOUR = '#7ee08a';
 const LIGHT_SQUARE = 'rgba(255, 255, 255, 0.05)';
+/** A square where the last cycle's arrivals collided and died. */
+const COLLISION_COLOUR = '#ef476f';
+/** A square where the last cycle captured a piece. */
+const CAPTURE_COLOUR = '#f78c6b';
 /** Below this many pixels per square there is no room for a glyph. */
 const MIN_GLYPH_SCALE = 6;
 
@@ -92,6 +96,32 @@ export function createChessBoardRenderer(params: {
 				context.moveTo(from.x, from.y);
 				context.lineTo(to.x, to.y);
 				context.stroke();
+			}
+
+			// What the last cycle did, as the contract resolved it: a tinted
+			// square with a cross where pieces died colliding, an outline where a
+			// piece was captured. Under the pieces, so a survivor stays readable.
+			for (const outcome of view.outcomes) {
+				const {x, y} = outcome.position2d;
+				if (outcome.died > 0) {
+					context.globalAlpha = 0.25;
+					context.fillStyle = COLLISION_COLOUR;
+					context.fillRect(x - 0.5, y - 0.5, 1, 1);
+					context.globalAlpha = 1;
+					context.strokeStyle = COLLISION_COLOUR;
+					context.lineWidth = 2 / scale;
+					context.beginPath();
+					context.moveTo(x - 0.35, y - 0.35);
+					context.lineTo(x + 0.35, y + 0.35);
+					context.moveTo(x + 0.35, y - 0.35);
+					context.lineTo(x - 0.35, y + 0.35);
+					context.stroke();
+				}
+				if (outcome.captured) {
+					context.strokeStyle = CAPTURE_COLOUR;
+					context.lineWidth = 3 / scale;
+					context.strokeRect(x - 0.45, y - 0.45, 0.9, 0.9);
+				}
 			}
 
 			// From here on in screen space: see the file comment.
