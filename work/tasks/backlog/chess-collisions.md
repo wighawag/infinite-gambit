@@ -21,6 +21,8 @@ A piece that moved away is never captured on its old square (the attacker lands 
 
 The client shows what happened in the cycle (pieces that died, captures).
 
+> FORWARD-POINTER (conductor, from what `chess-moves` landed; see its `## Decisions` in `work/tasks/done/chess-moves.md`): **the contract half of this table already exists.** `chess-moves` made `ChessRules.settle` resolve a square from (standing piece, departed, arrival count, lone arriver): a lone arrival takes the square whatever stood there, two or more all fail, and the piece that stayed survives a crowd. So this task is mostly to VERIFY that against every row, swerving, a swap and a crossing path with contract tests, fix whatever a test shows to be wrong, add the order-independence replay, and build the client's "what happened this cycle" display. Do not rewrite the resolution. King squares still behave like any other square here; the king rows are `chess-king-capture-merge`'s. `chess-deployment-collisions` made a deployment's footprint fail on any arrival, so a move onto a deploying footprint is not a collision case for this task.
+
 ## Acceptance criteria
 
 - [ ] Each row above, swerving, a swap and a crossing path each have a contract test.
