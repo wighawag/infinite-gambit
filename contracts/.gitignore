@@ -1,0 +1,27 @@
+/node_modules
+
+*.local
+
+# rocketh
+generated
+deployments/localhost
+deployments/hardhat*
+deployments/lan
+deployments/lan.transactions.json
+deployments/default
+deployments/test
+deployments/ephemeral
+_metadata
+
+# hardhat
+/coverage
+/coverage.json
+/.coverage-config.json
+/.coverage-data.json
+cache
+artifacts
+docs
+
+dist/
+
+purgatory.db

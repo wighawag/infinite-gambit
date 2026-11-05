@@ -1,0 +1,10 @@
+{
+  "template": "github:wighawag/template-commit-reveal",
+  "ref": "5c8b2d83d54103360055c295e9f65eb503445951",
+  "track": "with/fuzd-pixi-indexer",
+  "sourceName": "template-commit-reveal",
+  "answers": {
+    "name": "chess-battleground"
+  },
+  "version": 1
+}

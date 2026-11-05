@@ -1,0 +1,14 @@
+{
+	"name": "Commit Reveal",
+	"title": "Commit Reveal",
+	"description": "Build and Deploy for Eternity",
+	"canonicalURL": "http://localhost:8080",
+	"repoURL": "",
+	"communityURL": "",
+	"ENSName": null,
+	"themeColor": "#000000",
+	"appleStatusBarStyle": "black-translucent",
+	"icon": "static/icon.svg",
+	"preview": "static/preview.png",
+	"maskable": true
+}

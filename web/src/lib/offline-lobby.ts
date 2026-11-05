@@ -1,0 +1,199 @@
+import {createLobby, type LobbyStore} from '$lib/game/lobby/lobby';
+import type {AiLevel} from '$lib/game/core/strategy';
+import {createWorldClaim, letGoOfWorld} from '$lib/embedded/claim';
+import * as offline from '$lib/offline';
+import {CHAIN_ID_STORAGE_KEY, startOfflineWorld} from '$lib/offline';
+
+/**
+ * THE OFFLINE WORLD'S LOBBY: the framework's lobby, wired to this world.
+ *
+ * WHAT IS LEFT HERE IS THE WIRING AND THE WORDS, and that split is the point.
+ * How many seats there may be, what a seat is, when the question may be asked
+ * and why it cannot be asked again are `$lib/game/lobby/*`'s, because they are
+ * true of any game whose membership is settled before it boots. What is THIS
+ * world's is the two ends the framework cannot know: which world to start, and
+ * where this browser remembers it.
+ *
+ * IT IS A MODULE RATHER THAN THE ROUTE'S WIRING, and that is forced rather than
+ * chosen. A lobby is app-scoped, like the world it starts, so it has to be built
+ * exactly once: built inside `+page.svelte` it would be rebuilt on every mount
+ * and would forget the choice a player was in the middle of making, which is the
+ * failure the framework's `Opening` state exists to describe.
+ */
+
+/**
+ * How many seats the world in this browser was built with.
+ *
+ * IN THE SAME NAMESPACE AS EVERYTHING ELSE THIS WORLD KEEPS, which is why the
+ * framework takes it as a parameter rather than declaring one: it belongs beside
+ * `offline-world:chain-id`, and it is a WIRE in `AGENTS.md`'s sense. Renaming it
+ * sends a browser that already holds a world back through the chooser, and a
+ * different count chosen there would enrol members into a world that is already
+ * provisioned.
+ */
+const SEATS_STORAGE_KEY = 'offline-world:seats';
+
+/**
+ * How many of those seats are people at this device (hotseat). A wire like the
+ * seats key, beside it, and read as 1 when absent: every world built before
+ * hotseat had one.
+ */
+const HUMANS_STORAGE_KEY = 'offline-world:humans';
+
+/**
+ * THE MOST PEOPLE AT THIS DEVICE THIS GAME'S WORLD CAN PLAY, which its own
+ * `$lib/offline` says by exporting `LOCAL_HUMANS_AT_MOST` (its world is what
+ * gives each of them an account, a stake and a turn). READ OFF THE MODULE
+ * rather than imported by name, as `context/index.ts` reads a game's `lobby`:
+ * a game whose world has no hotseat declares nothing, and this file stays one
+ * git object in every game. Asked with `in` first because a module mock (vitest's)
+ * throws on reading an export it was not given, where a real module answers
+ * `undefined`.
+ */
+const LOCAL_HUMANS_AT_MOST =
+	'LOCAL_HUMANS_AT_MOST' in offline
+		? ((offline as unknown as {LOCAL_HUMANS_AT_MOST?: number})
+				.LOCAL_HUMANS_AT_MOST ?? 1)
+		: 1;
+
+/**
+ * Each world seat's level, as a JSON array of level ids. A wire like the seats
+ * key, beside it, and read as every seat `random` when absent: every world
+ * built before levels played `random`.
+ */
+const LEVELS_STORAGE_KEY = 'offline-world:levels';
+
+/**
+ * THE LEVELS THIS GAME'S WORLD SEATS MAY PLAY AT, which its `$lib/offline`
+ * says by exporting `AI_LEVELS` (its world is what plays them, with the game's
+ * own strategy). Read off the module for the reason `LOCAL_HUMANS_AT_MOST` is:
+ * a game whose world offers none declares nothing, and this file stays one git
+ * object in every game.
+ */
+const AI_LEVELS: readonly AiLevel[] =
+	'AI_LEVELS' in offline
+		? ((offline as unknown as {AI_LEVELS?: readonly AiLevel[]}).AI_LEVELS ?? [])
+		: [];
+
+/**
+ * THE LEVEL A WORLD SEAT STARTS AT in a fresh choice, which its `$lib/offline`
+ * says by exporting `AI_DEFAULT_LEVEL`; read off the module like `AI_LEVELS`,
+ * and `random` when it declares none.
+ */
+const AI_DEFAULT_LEVEL: string | undefined =
+	'AI_DEFAULT_LEVEL' in offline
+		? (offline as unknown as {AI_DEFAULT_LEVEL?: string}).AI_DEFAULT_LEVEL
+		: undefined;
+
+/**
+ * The boot this tab started, if any: what letting the world go waits for.
+ *
+ * Kept HERE rather than read off the world's status store, because the lobby is
+ * the only caller of `startOfflineWorld` and its promise is the one thing that
+ * says both "a boot is still going" and, once it settles, which world to stop.
+ */
+let booting: ReturnType<typeof startOfflineWorld> | undefined;
+
+/**
+ * ONE TAB PER WORLD, claimed before the lobby so much as looks.
+ *
+ * NAMED BY THIS APP'S WORLD, `offline-world`, and not by its chain id. A browser
+ * keeps one world per app, and its id changes INSIDE a boot (an incoherent
+ * restore mints a new one and boots it in the same call; leaving the table drops
+ * it), so a lock named by the id would be released or missed at exactly those
+ * moments. The literal rather than a name built from `CHAIN_ID_STORAGE_KEY`,
+ * because that key is the game's to version and the lock is not.
+ *
+ * TAKEN WHEN THE LOBBY OPENS, NOT WHEN IT BOOTS. A second tab that reached the
+ * chooser would write its seat count over the world it cannot play, which is the
+ * record the holder's next restore reads; so a tab that cannot have the world is
+ * refused before the lobby offers it anything. The rule and the take-over are
+ * `$lib/embedded/claim`'s; this is only which world, and what letting it go waits
+ * for.
+ */
+export const offlineWorldClaim = createWorldClaim({
+	name: 'offline-world',
+	letGo: () => letGoOfWorld(booting),
+});
+
+const lobby: LobbyStore = createLobby({
+	// Both halves of "is there a world here" are this file's to answer, because
+	// the chain id is what the world keys everything by. See `$lib/offline`,
+	// which is what writes it.
+	gameAlreadyHere: () =>
+		typeof localStorage !== 'undefined' &&
+		localStorage.getItem(CHAIN_ID_STORAGE_KEY) !== null,
+	startGame: (table) => {
+		booting = startOfflineWorld({table});
+	},
+	// FORGETTING THE CHAIN ID IS WHAT MAKES IT A NEW WORLD: everything the player
+	// kept is keyed by that id, so the next boot mints one and builds a world
+	// beside the old one rather than into it. The old chain and its deployment
+	// records stay in IndexedDB, orphaned, which is exactly what an incoherent
+	// restore already does to them and is the honest outcome: they describe a
+	// world nothing points at any more.
+	forgetGame: () => {
+		if (typeof localStorage !== 'undefined') {
+			localStorage.removeItem(CHAIN_ID_STORAGE_KEY);
+		}
+	},
+	seatsStorageKey: SEATS_STORAGE_KEY,
+	humansStorageKey: HUMANS_STORAGE_KEY,
+	humansAtMost: LOCAL_HUMANS_AT_MOST,
+	levelsStorageKey: LEVELS_STORAGE_KEY,
+	levels: AI_LEVELS,
+	defaultLevel: AI_DEFAULT_LEVEL,
+});
+
+/**
+ * The lobby, behind the claim: entering asks for the world first, and a tab
+ * refused it never reaches the chooser or the boot. Everything else is the
+ * framework's lobby unchanged.
+ */
+export const offlineLobby: Omit<LobbyStore, 'enter'> & {
+	enter(): Promise<void>;
+} = {
+	...lobby,
+	async enter(): Promise<void> {
+		if (await offlineWorldClaim.claim()) lobby.enter();
+	},
+};
+
+/**
+ * Take the world over from the tab that has it, then open the lobby here as an
+ * ordinary visit would: a world already in this browser boots by the restore,
+ * so the player lands in the same world, not a new one.
+ */
+export async function takeTheWorldOver(): Promise<void> {
+	await offlineWorldClaim.takeOver();
+	lobby.enter();
+}
+
+/**
+ * WHAT THE WORLD DOES FOR THE PLAYER THAT AN ONLINE GAME WOULD HAVE ASKED FOR.
+ *
+ * Said out loud rather than done invisibly, and this is the whole reason the
+ * sentence exists. Offline, registering this browser's key is a question with
+ * one answer, so the world answers it (`$lib/game/acquire/authorise`). Online it
+ * is a real transaction the player signs and pays for, and it is the step that
+ * makes every later move promptless. A player who met it for the first time on a
+ * real chain, having never been told it exists, would meet it as an unexplained
+ * demand at the worst possible moment - in front of a board they had already
+ * decided to play.
+ *
+ * WORDED SO THAT IT IS TRUE IN BOTH PLACES IT IS SHOWN, which took a second
+ * draft. The first said the world HAD registered a key, which is a fact in the
+ * strip above a running world and a falsehood in the lobby, where no world
+ * exists yet - and the lobby is where a player most wants to know what sitting
+ * down is about to do. One sentence describing what an offline world does is
+ * true in both, and is one string rather than two to keep in step.
+ *
+ * IT STAYS IN THE APP, beside the world it describes, because `offline` is the
+ * EXPERIENCE a player chose rather than a thing the framework has: a lobby in
+ * the framework cannot promise what this sentence promises, and a game whose
+ * lobby is online would need a different sentence or none.
+ */
+export const THE_KEY_THIS_BROWSER_PLAYS_WITH =
+	'Playing needs a key this browser holds, registered to your account and ' +
+	'funded with gas, so your moves cost no prompts. An offline world does ' +
+	'that for you. Online it is one transaction you sign and pay for, once.';
