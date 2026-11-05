@@ -1,6 +1,16 @@
+# chess-battleground
+
+An onchain infinite-board chess game built on a commit-reveal foundation. This repo is a FINAL GAME, not a template: nothing descends from it. It was generated from `template-commit-reveal` (see `.offshoot.json`) and may still take updates from it, which is the only reason some sections below talk about upstream.
+
+Start with `CONTEXT.md` (the words), then `work/specs/` (what we are building) and `docs/adr/` (why it is built that way).
+
 # setup
 
 `pnpm i`
+
+**Check how `pnpm` is reached before assuming** (`pnpm --version`; on some hosts it is not on PATH and lives at `~/.volta/bin/pnpm`, on others it is on PATH and volta is not installed at all).
+
+**`web/src/lib/deployments.ts` is generated and gitignored.** The root `prepare` script (`scripts/ensure-deployments.mjs`) creates it on install. A `check` failure inside `$lib/core` usually means it needs regenerating, not that shared code is broken.
 
 # frontend
 
@@ -10,216 +20,57 @@ for tests: `pnpm test`
 
 ## Svelte conventions
 
-- **`.svelte` files must be logic-less or logic-minimal.** They should only
-  render UI and wire props/stores together. Small presentational conveniences
-  are fine (a display formatter, a class toggle, a UI-only animation, local
-  open/closed modal state). Anything else, business/domain logic, async
-  blockchain calls, transaction building, balance checks, data
-  fetching/derivation, non-trivial computation, filtering/sorting/aggregating
-  domain data, network error handling, belongs in a plain `.ts` module (a
-  helper, a store, or a service) that the component imports.
+- **`.svelte` files must be logic-less or logic-minimal.** They should only render UI and wire props/stores together. Small presentational conveniences are fine (a display formatter, a class toggle, a UI-only animation, local open/closed modal state). Anything else, business/domain logic, async blockchain calls, transaction building, balance checks, data fetching/derivation, non-trivial computation, filtering/sorting/aggregating domain data, network error handling, belongs in a plain `.ts` module (a helper, a store, or a service) that the component imports. For this game that includes all chess rules: move legality, resolution, and the bot.
 
-- **Never create `.svelte.ts` files.** Do not use Svelte runes
-  (`$state`, `$derived`, `$effect`, ...) outside of `.svelte` components. Put
-  reusable logic in plain `.ts` files and expose reactivity with Svelte stores
-  (`writable`/`readable`/`derived` from `svelte/store`). Components consume
-  those stores with the `$store` syntax and own any `$effect`/lifecycle wiring
-  themselves.
+- **Never create `.svelte.ts` files.** Do not use Svelte runes (`$state`, `$derived`, `$effect`, ...) outside of `.svelte` components. Put reusable logic in plain `.ts` files and expose reactivity with Svelte stores (`writable`/`readable`/`derived` from `svelte/store`). Components consume those stores with the `$store` syntax and own any `$effect`/lifecycle wiring themselves.
 
-- Logic lives in `.ts`, reactivity crosses the boundary as stores. Prefer
-  factory functions that return `{subscribe, ...actions}` (see the existing
-  stores under `src/lib/**` and `src/routes/**/lib/stores/`).
+- Logic lives in `.ts`, reactivity crosses the boundary as stores. Prefer factory functions that return `{subscribe, ...actions}` (see the existing stores under `src/lib/**` and `src/routes/**/lib/stores/`).
 
 ## The framework boundary
 
-- **Only `web/src/lib/kit` may import `$app/*`.** Everything under `web/src/lib/core` takes what it needs from the framework as a parameter (`PathResolver`, `ServiceWorkerEnvironment`), and `web/src/routes/**` is exempt because routes are the framework's own surface. `web/test/framework-boundary.test.ts` enforces this and `web/src/lib/kit/README.md` states the scope, including what the rule deliberately does not cover.
+- **Only `web/src/lib/kit` may import `$app/*`.** Everything under `web/src/lib/core` takes what it needs from the framework as a parameter (`PathResolver`, `ServiceWorkerEnvironment`), and `web/src/routes/**` is exempt because routes are the framework's own surface. `web/test/framework-boundary.test.ts` enforces this and `web/src/lib/kit/README.md` states the scope.
 
-- **`web/src/lib/index.ts` is where the app is composed**, which is why it may import both `./kit/*` and the environment. Anything that composes THIS app belongs there rather than in `core/`.
+- **`web/src/lib/index.ts` is where the app is composed**, which is why it may import both `./kit/*` and the environment.
 
-- The two boundary tests and this section are INHERITED from `template-svelte`, the root of this template tree, where they are also enforced. A change to either that is meaningful for a sibling belongs there rather than here, or every sibling silently misses it.
+- `web/src/lib/core` and these boundary tests came from upstream. Prefer not to edit them for this game's convenience: a local edit turns every future upstream update into a merge conflict.
 
-## Contracts
+# Contracts
 
 - **Deploy every contract with `deterministic: true`, and give every other transaction of a deploy script a `guard`** (`execute(..., {guard: {kind: 'call', functionName, args, equals}})`). The LAN package (`nix build .#lan`, see "On a LAN box, with no internet" in README.md) replays the deploy on a box's chain: it needs addresses that depend only on the init code, and a guard to know whether a setup call already happened. `contracts/test/js/DeterministicDeploys.test.ts` fails otherwise. Under CREATE2 a constructor's `msg.sender` is the factory, so never use it as the deployer.
-- **`nix/lan.nix` and `nix/lan-deploy.sh` are generic**: a game's specifics go in `nix/game.nix`. Build with `nix build git+file://$PWD#lan` (git add new files first), never a `path:` flake reference.
+- **`nix/lan.nix` and `nix/lan-deploy.sh` are generic**: the game's specifics go in `nix/game.nix`. Build with `nix build git+file://$PWD#lan` (git add new files first), never a `path:` flake reference.
+- **The commit-reveal base (`contracts/src/commit-reveal/`) is the framework**: the hash chain, the reserve and both settlements. The game builds on it through its seams (`_playerOf` for who acts, `_forfeit` for what a missed reveal costs, `_cycle` for the clock) rather than editing it.
 
-## The words
+# The words
 
-**`CONTEXT.md` at the root is the glossary, and it is opinionated on purpose.**
-It says what a cycle is, what a submission is, and which words the framework
-deliberately does NOT take so that your game can have them: `round` and `turn`
-are yours, and the framework never uses either. Read it before naming anything
-new, and extend it when your game settles a word of its own.
+**`CONTEXT.md` is the glossary.** Its first part is the framework's vocabulary (cycle, submission, commitment, stake, forfeit, identity, ...) and is game-neutral on purpose. Its "This game" section holds chess-battleground's own words (army, move, spawn point, deployment, exit, capture, merge, collision, capture loop, freeze). Read it before naming anything, and extend that section when the game settles a new word.
 
-**The template says `cycle`, and so do reveal-or-die and bomber-world; the
-other games still say `epoch`.** That split is deliberate and it is how you
-should read a grep.
+- The interval is a `cycle` (`cycleNumber`), never `epoch`. `round` and `turn` are reserved for games by the framework, and this game deliberately uses neither, so they cannot be confused with a cycle.
+- `web/src/lib/core/transaction/in-flight.ts` says `ms since epoch`: that is the UNIX epoch, not a renamed interval. Leave it.
+- `web/test/svelte-conventions-boundary.test.ts` cites `game/core/round.ts` and `RoundState`. That is a record of another repo's file, kept verbatim from upstream. Leave it.
 
-In the template (`chess-battleground`) the rename has landed: `cycle` is the
-interval, `cycleNumber` is its index, one player's pass through a cycle is a
-`submission`, and apart from the one exception below `epoch` appears nowhere in
-`web/src` or `contracts/src`. If you find another one there, it is drift and it
-is worth fixing.
+**ADR numbers need a repo attached.** This repo's own decisions are in `docs/adr/` and are cited by path (`docs/adr/0002-order-free-lazy-resolution.md`). A bare `ADR-0002` or `ADR-0004` in code inherited from upstream means **jolly-roger's** ADRs, which are unrelated to ours. Do not renumber or "fix" those citations.
 
-In a GAME repo built from this template, `epoch` is expected and means the game
-has not been ported yet. A game's contracts are its own (what it keeps from the
-template is the commit-reveal base, `contracts/src/commit-reveal/`, and only once
-it builds on it), so each game is ported one at a time; a descendant full of `epoch` is a schedule,
-not a stale glossary. reveal-or-die was ported on 2026-09-26, taking the
-template's names wherever the concept is the same (`getCycleNumber`,
-`_cycleNumber`, `InvalidCycle`, `lastCycleNumber`), and bomber-world follows it
-by cascade. What a game must not do is use `cycle` for something that
-is not the framework's interval.
+# Commit-reveal rules
 
-**AND THE SAME READING APPLIES TO A MECHANISM, NOT ONLY TO A WORD.** `CONTEXT.md`
-says a **commitment** is the head of a hash chain, each link holding one **chunk**
-and the hash of the next, because a turn may be bigger than a transaction and the
-framework owns that, in its contracts too since 2026-10-25: the commit-reveal
-base (`contracts/src/commit-reveal/`) is the chain, the bond and both
-settlements, and a game keeps it. A descendant's contracts may not be built on it
-yet: its `reveal` takes one array and resolves all of it, and there is no
-`furtherActions` anywhere, while the base arrives beside them and compiles
-unused. That is the same schedule as `epoch`, for the same reason, and it is
-visible in the same way - grep the contracts, not the glossary. Nothing breaks
-while the two disagree, because the client half is a SEAM: `reveal` on the
-adapter is one call that may be several transactions, and an adapter that needs
-only one never reports progress. What a game must not do is chain the
-commitment in its contracts and leave its client sending the whole turn, which
-fails only in the reveal phase and costs the stake.
+Every one of these is easy to break by accident.
 
-Two files keep an old word on purpose, and they are different cases. One keeps
-`epoch`; the other keeps `round`, which is the other word this rename
-moved (the shared interval became `cycle`, one player's pass became a
-`submission`, and `round` and `turn` went back to being a game's own words).
+- **A reveal must not branch on state another reveal in the same cycle could have changed.** Reveals arrive in whatever order the mempool delivers them, so the board after a set of commitments must not depend on that order. If it does, whoever pays the most gas decides the outcome, and committing bought nothing. This game meets the rule with lazy resolution (`docs/adr/0002-order-free-lazy-resolution.md`): reveals only accumulate order-free facts and every comparison happens when a square is next read. Keep a test that replays the same commitments in several orders and asserts the same board, ownership and stakes. The test is whether the ORDER can change what a player GETS. If you need an exemption, write the argument next to the code and pin it with a test; if you cannot make the argument, you are looking at the rule, not an exception.
 
-**There used to be a third**, and what happened to it is worth a sentence,
-because the reasoning was wrong rather than merely spent.
-`web/src/lib/placement/storage.ts` kept an `epoch` field under
-`__placement_round__` on the grounds that a serialised shape is a compatibility
-surface with a stake behind it. The hazard is real (see the storage rule below)
-and there was nothing for it to act on: chess-battleground had no committed
-deployment records when this rename landed, so nothing was deployed and no
-record could be in flight, and a game built FROM this template starts at its own
-first deploy and cannot hold a record written by a previous build of the
-template. The key and the field were renamed outright. **The general lesson is
-that "nothing is deployed yet" is a claim you can CHECK, in one command, per
-repo** - check it before building compatibility for it.
+- **Something must be at stake, or nobody has to reveal.** Here a missed reveal freezes the army forever (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
 
-`web/src/lib/core/transaction/in-flight.ts` says `ms since epoch`, and that is
-the UNIX epoch - a wall-clock origin, not this project's interval, so it was
-never the word being renamed. It is also jolly-roger's file and byte-identical
-to the stem's, which is the second reason to leave it: editing `lib/core` to
-satisfy a grep buys a conflict in every future merge. A sweep that rewrites it
-to `cycle` has made the comment false; that happened once already.
+- **Renaming a persisted key or field forfeits the stake of every player who has one in flight, and every suite stays green while it happens.** The secret that opens a commitment lives in the browser, in the game's submission storage, and nowhere else. `load()` discards any record it cannot read, so a record written by the previous build under the old name is a player who can no longer reveal: their army freezes. Nothing catches this: the tests are renamed with the code and the type checker sees a rename rather than a break. So once the game has users, the storage key and every field name in the record are a WIRE: treat a change to either like a change to the ABI. If you must, read both shapes for a release and write the new one. Before the first deploy this costs nothing, and "nothing is deployed yet" is a claim to check (`git ls-files contracts/deployments`), not assume.
 
-**There used to be one more, and it is the lesson about citations.**
-`contracts/src/game/internal/UsingGameInternal.sol` cited bomber-world's cycle
-function as the precedent for its identity seam. That is a DESCENDANT'S symbol,
-so the citation is only correct while it spells the name that repo actually
-uses. It said `_epoch()` until 2026-09-26, and a sweep once rewrote it to
-`_cycleNumber()` early, naming a function that then existed in no repo. It said
-`_cycleNumber()` from the day bomber-world was ported: the citation followed the
-descendant, not the glossary. It left with the seam on 2026-10-25, when
-`_playerOf` moved into the commit-reveal base, which every game keeps and which
-therefore names no game.
+# Planning: the `work/` folder
 
-`web/test/svelte-conventions-boundary.test.ts` cites `game/core/round.ts` and
-`RoundState` as a DESCENDANT'S file that failed a rune check. Same shape as the
-bomber-world citation above: it is a record of what that repo called it at the
-time, so the citation is only correct while it spells that name. It is also
-byte-identical to jolly-roger's, and it is INHERITED from `template-svelte`
-where the same rule is enforced - so it is catalogued here rather than annotated
-at the line, because a comment in the file would diverge something every sibling
-shares in order to record something only this repo knows. If it ever needs
-saying in the code, it gets said upstream and comes back down.
+Planning lives in `work/` on `main`, following dorfl's `work/` contract (reference docs in `work/protocol/`, re-synced by `dorfl sync`; never edit them by hand). Specs are in `work/specs/`, the build board in `work/tasks/`, captured signals in `work/notes/`, and what needs a human in `work/questions/`. Decisions are in `docs/adr/`.
 
-That is also the general answer for this whole list: **a file identical to the
-stem's does not get a local comment explaining why it is identical.** Write it
-here, where a sweeper is told to look and where it cascades to the games.
+`dorfl` is pinned as a root devDependency and `dorfl.json` forwards bare `dorfl` to it. The acceptance gate is `dorfl.json`'s `verify`.
 
-The reasoning, the rejected alternatives and the migration order are in ADR-0001
-(chess-battleground `work`).
+If reality contradicts a spec or an ADR, change the document in the same commit as the code that proved it wrong, and say which claim was wrong.
 
-## Commit-reveal rules
+# Taking an update from upstream
 
-This template exists to build simultaneous-turn games. Three rules follow from
-that, and every one of them is easy to break by accident.
+Only relevant when merging a new version of `template-commit-reveal` into this repo.
 
-- **A reveal must not branch on state another reveal in the same cycle could
-  have changed.** Reveals arrive in whatever order the mempool delivers them,
-  so the board after a set of commitments must not depend on that order. If it
-  does, whoever pays the most gas decides the outcome, and committing bought
-  nothing. Accumulate (`+=`); do not compare against another player's state.
-
-  Rules like "the first to reveal takes the cell" or "reject a cell that is
-  already taken" look reasonable and violate this.
-  `contracts/test/js/Game.test.ts` asserts the property directly by replaying the same commitments in two
-  different orders; keep that test working when you change resolution rules.
-
-  The test is whether the ORDER can change what a player GETS, not whether
-  shared state is read at all. In chess-battleground's own reference game
-  there is exactly one place that reads it on purpose: `_place` checks whether a cell has ever been claimed so it can add it
-  to a per-zone index once, and the indexed set, every stake and every player's
-  position come out identical either way (only the array order and which reveal
-  pays for the append differ). That argument is written next to the code and
-  pinned by a test that compares the zone listing as a SET in both orders. If
-  you need the same exemption, do both of those things; if you cannot make the
-  argument, you are looking at the rule, not at an exception to it.
-
-- **Something must be at stake, or nobody has to reveal.** A player who dislikes
-  what they committed to can simply go quiet. The template makes this concrete
-  with a token reserve bonded at commit time and forfeited when a missed reveal
-  is settled (`_forfeit` in the commit-reveal base). A game may gate differently (custody of an NFT, for
-  instance); what the framework needs is only that _something_ is lost by not
-  revealing.
-
-- **Renaming a persisted key or field forfeits the stake of every player who
-  has one in flight, and every suite stays green while it happens.** The secret
-  that opens a commitment lives in the browser, in your game's own submission
-  storage (`placement/storage.ts` in chess-battleground's reference game,
-  `world/storage.ts` in reveal-or-die and bomber-world), and nowhere else. `load()` discards
-  any record it cannot read, so a record written by the previous build under
-  the old name is not a migration problem, it is a player who can no longer
-  reveal: the commitment stands, the reveal never comes, and the settlement
-  takes what was bonded (all of it, since nothing can show the chunks).
-
-  **Nothing catches this.** The tests are renamed alongside the code, no test
-  reads a record written by an older build, and the type checker sees a rename
-  rather than a break. It is found by a player, at their own expense, and only
-  after you ship.
-
-  So once your game has users, the storage key and every field name in the
-  record are a WIRE, not an identifier: treat a change to either the way you
-  would treat a change to the ABI. If you must, read both shapes for a release
-  and write the new one, and delete the tolerance once no in-flight record can
-  predate it. Before your first deploy this costs nothing, which is exactly when
-  to get the names right - and "nothing is deployed yet" is a claim to check
-  (`git ls-files contracts/deployments`) rather than assume.
-
-## Where the plan and the handoff live: the `work` branch
-
-**They are not in this working tree, so `ls` and `find` will not show them.** Every repo in this tree keeps its maintainer material on an orphan branch called `work`, which has no merge base with anything and therefore never cascades into a descendant. Nothing checks it out. Start by asking what this repo's branch holds, rather than assuming a path:
-
-```bash
-git ls-tree -r --name-only work        # what THIS repo keeps there
-git show work:<path>                   # read one
-git worktree add ../<repo>-work work   # or check it out beside the repo
-```
-
-**The plan for the whole template tree lives on `chess-battleground`'s `work` branch**, at `work/specs/proposed/games-on-this-foundation.md`. It is the source of truth for intent: the phase order, the decisions with their reasoning, the measured baselines for the template and its descendants, and what each phase deliberately does NOT do. A game built from this template does not carry a copy, by design, so read it there. Alongside it are `HANDOFF.md` (repo state and environment gotchas) and `work/tasks/` (staged work items).
-
-If reality contradicts the plan, change the document in the same commit as the code that proved it wrong, and say which claim was wrong.
-
-The README's ADR section points at `work:docs/adr/`. That is **jolly-roger's** branch layout, and a repo further down this tree may hold nothing at that path; the listing command above is the reliable route. chess-battleground's README is byte-identical to jolly-roger's and is deliberately left that way; a game's README is its own, and says nothing about this.
-
-**AN ADR NUMBER IS ONLY MEANINGFUL WITH A REPO ATTACHED, now that chess-battleground has ADRs of its own.** Every bare citation in the code (`ADR-0002`, `ADR-0004`) means **jolly-roger's**, which holds 0001 to 0008 and will keep adding to them; chess-battleground's own sequence starts again at 0001 and is unrelated. Read a bare number as jolly-roger's, and write new citations as "ADR-0001 (chess-battleground `work`)". The existing bare ones are left alone deliberately: most are in files byte-identical to the stem's, where editing them would be the divergence-by-copy this tree keeps paying for.
-
-## Before you commit a cascade, in this repo or in a descendant
-
-**Run `node scripts/check-dangling-imports.mjs`.** It takes about a second, needs no install and no `svelte-kit sync`, and it is the one check that fires at the moment the mistake is made rather than one step after it. `scripts/apply-omissions.sh` already runs it for you, so this only needs remembering when the merge had no modify/delete conflict to resolve.
-
-**The reason is measured, twice, and both times in a descendant.** Two cascades out of `chess-battleground` have broken `reveal-or-die`, and both were broken by a hunk that merged CLEANLY and reported no conflict at all: in 2026-09-09 the template deleted `game/render/pixi/PixiCanvas.svelte` and reveal-or-die's own `world/render/index.ts` went on importing it; in 2026-09-23 five files arrived there as clean ADDS carrying nine imports of `$lib/placement`, which is the TEMPLATE's game and a directory reveal-or-die had deleted long ago (its own game is `$lib/world`). Four routine-looking conflicts invite resolve-and-move-on, and `--verify` catches both one step late. **The check lives at the template rather than only in the repo that got burnt, because the defect is the tree's**: every game deletes the template's game and writes its own, so every one of them is one clean hunk away from the same failure, and a check only the burnt repo carries is a check the next repo has to get burnt to acquire. `scripts/dangling-imports.mjs` holds the reasoning and why it is repo-local rather than in `offshoot-fanout`, where it belongs.
-
-NAMING BOTH REPOS IS DELIBERATE, because this paragraph is inherited: written as "this repo" it is true at whichever level it was written and false one level down, which is the same defect as a game directory arriving in the wrong repo. The third cascade proved the point twice over - it carried this section into reveal-or-die reading as though `$lib/placement` were that repo's game, and the check it carried alongside caught an import the same merge had stranded.
-
-Two environment facts worth having before the first command, because both have cost real time: **check how `pnpm` is reached before assuming** (`pnpm --version`; on some hosts here it is not on PATH and lives at `~/.volta/bin/pnpm`, on others it is on PATH and volta is not installed at all - an absolute path written down as a project fact has already cost a session its first command), and **`web/src/lib/deployments.ts` is generated and gitignored**, so a `check` failure inside `$lib/core` that the stem does not have means regenerate it before touching anything shared. The rest are in the handoff.
+- **Run `node scripts/check-dangling-imports.mjs`** (it is also the first step of `verify`). A hunk that merges cleanly can still import a file this repo deleted, most often the template's reference game (`$lib/placement`) once chess replaces it. `scripts/apply-omissions.sh` runs it for you when resolving modify/delete conflicts.
+- **List every template file this game deliberately deletes in `.offshoot-omissions`, with a reason**, so the next merge's modify/delete conflict is a lookup rather than an investigation.

@@ -153,3 +153,61 @@ Whatever a game calls one player's contribution, if it wants the word. Games
 here are simultaneous, so a turn is not an interval; and in a game whose actions
 are directions, turning is also a move. This template's own reference game takes
 the word: what the framework calls a submission, its HUD calls a turn.
+
+## This game: infinite chess
+
+chess-battleground is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), capturing a king takes its stake and absorbs its army, and the stake only leaves through an exit square. It also runs as closed tables for offline hotseat and single-player games.
+
+Everything above this heading is the framework's and stays game-neutral. The words below are this game's own. The full rule set is in `work/specs/`, and the decisions behind it are in `docs/adr/`.
+
+**Army**:
+One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity.
+_Avoid_: player, faction, team, side
+
+**Move**:
+This game's action: one chess move by one piece. An army submits at most one move per cycle, however many pieces it has, and may submit none (a pass).
+_Avoid_: turn, action (in game-facing text), order
+
+**Spawn point**:
+A point on a fixed grid where an army may be deployed. Only the few free spawn points nearest the origin are open, so the world stays dense as it grows.
+_Avoid_: slot, start position, base
+
+**Deployment**:
+Placing a new army, committed and revealed like a move so nobody knows which spawn point was chosen until it is on the board.
+_Avoid_: spawn (as a noun for the act), join, enter
+
+**Exit**:
+A square where a king may leave the world with its stake. It is the only way a stake leaves.
+_Avoid_: withdraw, cash out, escape
+
+**Capture**:
+Taking a piece by being the only piece to arrive on its square while it stays put. Capturing a king takes its stake and merges its army.
+_Avoid_: kill, take (in code)
+
+**Merge**:
+What happens to an army whose king is captured: its pieces join the captor's army, which still makes one move per cycle.
+_Avoid_: absorb, conquer, annex
+
+**Collision**:
+Two or more pieces arriving on the same square in the same cycle. Who survives depends only on how many arrived and whether a king is among them, never on the order of reveals.
+_Avoid_: clash, conflict, bounce
+
+**Capture loop**:
+Kings capturing each other in a ring within one cycle (A takes B while B takes A, or longer). The king-capturing pieces die, every king survives, and each owner takes over the army they captured.
+_Avoid_: mutual capture, swap, draw
+
+**Freeze**:
+What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured. In the framework's terms it is a forfeit.
+_Avoid_: ban, lock, penalty
+
+## The work/ contract
+
+Planning lives in `work/` on `main` (this is a final game, not a template, so there is no orphan `work` branch). The reference docs are in `work/protocol/`, copied by dorfl's `setup` and re-synced by `dorfl sync`: never edit them here. Status is the folder an item is in. `work/specs/` holds product intent, `work/tasks/` the build board, `work/notes/{ideas,observations,findings}` captured signals (findings are external ground truth, each with a `source:`), and `work/questions/` what needs a human. `docs/adr/` records what we decided and why.
+
+**promptGuidance**:
+The NUDGE namespace in `dorfl.json`. Its one member, `testFirst`, is on here: autonomous builds are told to write the failing test first. It is not a gate; `verify` alone decides pass/fail.
+
+## Conventions
+
+- **dorfl is pinned.** `dorfl` is a root `devDependency` at an exact version and `dorfl.json` sets `"dorflCmd": "node_modules/.bin/dorfl"`, so bare `dorfl` forwards to the pinned copy. To upgrade: bump the version in `package.json`, `pnpm install`, then `dorfl sync`.
+- No changeset or changelog entry is required per change.

@@ -5,6 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.28.1",
   "devDependencies": {
+    "dorfl": "0.15.1",
     "expand-vars": "^0.1.0",
     "ldenv": "^0.6.0",
     "set-defaults": "^0.0.5",

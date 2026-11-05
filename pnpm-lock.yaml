@@ -13,6 +13,9 @@ importers:
 
   .:
     devDependencies:
+      dorfl:
+        specifier: 0.15.1
+        version: 0.15.1
       expand-vars:
         specifier: ^0.1.0
         version: 0.1.0
@@ -266,6 +269,9 @@ importers:
       bits-ui:
         specifier: ^2.18.2
         version: 2.18.2(@internationalized/date@3.12.3)(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.9)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)))(svelte@5.56.9)(typescript@6.0.3)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)))(svelte@5.56.9)
+      chess-battleground-contracts:
+        specifier: workspace:*
+        version: link:../contracts
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -341,9 +347,6 @@ importers:
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
-      template-commit-reveal-contracts:
-        specifier: workspace:*
-        version: link:../contracts
       tlock-js:
         specifier: ^0.9.0
         version: 0.9.0
@@ -3129,6 +3132,11 @@ packages:
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
+
+  dorfl@0.15.1:
+    resolution: {integrity: sha512-P+10MaWjdd3i/MoLD3bvb+98N//CfOrqWeOMumFkJBOQeJLz8pxzziOltRKE0EAAbFGGpoHluqsk0cJagI6Wnw==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   dotenv-expand@10.0.0:
     resolution: {integrity: sha512-GopVGCpVS1UKH75VKHGuQFqS1Gusej0z4FyQkPdwjil2gNIv+LNsqBlboOzpJFZKVT95GkCyWJbBSdFEFUWI2A==}
@@ -8056,6 +8064,10 @@ snapshots:
       dom-serializer: 2.0.0
       domelementtype: 2.3.0
       domhandler: 5.0.3
+
+  dorfl@0.15.1:
+    dependencies:
+      commander: 14.0.3
 
   dotenv-expand@10.0.0: {}
 

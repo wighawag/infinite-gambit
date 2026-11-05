@@ -1,0 +1,10 @@
+{
+	"prepare": "pnpm install && node scripts/ensure-deployments.mjs",
+	"verify": "node scripts/check-dangling-imports.mjs && pnpm format:check && pnpm web:check && pnpm contracts:test && pnpm --filter ./web test:unit",
+	"dorflCmd": "node_modules/.bin/dorfl",
+	"harness": "pi",
+	"autoBuild": false,
+	"autoTask": false,
+	"review": false,
+	"promptGuidance": {"testFirst": true}
+}
