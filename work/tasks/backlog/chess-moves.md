@@ -4,6 +4,7 @@ slug: chess-moves
 spec: infinite-chess
 blockedBy: [chess-army-deployment]
 covers: [9, 10, 11, 12, 16, 17, 18, 19, 20]
+needsAnswers: true
 ---
 
 ## What to build
