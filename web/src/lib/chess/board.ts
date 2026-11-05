@@ -14,6 +14,12 @@ import type {
 } from '$lib/core/connection/types';
 import type {ZonesForCamera, ZonesReader} from '$lib/onchain/state';
 import {armyViewOf, type ArmyView} from './armies';
+import {
+	accumulateOutcomes,
+	noOutcomes,
+	outcomeOf,
+	type CycleOutcomes,
+} from './outcomes';
 import {rectOfZones, zonesInRect} from './squares';
 
 /** `UsingGameTypes.PieceKind`, by value. The order is the contract's. */
@@ -48,12 +54,18 @@ export type BoardState = {
 	spawnPoints: readonly bigint[];
 	/** Every army, resolved: what "how close are the nearest armies" reads. */
 	armies: readonly ArmyView[];
+	/**
+	 * What the last closed cycle did in view: its captures and collisions, as
+	 * the contract resolves them (`./outcomes.ts`).
+	 */
+	outcomes: CycleOutcomes;
 };
 
 export const emptyBoard = (): BoardState => ({
 	pieces: new Map(),
 	spawnPoints: [],
 	armies: [],
+	outcomes: noOutcomes(),
 });
 
 /** Normalise a piece as viem hands it back. */
@@ -119,11 +131,15 @@ export function createBoardReader(params: {
 		} as never)) as T;
 	}
 
+	// The last cycle's outcomes, kept across reads: see `./outcomes.ts` for why
+	// a read can only add to what the one before it found.
+	let outcomes = noOutcomes();
+
 	return async ({zones, expectedCycleNumber, toBlock}) => {
 		const block = BigInt(toBlock);
 		const rect = rectOfZones(zones);
 
-		const [piecesRead, spawnRead, armies] = await Promise.all([
+		const [piecesRead, spawnRead, armies, outcomesRead] = await Promise.all([
 			rect
 				? read<readonly [readonly Parameters<typeof pieceOf>[0][], bigint]>(
 						'getPieces',
@@ -137,7 +153,20 @@ export function createBoardReader(params: {
 				block,
 			),
 			readAllArmies(block),
+			rect
+				? read<readonly [readonly Parameters<typeof outcomeOf>[0][], bigint]>(
+						'getOutcomes',
+						[rect.minX, rect.minY, rect.maxX, rect.maxY],
+						block,
+					)
+				: Promise.resolve(undefined),
 		]);
+		if (outcomesRead) {
+			outcomes = accumulateOutcomes(outcomes, {
+				cycleNumber: Number(outcomesRead[1]),
+				outcomes: outcomesRead[0].map(outcomeOf),
+			});
+		}
 
 		const pieces = new Map<bigint, Piece>();
 		for (const raw of piecesRead[0]) {
@@ -151,6 +180,7 @@ export function createBoardReader(params: {
 			pieces,
 			spawnPoints: [...spawnRead[0]],
 			armies,
+			outcomes,
 			cycleNumber: expectedCycleNumber,
 		};
 	};

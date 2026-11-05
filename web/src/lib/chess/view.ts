@@ -14,8 +14,12 @@ import type {ViewMerge} from '$lib/view';
 import type {BoardState, Piece} from './board';
 import {positionOf, type Position} from './squares';
 import {describeSpawnPoints, type SpawnPointView} from './spawn-points';
+import type {SquareOutcome} from './outcomes';
 
 export type PieceView = Piece & {position2d: Position};
+
+/** A square the last closed cycle changed by a capture or a collision. */
+export type OutcomeView = SquareOutcome & {position2d: Position};
 
 export type BoardView = {
 	pieces: Map<bigint, PieceView>;
@@ -39,6 +43,13 @@ export type BoardView = {
 	destinations?: readonly Position[];
 	/** The move the player has planned this cycle, if any. */
 	plannedMove?: {from: Position; to: Position};
+	/**
+	 * What the last closed cycle did: the squares where a piece was captured
+	 * or pieces died colliding, as the contract resolved them.
+	 */
+	outcomes: readonly OutcomeView[];
+	/** The cycle {@link outcomes} happened in; -1 before any was read. */
+	outcomesCycle: number;
 };
 
 export type LocalPlan = {
@@ -98,6 +109,11 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 			? {selected: positionOf(local.selected)}
 			: {}),
 		destinations: (local.destinations ?? []).map(positionOf),
+		outcomes: [...onchain.outcomes.bySquare.values()].map((outcome) => ({
+			...outcome,
+			position2d: positionOf(outcome.position),
+		})),
+		outcomesCycle: onchain.outcomes.cycleNumber,
 		...(local.move
 			? {
 					plannedMove: {

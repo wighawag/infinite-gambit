@@ -68,6 +68,8 @@ describe('the HUD', () => {
 			cycleNumber: 3,
 			pieces: new Map(),
 			ghost: [],
+			outcomes: [],
+			outcomesCycle: -1,
 			spawnPoints: [
 				{spawnPoint: squareAt(0, 0), position: {x: 0, y: 0}, nearest: []},
 				{spawnPoint: squareAt(16, 0), position: {x: 16, y: 0}, nearest: [5]},

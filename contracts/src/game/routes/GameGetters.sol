@@ -71,6 +71,23 @@ contract GameGetters is IGameGetters, UsingGameInternal {
     }
 
     /// @inheritdoc IGameGetters
+    function getOutcomes(
+        int32 minX,
+        int32 minY,
+        int32 maxX,
+        int32 maxY
+    )
+        external
+        view
+        returns (SquareOutcome[] memory outcomes, uint64 cycleNumber)
+    {
+        (uint64 current, ) = _cycleNumber();
+        if (current == 0) return (outcomes, 0);
+        cycleNumber = current - 1;
+        outcomes = _outcomesIn(minX, minY, maxX, maxY, cycleNumber);
+    }
+
+    /// @inheritdoc IGameGetters
     function getOpenSpawnPoints()
         external
         view

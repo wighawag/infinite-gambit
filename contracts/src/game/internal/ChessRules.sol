@@ -522,6 +522,37 @@ library ChessRules {
         return standing;
     }
 
+    /// @notice What one cycle's facts did to a square, as {settle} resolves
+    ///         it: the piece captured there, and how many arriving pieces died
+    ///         there in a collision.
+    /// @param standing what stood there at the start of the cycle
+    /// @param departed whether that piece moved away in the cycle
+    /// @param arrivals how many pieces arrived in the cycle
+    /// @return captured the piece that stayed and was taken by a lone arrival;
+    ///         kind `None` (at the square) if nothing was captured. A piece
+    ///         that moved away is never captured on its old square.
+    /// @return died how many of the arriving pieces died there: all of them
+    ///         when two or more arrived, none otherwise
+    /// @dev The SAME TABLE as {settle}, read for what it destroyed rather than
+    ///      what it left, so the client can show a cycle's captures and
+    ///      collisions without a copy of the rule
+    ///      (`docs/adr/0007-rules-live-only-in-the-contract.md`). Change the
+    ///      two together.
+    function outcome(
+        T.Piece memory standing,
+        bool departed,
+        uint256 arrivals
+    ) internal pure returns (T.Piece memory captured, uint256 died) {
+        captured.position = standing.position;
+        if (arrivals == 1) {
+            if (!departed && standing.kind != T.PieceKind.None) {
+                captured = standing;
+            }
+        } else if (arrivals > 1) {
+            died = arrivals;
+        }
+    }
+
     /// @dev The unit step a pawn facing `forward` advances by.
     function _step(
         T.Direction forward

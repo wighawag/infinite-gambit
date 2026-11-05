@@ -48,7 +48,14 @@ function piece(x: number, y: number, army = YOU): [bigint, PieceView] {
 }
 
 function board(pieces: [bigint, PieceView][]): BoardView {
-	return {pieces: new Map(pieces), spawnPoints: [], ghost: [], you: YOU};
+	return {
+		pieces: new Map(pieces),
+		spawnPoints: [],
+		ghost: [],
+		you: YOU,
+		outcomes: [],
+		outcomesCycle: -1,
+	};
 }
 
 function setup(options: {showGrid?: boolean} = {}) {

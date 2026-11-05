@@ -27,6 +27,7 @@ import {ARMY_STATUS, type ArmyView} from '../armies';
 import {nearestLabel, type SpawnPointView} from '../spawn-points';
 import {positionOf} from '../squares';
 import type {BoardView} from '../view';
+import {describeOutcomes, type OutcomeLine} from '../outcomes';
 import type {ViewStateValue} from '$lib/game/core/seams';
 import type {CyclePhase} from '$lib/game/core/cycle-phase';
 import type {SavedTurn} from '$lib/game/core/commit-reveal-game';
@@ -138,6 +139,12 @@ export type HudModel = {
 	 * the one move planned this cycle, if any.
 	 */
 	moving?: {planned?: string};
+	/**
+	 * What the last closed cycle did in view, once the board has read it: its
+	 * captures and collisions, as the contract resolved them. Absent when it
+	 * did neither.
+	 */
+	lastCycle?: {cycleNumber: number; lines: readonly OutcomeLine[]};
 	/**
 	 * Set when the plan cannot be submitted as it stands.
 	 *
@@ -705,6 +712,17 @@ export function describeMoving(params: {
 		: {};
 }
 
+/** The last cycle's captures and collisions, when it had any. */
+export function describeLastCycle(
+	view: ViewStateValue<BoardView>,
+): HudModel['lastCycle'] {
+	if (view.step !== 'Loaded' || view.outcomes.length === 0) return undefined;
+	return {
+		cycleNumber: view.outcomesCycle,
+		lines: describeOutcomes(view.outcomes, positionOf, view.you),
+	};
+}
+
 export function createHud(context: Context): Readable<HudModel> {
 	const {game} = context;
 
@@ -848,6 +866,7 @@ export function createHud(context: Context): Readable<HudModel> {
 					army: $army as ArmyView | undefined,
 					move: $move as Move | undefined,
 				}),
+				lastCycle: describeLastCycle($view as ViewStateValue<BoardView>),
 
 				submissionLabel: submission.label,
 				submissionTone: submission.tone,

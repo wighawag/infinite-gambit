@@ -71,3 +71,12 @@ keep. The gate failed on an infrastructure race, not on the work: `pnpm install`
 ### q1: 'task:chess-collisions' was bounced — how should we proceed?
 
 keep. The previous retry conflicted only because the kept branch already done-moved the task while main appended to its backlog body; the conductor rebases the branch by hand to fix that. The committed work is complete: do not redo it, check it is still green and finish.
+
+## Decisions
+
+- **The client learns what happened from a contract view (`getOutcomes`), not from events or from comparing boards.** Comparing the board before and after cannot tell a capture from a swerve (both show square X going from army A to army B) without redoing the resolution in TypeScript, which `docs/adr/0007` rejects. Events would need a log query and the same inference on top. The view uses the same stored facts and the same table as `settle`, through `ChessRules.outcome`. This touches the `IGameGetters` ABI and the `GameGetters` route size. `chess-king-capture-merge` must update `outcome` together with `settle` when it adds the king rows (the doc comment says so).
+- **The view only reports the last closed cycle, and a read can miss squares during the next reveal phase.** A square's record is overwritten when a reveal of a later cycle touches it. The view never reports a wrong outcome, only a missing one, so the client keeps the union of every read for the same cycle (`accumulateOutcomes`), kept inside the board reader. I rejected storing the history on chain, because reveals would pay extra gas for something only the display uses. A client that first loads partway through the next reveal phase can see an incomplete list. A future history indexer, which `docs/adr/0007` allows, could fill this in.
+- **`died` is a count, and the view does not say which pieces died.** Only the first piece to arrive is stored, and its record is ignored when two or more arrive. Naming every piece that died would need per-arrival storage paid for in reveal gas. The HUD therefore says "N pieces collided on (x, y) and died", and names the captor and the captured piece only for captures.
+- **`getOutcomes` returns an empty list with cycle 0 when the current cycle is 0**, rather than underflowing to cycle −1.
+
+No ADR was written: nothing is deployed yet, so none of these choices is hard to reverse.

@@ -9,6 +9,7 @@ import {createBoardReader, PIECE_KIND, type BoardState} from '$lib/chess/board';
 import {mergeBoardView} from '$lib/chess/view';
 import {MOVE_STORAGE} from '$lib/chess/storage';
 import {bondFor, deploymentAt, spawnPointOf} from '$lib/chess/commit-reveal';
+import {noOutcomes} from '$lib/chess/outcomes';
 
 /**
  * The client's halves of the wire: how a square is spelled, which squares a
@@ -110,6 +111,7 @@ describe('the view', () => {
 			pieces: new Map(),
 			spawnPoints: [squareAt(0, 0), squareAt(16, 0)],
 			armies: [],
+			outcomes: noOutcomes(),
 		};
 		const ghost = {
 			position: squareAt(-2, 0),

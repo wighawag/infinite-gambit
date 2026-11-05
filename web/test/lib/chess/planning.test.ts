@@ -26,6 +26,7 @@ import {ARMY_STATUS} from '$lib/chess/armies';
 import type {SubmissionState, SubmissionStore} from '$lib/game/core/submission';
 import type {GameIdentity} from '$lib/game/identity';
 import type {OnchainStateValue} from '$lib/game/core/seams';
+import {noOutcomes} from '$lib/chess/outcomes';
 
 /**
  * PLANNING A MOVE: selecting a piece, asking the contract's rule where it may
@@ -58,6 +59,7 @@ function boardOf(pieces: Piece[]): OnchainStateValue<BoardState> {
 		pieces: new Map(pieces.map((p) => [p.position, p])),
 		spawnPoints: [],
 		armies: [],
+		outcomes: noOutcomes(),
 	};
 }
 
@@ -215,6 +217,7 @@ describe('a move, as the rest of the client sees it', () => {
 				pieces: new Map(),
 				spawnPoints: [],
 				armies: [],
+				outcomes: noOutcomes(),
 				cycleNumber: 3,
 			} as never,
 			local: {move, selected: squareAt(5, 5), destinations: [squareAt(5, 6)]},

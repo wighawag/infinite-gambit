@@ -314,6 +314,20 @@
 				<dd>{$hud.reserveLabel}</dd>
 			</dl>
 
+			{#if $hud.lastCycle}
+				<!-- What the last cycle did, as the contract resolved it. -->
+				<div class="mt-2 text-xs" data-testid="last-cycle">
+					<p class="text-muted-foreground">
+						Cycle {$hud.lastCycle.cycleNumber}
+					</p>
+					<ul>
+						{#each $hud.lastCycle.lines as line, i (i)}
+							<li class={toneClass[line.tone]}>{line.label}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+
 			{#if $hud.deployment}
 				<!-- The open spawn points, nearest the origin first. Picking one here
 				     or on the board is the same plan; it stays hidden until the
