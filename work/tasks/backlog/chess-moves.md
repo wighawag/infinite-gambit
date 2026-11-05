@@ -16,6 +16,12 @@ Armies can make chess moves. Interactions between moves (collisions, captures) a
 - **Registry.** The army registry view keeps returning each king's resolved position.
 - **Client.** Select a piece, see its legal destinations (computed by the contract's rule through the simulation route, never a TypeScript copy: `docs/adr/0007-rules-live-only-in-the-contract.md`), plan and commit the move, see it land after the reveal.
 
+> FORWARD-POINTER (conductor, from what `chess-army-deployment` landed; see its `## Decisions` in `work/tasks/done/chess-army-deployment.md`):
+> - **The client's missed-reveal penalty is now wrong for a move.** `web/src/lib/chess/missed-reveal.ts` derives the penalty from the action count (`count > 0 ? stake : 0`), which was only correct while a deployment was the only non-empty submission. On chain, `_acknowledgeMissedReveal` charges `STAKE` only for a deployment and 0 for anything else. Once a move is a non-empty submission, make the client agree with the contract (a missed MOVE costs 0 here; what it costs is the freeze, which `chess-freeze` adds). Keep a test that a missed move is not shown as losing the stake.
+> - **"Pass" is an explicit empty commit under the manual cycle** (the HUD's Pass button, `commitWhenIdle`). Keep it working as the "empty move" kind of pass this task requires, alongside planning a real move.
+> - **There is no per-square storage yet**: deployments are facts per spawn point and the viewport read lays armies out from them. This task introduces the per-square layer; a landed army's pieces must be read from it (or from the layout until first touched) without changing what `getPiecesIn`/the registry return for an untouched army.
+> - **At a table the seat is still the ACCOUNT** (pass-only) until `chess-tables`; do not try to make account seats move.
+
 ## Acceptance criteria
 
 - [ ] Each piece type moves exactly as described, with the slider cap, pawn direction and two-square first move; castling, en passant and promotion are rejected.
