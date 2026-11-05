@@ -9,3 +9,4 @@
 <!-- q1 fields: id=q1 kind=stuck -->
 
 **Your answer** (write below this line):
+keep. The previous retry conflicted only because the kept branch already done-moved the task while main appended to its backlog body; the conductor rebases the branch by hand to fix that. The committed work is complete: do not redo it, check it is still green and finish.
