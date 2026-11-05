@@ -3,7 +3,8 @@
  * game's action and penalty.
  *
  * What this game decides is what a missed submission costs when its chunks are
- * shown: a deployment forfeits the stake, a move or a pass forfeits nothing
+ * shown: a deployment forfeits the stake (burned, on either settlement path,
+ * whatever was bonded: `UsingGameInternal._forfeit`), a move or a pass forfeits nothing
  * here (`UsingGameInternal._acknowledgeMissedReveal`; what a missed move costs
  * is the freeze, `docs/adr/0005-missed-reveal-freezes-the-army.md`).
  *

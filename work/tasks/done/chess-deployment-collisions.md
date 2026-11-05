@@ -65,3 +65,18 @@ git fetch <remote> && git switch -c work/chess-deployment-collisions <remote>/ma
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-deployment-collisions.md work/tasks/done/chess-deployment-collisions.md
 ```
+
+## Decisions
+
+- **Footprint means the 20 squares the layout puts a piece on, not the full 6 by 4 rectangle.** A piece on an empty corner does not block a deployment. I chose this because those are the squares the army would occupy. The alternative was the full rectangle. It is recorded in CONTEXT.md. It affects `chess-collisions` and the client's description of a failure.
+- **How arrivals block a deployment, order-free.** `SpawnRecord` gained `blocked` and `arrivedIn`. A move onto a footprint square sets `blocked` if a deployment already revealed that spawn point this cycle; otherwise it records `arrivedIn = cycle`, which the cycle's first deployment reveal reads. Neither field is ever cleared within a cycle. I rejected reading the per-square arrival counts later, because they are lost when a later cycle touches the square. The cost is one spawn-slot read, and maybe a write, per move.
+- **Automatic settling only covers the account's most recent army.** This keeps the commit's gas fixed. Older pending refunds, for example from several deployments in one cycle, need an explicit `settleDeployment`. I rejected a per-account cursor (extra storage, gas that grows with the walk). The client counts only the most recent army's refund as pending, to match.
+- **`settleDeployment` does nothing (returns 0) when no refund is due**, rather than reverting. This avoids failed transactions when two callers race. It introduces no new error.
+- **A dead army's commit reverts with the existing `NotInGame` error.** Without this, a dead army that is still waited for could commit, and the sweep would then shrink the count it had just voted into. I reused the base's error rather than adding one.
+- **"Dead" includes an unrevealed deployment from a past cycle,** in addition to failed and cancelled. It can never act again, which is the predicate's definition. Settling it (the burn) also stops waiting for it.
+- **The waited-for list `_awaitedArmies` is filled only under non-Timed policies** and is trimmed by the sweep. `getAttendance` now reports waitedFor minus the dead armies still waited for, so a client that mirrors the advance's guard sees the cycle as free before anyone has swept. The alternative left the client unable to see a permitted advance, which stalls the offline world. This affects `chess-freeze`, `chess-king-capture-merge`, `chess-exits-redeem` and `chess-tables`, which extend `_isDead`.
+- **`acknowledgeMissedReveal`, `forfeitMissedReveal` and `advanceCycle` moved from the `GameReveal` route to `GameCommit`, for size only.** `GameReveal` hit 26,863 bytes; it is now 21,198, and `GameCommit` is 19,200. Their declarations moved from `IGameReveal` to `IGameCommit`. The `IGame` ABI is unchanged and the deploy scripts did not change. I rejected adding a new route, which would have touched the deploy scripts, the test utils and the lobby.
+- **Machine seats with a dead army sit out instead of redeploying.** Redeploying would change the seat's identity and its derived secret, which is a wire. The person's account stops being awaited once its first army exists, so after a failure the manual world keeps advancing while the person redeploys.
+- **`COMMIT_GAS` is now sized on the manual world's first paid deployment** (372,267 + 15% = 430,000), because the offline world uses the same figure and its first commit also writes the list of armies to sweep.
+
+No ADR was written: none of these choices is hard to reverse before the first deploy (`contracts/deployments` is untracked).

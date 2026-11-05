@@ -185,17 +185,22 @@ export type GameContext = {
  * ACCOUNT's reserve has to hold a stake for the deployment to move into the new
  * army. `Unloaded` is not "no stake": treating an unfinished read as an empty
  * one would put the gate over a playable board on every load until it lands.
+ *
+ * A FAILED DEPLOYMENT'S PENDING REFUND COUNTS (`refund`): the deployment commit
+ * writes it before it takes the stake, so a player whose deployment failed can
+ * deploy again without buying anything.
  */
 export function stakeNeeded(params: {
 	reserve: {step: string; amount?: bigint};
 	army: Pick<ArmyView, 'status'> | undefined;
 	armiesLoaded: boolean;
 	stake: bigint;
+	refund?: bigint;
 }): {step: 'stake'} | undefined {
 	if (!params.armiesLoaded || params.reserve.step !== 'Loaded')
 		return undefined;
 	if (params.army && isLive(params.army)) return undefined;
-	return (params.reserve.amount ?? 0n) < params.stake
+	return (params.reserve.amount ?? 0n) + (params.refund ?? 0n) < params.stake
 		? {step: 'stake'}
 		: undefined;
 }
@@ -417,13 +422,14 @@ export function createGameContext(core: CoreServices): GameContext {
 		stake: {
 			refresh: refreshStake,
 			needed: derived(
-				[reserve, armies, armies.activeArmy],
-				([$reserve, $armies, $army]) =>
+				[reserve, armies, armies.activeArmy, armies.pendingRefund],
+				([$reserve, $armies, $army, $refund]) =>
 					stakeNeeded({
 						reserve: $reserve,
 						army: $army,
 						armiesLoaded: $armies.step === 'Loaded',
 						stake: config.stake,
+						refund: $refund,
 					}),
 			),
 			acquisition: createStakeAcquisition({

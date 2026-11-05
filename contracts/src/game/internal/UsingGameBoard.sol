@@ -14,12 +14,13 @@ import {ChessRules} from "./ChessRules.sol";
 ///      the start of a cycle from both, and nothing is written when a cycle
 ///      ends, because nothing runs then.
 ///
-///      A LANDED DEPLOYMENT IS ONE ARRIVAL on each square of its footprint, in
-///      the cycle it was revealed in. That is the whole of how the two kinds of
-///      fact combine, and it is what keeps a move onto a new army's footprint
-///      from corrupting anything until `chess-deployment-collisions` says what
-///      it should do: a piece arriving on a footprint square in the deployment's
-///      own cycle makes two arrivals, and both fail, by the count.
+///      A DEPLOYMENT ONLY LANDS ON A CLEAR FOOTPRINT. If any square its layout
+///      puts a piece on was occupied at the start of its cycle, or any piece
+///      arrived on one during it, the whole deployment fails (and is refunded),
+///      and the arriving piece lands as on any empty square. So the two kinds
+///      of fact never meet on one square in one cycle: a landed army's squares
+///      were empty and untouched when it landed, and its layout simply stands
+///      there until a reveal touches the square.
 abstract contract UsingGameBoard is UsingGameStore {
     constructor(Config memory config) UsingGameStore(config) {}
 
@@ -30,48 +31,119 @@ abstract contract UsingGameBoard is UsingGameStore {
     /// @notice Whether a deployment has LANDED on the spawn point with spiral
     ///         index `index` before `cycleNumber`, and which army it was.
     /// @dev Resolved from the accumulated record: one deployment revealed in a
-    ///      cycle that is over. The current cycle's reveals are not on the
-    ///      board until it ends, so an army acts from the cycle after its
-    ///      deployment and no move committed before it can reach it.
+    ///      cycle that is over, onto a footprint nothing blocked. The current
+    ///      cycle's reveals are not on the board until it ends, so an army acts
+    ///      from the cycle after its deployment and no move committed before it
+    ///      can reach it.
     function _landedBefore(
         uint256 index,
         uint64 cycleNumber
     ) internal view returns (bool landed, uint256 army) {
         SpawnRecord storage spawn = _spawns[index];
         uint64 cycle = spawn.cycle;
-        if (cycle != 0 && cycle < cycleNumber && spawn.count == 1) {
+        if (
+            cycle != 0 &&
+            cycle < cycleNumber &&
+            spawn.count == 1 &&
+            !spawn.blocked
+        ) {
             return (true, spawn.army);
         }
         return (false, 0);
     }
 
-    /// @notice The piece the deployment over `position` laid there, and the
-    ///         cycle it was revealed in; kind `None` if no deployment that is
-    ///         still standing alone on its spawn point covers the square.
+    /// @notice The spawn point whose footprint can cover `position`, if any,
+    ///         and its spiral index.
     /// @dev A square is covered by at most one spawn point's footprint (the
     ///      spacing is at least the footprint's width), and a footprint reaches
     ///      at most 3 squares left of / below its spawn point and 2 right of /
     ///      above it: so the spawn point is the one multiple of the spacing in
-    ///      [x-2, x+3] by [y-2, y+3], if there is one. A deployment of the
-    ///      CURRENT cycle is returned too: the caller decides whether its cycle
-    ///      is over.
-    function _laidAt(
+    ///      [x-2, x+3] by [y-2, y+3], if there is one. Whether the square is ON
+    ///      the footprint (not a corner, not outside the rectangle of its
+    ///      facing) is {ChessRules-layoutAt}'s to say.
+    function _spawnCovering(
         uint64 position
-    ) internal view returns (Piece memory piece, uint64 cycle) {
-        piece.position = position;
+    ) internal view returns (bool near, uint64 spawnPoint, uint256 index) {
         (int32 x, int32 y) = PositionUtils.toXY(position);
         int256 s = int256(uint256(SPAWN_SPACING));
         int256 i = _floorDiv(int256(x) + 3, s);
         int256 j = _floorDiv(int256(y) + 3, s);
-        if (i * s < int256(x) - 2 || j * s < int256(y) - 2) return (piece, 0);
-        SpawnRecord storage spawn = _spawns[ChessRules.spiralIndex(i, j)];
-        cycle = spawn.cycle;
-        if (cycle == 0 || spawn.count != 1) return (piece, 0);
-        piece = ChessRules.layoutAt(
+        if (i * s < int256(x) - 2 || j * s < int256(y) - 2) {
+            return (false, 0, 0);
+        }
+        return (
+            true,
             PositionUtils.fromXY(int32(i * s), int32(j * s)),
-            spawn.army,
+            ChessRules.spiralIndex(i, j)
+        );
+    }
+
+    /// @notice Whether every square the layout of a deployment at
+    ///         `spawnPoint` puts a piece on is empty at the START of
+    ///         `cycleNumber`.
+    /// @dev Start-of-cycle facts only, so every reveal of the cycle computes
+    ///      the same answer. Only the per-square layer can occupy these
+    ///      squares: no other footprint overlaps them, and this spawn point is
+    ///      open, so nothing has landed on it.
+    function _footprintClear(
+        uint64 spawnPoint,
+        uint64 cycleNumber
+    ) internal view returns (bool) {
+        Piece[] memory pieces = ChessRules.layout(spawnPoint, 0);
+        for (uint256 k = 0; k < pieces.length; k++) {
+            uint64 position = pieces[k].position;
+            if (_squares[position].cycle == 0) continue;
+            if (_squareAt(position, cycleNumber).kind != PieceKind.None) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// @notice Record that a piece arrives on `position` in `cycleNumber`, for
+    ///         the deployment whose footprint the square is on, if any.
+    /// @dev ORDER-FREE BOTH WAYS ROUND. If a deployment has already revealed
+    ///      this spawn point in this cycle, it is blocked now. Otherwise the
+    ///      spawn point remembers the cycle, and the first deployment reveal of
+    ///      the cycle reads it and starts out blocked. Either way the record
+    ///      ends the cycle blocked, whichever reveal landed first, and nothing
+    ///      ever unsets it. A square no footprint covers costs nothing.
+    function _markArrival(uint64 position, uint64 cycleNumber) internal {
+        (bool near, uint64 spawnPoint, uint256 index) = _spawnCovering(
             position
         );
+        if (!near) return;
+        if (
+            ChessRules.layoutAt(spawnPoint, 0, position).kind == PieceKind.None
+        ) {
+            return;
+        }
+        SpawnRecord storage spawn = _spawns[index];
+        if (spawn.cycle == cycleNumber) {
+            if (!spawn.blocked) spawn.blocked = true;
+        } else if (spawn.arrivedIn != cycleNumber) {
+            spawn.arrivedIn = cycleNumber;
+        }
+    }
+
+    /// @notice The piece the deployment over `position` laid there, and the
+    ///         cycle it was revealed in; kind `None` if no deployment that is
+    ///         still standing alone on a clear footprint covers the square.
+    /// @dev See {_spawnCovering}. A deployment of the CURRENT cycle is returned
+    ///      too: the caller decides whether its cycle is over, and only then is
+    ///      `blocked` final.
+    function _laidAt(
+        uint64 position
+    ) internal view returns (Piece memory piece, uint64 cycle) {
+        piece.position = position;
+        (bool near, uint64 spawnPoint, uint256 index) = _spawnCovering(
+            position
+        );
+        if (!near) return (piece, 0);
+        SpawnRecord storage spawn = _spawns[index];
+        cycle = spawn.cycle;
+        if (cycle == 0 || spawn.count != 1 || spawn.blocked) return (piece, 0);
+        piece = ChessRules.layoutAt(spawnPoint, spawn.army, position);
         if (piece.kind == PieceKind.None) cycle = 0;
     }
 
@@ -84,7 +156,9 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///      and only those of cycles that are over: the record's standing piece
     ///      (already resolved up to the start of the record's cycle), then that
     ///      cycle's moves, then a deployment that landed later. A deployment
-    ///      revealed in the record's own cycle is one more arrival in it.
+    ///      never lands in the record's own cycle (a move onto or off the square
+    ///      then would have blocked it), and when it lands later the square was
+    ///      empty, so its piece simply takes it.
     function _squareAt(
         uint64 position,
         uint64 cycleNumber
@@ -107,27 +181,21 @@ abstract contract UsingGameBoard is UsingGameStore {
             moved: record.moved
         });
         if (touched < cycleNumber) {
-            uint256 arrivals = record.arrivals;
-            Piece memory arriver = Piece({
-                position: position,
-                army: record.arriverArmy,
-                kind: record.arriverKind,
-                forward: record.arriverForward,
-                moved: true
-            });
-            if (deployed && laidIn == touched) {
-                if (arrivals == 0) arriver = laid;
-                arrivals += 1;
-            }
             piece = ChessRules.settle(
                 piece,
                 record.departed,
-                arrivals,
-                arriver
+                record.arrivals,
+                Piece({
+                    position: position,
+                    army: record.arriverArmy,
+                    kind: record.arriverKind,
+                    forward: record.arriverForward,
+                    moved: true
+                })
             );
         }
         if (deployed && laidIn > touched) {
-            piece = ChessRules.settle(piece, false, 1, laid);
+            piece = laid;
         }
     }
 
@@ -218,6 +286,7 @@ abstract contract UsingGameBoard is UsingGameStore {
             target.arriverForward = piece.forward;
         }
         target.arrivals = arrivals + 1;
+        _markArrival(move.to, cycleNumber);
         if (piece.kind == PieceKind.King) {
             target.kingArrived = true;
             ArmyRecord storage army = _armies[player];

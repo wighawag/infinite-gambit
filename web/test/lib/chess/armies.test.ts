@@ -5,6 +5,8 @@ import {
 	chooseArmy,
 	createArmies,
 	isLive,
+	lastDeploymentOutcome,
+	pendingRefund,
 	type ArmyStatus,
 } from '$lib/chess/armies';
 
@@ -51,6 +53,50 @@ describe('choosing the army to play', () => {
 		).toBe(army(3));
 		expect(isLive({status: ARMY_STATUS.Failed})).toBe(false);
 		expect(isLive({status: ARMY_STATUS.Deployed})).toBe(true);
+	});
+});
+
+describe('what became of the last deployment', () => {
+	const withStake = (nonce: number, status: ArmyStatus, stake: bigint) => ({
+		...entry(nonce, status),
+		stake,
+	});
+
+	it('names the most recent army when it failed, was cancelled or missed', () => {
+		for (const status of [
+			ARMY_STATUS.Failed,
+			ARMY_STATUS.Cancelled,
+			ARMY_STATUS.Unrevealed,
+		]) {
+			expect(
+				lastDeploymentOutcome([
+					entry(1, ARMY_STATUS.Deployed),
+					entry(2, status),
+				])?.id,
+			).toBe(army(2));
+		}
+		expect(lastDeploymentOutcome([entry(1, ARMY_STATUS.Deploying)])).toBe(
+			undefined,
+		);
+		expect(lastDeploymentOutcome([])).toBe(undefined);
+		expect(isLive({status: ARMY_STATUS.Cancelled})).toBe(false);
+	});
+
+	it('counts a failed deployment the army still holds as a pending refund, and nothing else', () => {
+		expect(pendingRefund([withStake(1, ARMY_STATUS.Failed, 10n)])).toBe(10n);
+		// Already written: the army holds nothing.
+		expect(pendingRefund([withStake(1, ARMY_STATUS.Failed, 0n)])).toBe(0n);
+		// A missed deployment is burned, not refunded; a cancelled one is
+		// refunded at once.
+		expect(pendingRefund([withStake(1, ARMY_STATUS.Unrevealed, 10n)])).toBe(0n);
+		expect(pendingRefund([withStake(1, ARMY_STATUS.Cancelled, 0n)])).toBe(0n);
+		// Only the most recent army's: that is the one the contract settles.
+		expect(
+			pendingRefund([
+				withStake(1, ARMY_STATUS.Failed, 10n),
+				withStake(2, ARMY_STATUS.Deployed, 10n),
+			]),
+		).toBe(0n);
 	});
 });
 

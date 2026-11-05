@@ -28,7 +28,7 @@ contract GameGetters is IGameGetters, UsingGameInternal {
         returns (Attendance memory attendance)
     {
         (uint64 cycleNumber, ) = _cycleNumber();
-        return _attendance(cycleNumber);
+        return _effectiveAttendance(cycleNumber);
     }
 
     /// @inheritdoc IGameGetters

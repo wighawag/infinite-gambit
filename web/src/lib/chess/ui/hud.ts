@@ -109,6 +109,17 @@ export type HudModel = {
 		tone: 'idle' | 'busy' | 'good' | 'bad';
 	};
 	/**
+	 * What became of the account's last deployment, while the player is back at
+	 * deployment because of it: failed (refunded, or the refund pending), cancelled
+	 * (refunded), or never revealed (burned).
+	 */
+	lastDeployment?: {
+		label: string;
+		/** What happened to its stake. */
+		stakeLabel: string;
+		tone: 'idle' | 'busy' | 'good' | 'bad';
+	};
+	/**
 	 * Set while the army this client plays still has to be deployed: the open
 	 * spawn points, how close the nearest armies are to each, and which one is
 	 * picked. `undefined` once the army is deploying or deployed.
@@ -584,14 +595,64 @@ export function describeArmy(
 		case ARMY_STATUS.Failed:
 			return {
 				label:
-					'Its deployment failed: another deployment revealed the same spawn point.',
+					'Its deployment failed: another deployment revealed the same spawn point, or its squares were not clear. Its stake is refunded.',
 				stakeLabel,
 				tone: 'bad',
+			};
+		case ARMY_STATUS.Cancelled:
+			return {
+				label: 'Its deployment was cancelled. Its stake is refunded.',
+				stakeLabel,
+				tone: 'idle',
 			};
 		case ARMY_STATUS.Unrevealed:
 			return {
 				label: 'Its deployment was never revealed.',
 				stakeLabel,
+				tone: 'bad',
+			};
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * What became of the account's last deployment, in the player's words, while it
+ * is the reason they are deploying again. The contract does not say WHICH of the
+ * two collisions failed it, so both are named.
+ */
+export function describeLastDeployment(params: {
+	needsDeployment: boolean;
+	last: Pick<ArmyView, 'status' | 'stake'> | undefined;
+}): HudModel['lastDeployment'] {
+	const {last} = params;
+	if (!params.needsDeployment || !last) return undefined;
+	switch (last.status) {
+		case ARMY_STATUS.Failed:
+			return {
+				label:
+					'Your last deployment failed: another deployment revealed the same spawn point, or a piece stood on or moved onto its squares. Pick a spawn point to deploy again.',
+				stakeLabel:
+					last.stake > 0n
+						? `${STAKE.amount(last.stake)} refund pending: your next deployment or withdrawal collects it.`
+						: 'Its stake was refunded to your reserve.',
+				tone: 'bad',
+			};
+		case ARMY_STATUS.Cancelled:
+			return {
+				label:
+					'Your last deployment was cancelled. Pick a spawn point to deploy again.',
+				stakeLabel: 'Its stake was refunded to your reserve.',
+				tone: 'idle',
+			};
+		case ARMY_STATUS.Unrevealed:
+			return {
+				label:
+					'Your last deployment was never revealed. Pick a spawn point to deploy again.',
+				stakeLabel:
+					last.stake > 0n
+						? `Its stake of ${STAKE.amount(last.stake)} is lost: it is burned when the missed reveal is settled.`
+						: 'Its stake was burned.',
 				tone: 'bad',
 			};
 		default:
@@ -667,6 +728,8 @@ export function createHud(context: Context): Readable<HudModel> {
 			game.armies.activeArmy,
 			context.viewState,
 			game.planning.move,
+			game.armies.lastOutcome,
+			game.armies.pendingRefund,
 		],
 		([
 			$twoPhase,
@@ -687,12 +750,20 @@ export function createHud(context: Context): Readable<HudModel> {
 			$army,
 			$view,
 			$move,
+			$lastOutcome,
+			$refund,
 		]): HudModel => {
 			const savedTurn = describeSavedTurn($savedTurn as SavedTurn);
 			const submission = describeSubmission($submission);
 			const reserve = $reserve as ReserveState;
 			const reserveAmount =
 				reserve.step === 'Loaded' ? reserve.amount : undefined;
+			// A failed deployment's pending refund is written before a deployment
+			// takes its stake, so it pays for one.
+			const spendable =
+				reserveAmount === undefined
+					? undefined
+					: reserveAmount + ($refund as bigint);
 			const blocked = blocksCommitting($missedReveal as MissedRevealState);
 
 			// `twoPhase` on a manually advanced chain has no clock, only a phase, so
@@ -760,11 +831,15 @@ export function createHud(context: Context): Readable<HudModel> {
 				warning:
 					// First: until it is loaded a click plans nothing at all.
 					(!$ready ? LOADING_ACCOUNT : undefined) ??
-					(reserveAmount !== undefined && $cost > reserveAmount
+					(spendable !== undefined && $cost > spendable
 						? STAKE.notEnough
 						: undefined),
 
 				army: describeArmy($army as ArmyView | undefined),
+				lastDeployment: describeLastDeployment({
+					needsDeployment: $needsDeployment as boolean,
+					last: $lastOutcome as ArmyView | undefined,
+				}),
 				deployment: describeDeployment({
 					needsDeployment: $needsDeployment as boolean,
 					view: $view as ViewStateValue<BoardView>,

@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {
 	describeArmy,
 	describeDeployment,
+	describeLastDeployment,
 	describeSubmission,
 } from '$lib/chess/ui/hud';
 import {ARMY_STATUS} from '$lib/chess/armies';
@@ -21,6 +22,44 @@ describe('the HUD', () => {
 		expect(describeArmy({status: ARMY_STATUS.Failed, stake: 10n})?.tone).toBe(
 			'bad',
 		);
+	});
+
+	it('tells the player what became of a failed, cancelled or missed deployment while they deploy again', () => {
+		const failed = describeLastDeployment({
+			needsDeployment: true,
+			last: {status: ARMY_STATUS.Failed, stake: 10n},
+		});
+		expect(failed?.tone).toBe('bad');
+		expect(failed?.label).toContain('deploy again');
+		expect(failed?.stakeLabel).toContain('refund pending');
+		expect(
+			describeLastDeployment({
+				needsDeployment: true,
+				last: {status: ARMY_STATUS.Failed, stake: 0n},
+			})?.stakeLabel,
+		).toContain('refunded');
+		expect(
+			describeLastDeployment({
+				needsDeployment: true,
+				last: {status: ARMY_STATUS.Cancelled, stake: 0n},
+			})?.stakeLabel,
+		).toContain('refunded');
+		expect(
+			describeLastDeployment({
+				needsDeployment: true,
+				last: {status: ARMY_STATUS.Unrevealed, stake: 0n},
+			})?.stakeLabel,
+		).toContain('burned');
+		// Nothing to say once the player is playing again, or without one.
+		expect(
+			describeLastDeployment({
+				needsDeployment: false,
+				last: {status: ARMY_STATUS.Failed, stake: 10n},
+			}),
+		).toBeUndefined();
+		expect(
+			describeLastDeployment({needsDeployment: true, last: undefined}),
+		).toBeUndefined();
 	});
 
 	it('lists the open spawn points while the army still has to be deployed', () => {

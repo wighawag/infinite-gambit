@@ -15,7 +15,12 @@ import {
 	deploymentAt,
 	type Move,
 } from '$lib/chess/commit-reveal';
-import {ARMY_STATUS, armyViewOf, type ArmyView} from '$lib/chess/armies';
+import {
+	ARMY_STATUS,
+	armyViewOf,
+	isLive,
+	type ArmyView,
+} from '$lib/chess/armies';
 
 /**
  * THE OTHER PLAYERS IN THE OFFLINE WORLD, because a commit-reveal game with one
@@ -301,6 +306,12 @@ export function createOfflinePlayers(params: {
 			await settle(player, onChain);
 			return;
 		}
+
+		// A DEAD ARMY ACTS NO MORE: its deployment failed, was cancelled or was
+		// never revealed. The contract refuses its commitments and the advance no
+		// longer waits for it, and a revert here would stop every seat after this
+		// one for the pass. The seat simply sits out.
+		if (army.status !== ARMY_STATUS.None && !isLive(army)) return;
 
 		if (cycle.commiting) {
 			await commit(player, army, cycle.cycleNumber, onChain);

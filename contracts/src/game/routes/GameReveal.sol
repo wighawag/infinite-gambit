@@ -4,6 +4,9 @@ pragma solidity ^0.8.0;
 import "../internal/UsingGameInternal.sol";
 import "../interfaces/IGame.sol";
 
+/// @dev THE REVEAL, and only the reveal: it carries the whole move rule, which
+///      is what fills this route. The settlements of a missed reveal and the
+///      advance are on {GameCommit}, for size alone.
 contract GameReveal is IGameReveal, UsingGameInternal {
     constructor(Config memory config) UsingGameInternal(config) {}
 
@@ -21,31 +24,5 @@ contract GameReveal is IGameReveal, UsingGameInternal {
         if (payee != address(0) && msg.value != 0) {
             payee.transfer(msg.value);
         }
-    }
-
-    /// @inheritdoc IGameReveal
-    function acknowledgeMissedReveal(
-        uint256 player,
-        Move[] calldata moves,
-        bytes32 secret,
-        bytes24 furtherActions
-    ) external {
-        _acknowledgeMissedReveal(player, moves, secret, furtherActions);
-    }
-
-    /// @inheritdoc IGameReveal
-    function forfeitMissedReveal(uint256 player) external {
-        _forfeitMissedReveal(msg.sender, player);
-    }
-
-    /// @inheritdoc IGameReveal
-    /// @dev Its own entry point, deliberately, and it is the reason `reveal`
-    ///      above is unchanged by this whole axis: a reveal never advances
-    ///      anything, whoever sends it and whenever it lands.
-    function advanceCycle()
-        external
-        returns (uint64 cycleNumber, bool commiting)
-    {
-        return _advanceCycle();
     }
 }

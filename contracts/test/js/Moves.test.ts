@@ -636,7 +636,7 @@ describe('resolving moves', function () {
 		expect(reverse.registry).toEqual(forward.registry);
 	});
 
-	it("fails a move onto a new army's footprint in its deployment cycle, whatever the order", async function () {
+	it('fails a new army whose footprint a move arrives on in its deployment cycle, whatever the order, and lands the move', async function () {
 		async function play(order: 'forward' | 'reverse') {
 			const w = await world();
 			const [a] = await w.deploy([[w.alice, [0, 0]]]);
@@ -657,12 +657,18 @@ describe('resolving moves', function () {
 			return {w, board: await w.board()};
 		}
 		const forward = await play('forward');
-		// Two arrivals on (4,0): both fail. The rest of bob's army stands.
-		expect(await forward.w.pieceAt(4, 0)).toEqual(undefined);
+		// The arrival blocks bob's whole deployment (refunded, see
+		// `DeploymentCollisions.test.ts`), and alice's pawn lands on (4,0) as on
+		// any empty square.
 		expect(await forward.w.pieceAt(2, 0)).toEqual(undefined);
-		expect(forward.board.length).toEqual(38);
+		expect(await forward.w.pieceAt(4, 0)).toEqual(
+			`P@4,0#${(await forward.w.registry())[0].id}:E*`,
+		);
+		expect(forward.board.length).toEqual(20);
+		expect((await forward.w.registry())[1].status).toEqual(3);
 		const reverse = await play('reverse');
 		expect(reverse.board).toEqual(forward.board);
+		expect(await reverse.w.registry()).toEqual(await forward.w.registry());
 	});
 
 	/** alice's pawn (-2,1) two squares, then one, with `idle` cycles between. */

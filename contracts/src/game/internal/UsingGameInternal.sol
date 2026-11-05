@@ -19,6 +19,12 @@ import {Delegation} from "@etherplay/delegation/contracts/Delegation.sol";
 ///
 ///      The rules themselves are {ChessRules}: pure, and shared by the reveal,
 ///      the resolving views and the simulation route.
+/// @dev The one thing this game asks of its token beyond IERC20: that a holder
+///      can burn its own balance (`GameToken.burn`).
+interface IBurnableToken {
+    function burn(uint256 amount) external;
+}
+
 abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     constructor(Config memory config) UsingGameBoard(config) {}
 
@@ -88,12 +94,187 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             spawnIndexPlusOne: 0,
             kingMovedIn: 0,
             kingTo: 0,
-            kingFrom: 0
+            kingFrom: 0,
+            cancelled: false
         });
         _armyIds.push(army);
+        // Only a cycle that advances reads who it waits for, so only there is
+        // the army remembered for the sweep ({_sweepDeadArmies}).
+        if (CYCLE_POLICY != CyclePolicy.Timed) {
+            _awaitedArmies.push(army);
+        }
         CommitReveal.withdraw(uint256(uint160(owner)), STAKE);
         _addToReserve(army, STAKE);
         emit ArmyCreated(army, owner, cycleNumber, STAKE);
+    }
+
+    // ------------------------------------------------------------------------
+    // WHAT BECAME OF A DEPLOYMENT
+    // ------------------------------------------------------------------------
+
+    /// @notice Where `army`'s deployment stands at `cycleNumber`, resolved.
+    /// @dev From closed-cycle facts only once its cycle is over, so neither the
+    ///      order of that cycle's reveals nor the order of later reads can
+    ///      change the answer.
+    function _deploymentStatus(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal view returns (ArmyStatus) {
+        ArmyRecord storage record = _armies[army];
+        if (record.owner == address(0)) return ArmyStatus.None;
+        if (record.cancelled) return ArmyStatus.Cancelled;
+        uint64 deployCycle = record.deployCycle;
+        if (deployCycle >= cycleNumber) return ArmyStatus.Deploying;
+        uint32 indexPlusOne = record.spawnIndexPlusOne;
+        if (indexPlusOne == 0) return ArmyStatus.Unrevealed;
+        // Landed only if the spawn point's record is still the one of the
+        // army's cycle and says it landed: a record started again since means
+        // the spawn point was free, so this deployment failed.
+        SpawnRecord storage spawn = _spawns[indexPlusOne - 1];
+        if (
+            spawn.cycle == deployCycle &&
+            spawn.count == 1 &&
+            !spawn.blocked &&
+            spawn.army == army
+        ) {
+            return ArmyStatus.Deployed;
+        }
+        return ArmyStatus.Failed;
+    }
+
+    /// @notice THE ONE "DEAD" PREDICATE: whether `id` is an army that can never
+    ///         act again, so that no cycle should wait for it.
+    /// @dev Today: a deployment that failed, was cancelled, or was never
+    ///      revealed. Later rules extend it (a captured king, an exit, a
+    ///      freeze). An account is never dead by it: only armies can be.
+    function _isDead(
+        uint256 id,
+        uint64 cycleNumber
+    ) internal view returns (bool) {
+        if (!_isArmyId(id)) return false;
+        ArmyStatus status = _deploymentStatus(id, cycleNumber);
+        return
+            status == ArmyStatus.Failed ||
+            status == ArmyStatus.Cancelled ||
+            status == ArmyStatus.Unrevealed;
+    }
+
+    /// @notice Write the refund of `army`'s failed deployment, if it is due:
+    ///         its whole reserve back to its owner's ACCOUNT reserve.
+    /// @return refunded What moved, zero if nothing was due.
+    /// @dev Nothing runs when a cycle ends, so a failure is only known when
+    ///      somebody next looks; this is where the looking is written down.
+    ///      Credited WITHOUT A SEAT (`CommitReveal.deposit`): an account never
+    ///      becomes a member. The army is no longer waited for, whatever the
+    ///      policy.
+    function _settleDeployment(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal returns (uint256 refunded) {
+        if (!_isArmyId(army) || _reserveOf(army) == 0) return 0;
+        if (_deploymentStatus(army, cycleNumber) != ArmyStatus.Failed) {
+            return 0;
+        }
+        refunded = _refundArmy(army);
+    }
+
+    /// @notice Settle the deployment of `owner`'s most recent army, if it
+    ///         failed: what the owner's next deployment and withdrawal do first.
+    /// @dev Only the most recent: an account plays one army at a time, so that
+    ///      is the one whose refund it is waiting for, and one bounds the gas
+    ///      of every commit. Anything older is {IGameCommit-settleDeployment}'s.
+    function _settleLatestOf(address owner, uint64 cycleNumber) internal {
+        uint256 count = _armyCountOf[owner];
+        if (count != 0) {
+            _settleDeployment(_armyIdOf(owner, count), cycleNumber);
+        }
+    }
+
+    /// @notice Cancel `army`'s deployment, if the commitment just cancelled
+    ///         was its deployment: its whole stake goes back to its owner.
+    /// @dev FREE, because nobody has revealed anything yet in a commit phase:
+    ///      there is no option to buy by cancelling. The base only clears the
+    ///      commitment (its bond is a lock on the reserve), so the refund is the
+    ///      game's.
+    function _cancelDeployment(uint256 army, uint64 cycleNumber) internal {
+        if (!_isDeploying(army, cycleNumber)) return;
+        _armies[army].cancelled = true;
+        _refundArmy(army);
+    }
+
+    /// @dev Move an army's whole reserve to its owner's account reserve, and
+    ///      stop waiting for it.
+    function _refundArmy(uint256 army) private returns (uint256 amount) {
+        amount = CommitReveal.debit(army, type(uint256).max);
+        address owner = _armies[army].owner;
+        if (amount != 0) {
+            CommitReveal.deposit(uint256(uint160(owner)), amount);
+        }
+        _stopWaitingFor(army);
+        emit DeploymentRefunded(army, owner, amount);
+    }
+
+    /// @notice WHAT NOT REVEALING COSTS, for an army.
+    /// @dev THE BASE'S SEAM. A missed DEPLOYMENT costs its whole stake,
+    ///      whatever the settlement path and whatever was bonded, and the stake
+    ///      is BURNED: a real burn that reduces the supply, not tokens left in
+    ///      the contract (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
+    ///      There is no army to freeze, so nothing returns and the army is no
+    ///      longer waited for. Anything else is the base's default.
+    function _forfeit(
+        uint256 player,
+        uint256 amount
+    ) internal override returns (uint256 forfeited) {
+        if (_isArmyId(player)) {
+            ArmyRecord storage army = _armies[player];
+            if (army.spawnIndexPlusOne == 0 && !army.cancelled) {
+                forfeited = CommitReveal.debit(player, type(uint256).max);
+                if (forfeited != 0) {
+                    IBurnableToken(address(TOKENS)).burn(forfeited);
+                }
+                _stopWaitingFor(player);
+                emit StakeBurned(player, forfeited);
+                return forfeited;
+            }
+        }
+        return super._forfeit(player, amount);
+    }
+
+    /// @notice Stop waiting for every army the advance would otherwise wait
+    ///         for in vain. Called before the base's advance.
+    /// @dev Under `Timed` nothing advances and nothing reads the count, and
+    ///      the list is empty. Elsewhere the list is bounded by the seats, and
+    ///      an army found dead leaves it for good, so each is swept once.
+    function _sweepDeadArmies() internal {
+        if (CYCLE_POLICY == CyclePolicy.Timed) return;
+        (uint64 cycleNumber, ) = _cycleNumber();
+        uint256 n = _awaitedArmies.length;
+        for (uint256 k = n; k > 0; k--) {
+            uint256 army = _awaitedArmies[k - 1];
+            if (!_isDead(army, cycleNumber)) continue;
+            _stopWaitingFor(army);
+            uint256 last = _awaitedArmies.length - 1;
+            if (k - 1 != last) _awaitedArmies[k - 1] = _awaitedArmies[last];
+            _awaitedArmies.pop();
+        }
+    }
+
+    /// @notice The attendance as the next advance judges it: an army the sweep
+    ///         would stop waiting for is not counted as waited for.
+    /// @dev What lets a client that mirrors the advance's guard
+    ///      (`web/src/lib/game/core/advance.ts`) see that a dead army no longer
+    ///      holds the cycle up, before anybody has swept it.
+    function _effectiveAttendance(
+        uint64 cycleNumber
+    ) internal view returns (Attendance memory attendance) {
+        attendance = _attendance(cycleNumber);
+        if (CYCLE_POLICY == CyclePolicy.Timed) return attendance;
+        for (uint256 k = 0; k < _awaitedArmies.length; k++) {
+            uint256 army = _awaitedArmies[k];
+            if (_isWaitedFor(army) && _isDead(army, cycleNumber)) {
+                attendance.waitedFor -= 1;
+            }
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -216,10 +397,18 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             _nextSpawnIndex = next;
         }
 
+        // THE FOOTPRINT, judged once per cycle by its first reveal, from facts
+        // that are the same for every reveal of the cycle: the start-of-cycle
+        // board, and whether a move of this cycle has already arrived on it
+        // (one that arrives later blocks the record itself: `_markArrival`).
         SpawnRecord storage spawn = _spawns[index];
         if (spawn.cycle != cycleNumber) {
+            bool blocked =
+                spawn.arrivedIn == cycleNumber ||
+                    !_footprintClear(spawnPoint, cycleNumber);
             spawn.cycle = cycleNumber;
             spawn.count = 1;
+            spawn.blocked = blocked;
             spawn.army = player;
         } else {
             spawn.count += 1;
@@ -231,8 +420,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
 
     /// @notice Settle one chunk of a missed reveal, shown its moves.
     /// @dev A MISSED DEPLOYMENT FORFEITS THE STAKE, which is everything the
-    ///      army holds: a deployment that could be watched and then dropped
-    ///      for free would make committing one an option rather than a choice
+    ///      army holds, and {_forfeit} burns it: a deployment that could be
+    ///      watched and then dropped for free would make committing one an
+    ///      option rather than a choice
     ///      (`docs/adr/0005-missed-reveal-freezes-the-army.md`). A missed pass
     ///      forfeits nothing here; what a missed move costs is the freeze.
     function _acknowledgeMissedReveal(
@@ -305,28 +495,14 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         view_.owner = army.owner;
         view_.deployedIn = army.deployCycle;
         view_.stake = _reserveOf(id);
-        if (army.spawnIndexPlusOne == 0) {
-            view_.status =
-                army.deployCycle == cycleNumber
-                    ? ArmyStatus.Deploying
-                    : ArmyStatus.Unrevealed;
-            return view_;
-        }
-        uint256 index = army.spawnIndexPlusOne - 1;
-        view_.spawnPoint = ChessRules.spawnPointAt(index, SPAWN_SPACING);
-        if (army.deployCycle >= cycleNumber) {
-            view_.status = ArmyStatus.Deploying;
-            return view_;
-        }
-        (bool landed, uint256 landedArmy) = _landedBefore(index, cycleNumber);
-        if (landed && landedArmy == id) {
-            view_.status = ArmyStatus.Deployed;
+        view_.status = _deploymentStatus(id, cycleNumber);
+        if (army.spawnIndexPlusOne == 0) return view_;
+        view_.spawnPoint = ChessRules.spawnPointAt(
+            army.spawnIndexPlusOne - 1,
+            SPAWN_SPACING
+        );
+        if (view_.status == ArmyStatus.Deployed) {
             view_.king = _kingAt(id, view_.spawnPoint, cycleNumber);
-        } else {
-            // Either more than one deployment revealed this spawn point in the
-            // army's cycle, or the record has been started again since, which
-            // only a free (so failed) spawn point allows.
-            view_.status = ArmyStatus.Failed;
         }
     }
 

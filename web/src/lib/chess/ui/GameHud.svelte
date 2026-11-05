@@ -285,6 +285,19 @@
 					<dt class="text-muted-foreground">Army stake</dt>
 					<dd>{$hud.army.stakeLabel}</dd>
 				{/if}
+				{#if $hud.lastDeployment}
+					<dt class="text-muted-foreground">Last deployment</dt>
+					<dd
+						class={toneClass[$hud.lastDeployment.tone]}
+						data-testid="last-deployment"
+					>
+						{$hud.lastDeployment.label}
+					</dd>
+					<dt class="text-muted-foreground">Its stake</dt>
+					<dd data-testid="last-deployment-stake">
+						{$hud.lastDeployment.stakeLabel}
+					</dd>
+				{/if}
 				{#if $hud.deployment}
 					<dt class="text-muted-foreground">Deploy at</dt>
 					<dd>{$hud.deployment.picked ?? 'pick a spawn point'}</dd>

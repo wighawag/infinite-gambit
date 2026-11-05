@@ -131,7 +131,11 @@ describe('what the HUD says about who reveals the turn', () => {
 				savedTurn: writable({status: 'ready'}),
 				revealSchedule,
 				needsDeployment: writable(false),
-				armies: {activeArmy: writable(undefined)},
+				armies: {
+					activeArmy: writable(undefined),
+					lastOutcome: writable(undefined),
+					pendingRefund: writable(0n),
+				},
 			},
 			viewState: writable({step: 'Unloaded'}),
 		} as unknown as Context;

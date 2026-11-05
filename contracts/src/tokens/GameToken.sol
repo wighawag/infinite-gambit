@@ -14,4 +14,11 @@ contract GameToken is ERC20Base {
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
+
+    /// @notice Burn `amount` of the caller's own balance, reducing the supply.
+    /// @dev What the game calls with the stake of a deployment that was never
+    ///      revealed (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
+    function burn(uint256 amount) external {
+        _burnFrom(msg.sender, amount);
+    }
 }
