@@ -28,4 +28,16 @@ interface UsingGameEvents is UsingGameTypes, UsingCommitRevealEvents {
         uint64 indexed spawnPoint,
         uint64 cycleNumber
     );
+
+    /// @notice A deployment that failed (a shared spawn point, a blocked
+    ///         footprint) or was cancelled had its stake moved back from the
+    ///         army's reserve to its owner's account reserve.
+    event DeploymentRefunded(
+        uint256 indexed army,
+        address indexed owner,
+        uint256 amount
+    );
+
+    /// @notice A deployment that was never revealed had its stake burned.
+    event StakeBurned(uint256 indexed army, uint256 amount);
 }

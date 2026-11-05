@@ -44,6 +44,7 @@ function setupNeeded(params: {
 	delegation: DelegationValue;
 	reserve: {step: string; amount?: bigint};
 	army?: {status: (typeof ARMY_STATUS)[keyof typeof ARMY_STATUS]};
+	refund?: bigint;
 }) {
 	return frameworkSetupNeeded({
 		account: params.identity,
@@ -53,6 +54,7 @@ function setupNeeded(params: {
 			army: params.army,
 			armiesLoaded: true,
 			stake: STAKE,
+			refund: params.refund,
 		}),
 	});
 }
@@ -188,5 +190,17 @@ describe('what stands between a player and their first move', () => {
 				army: {status: ARMY_STATUS.Failed},
 			}),
 		).toEqual({step: 'stake'});
+	});
+
+	it('counts a failed deployment\u2019s pending refund, which pays for the next one', () => {
+		expect(
+			setupNeeded({
+				identity: ACCOUNT,
+				delegation: authorised,
+				reserve: {step: 'Loaded', amount: 0n},
+				army: {status: ARMY_STATUS.Failed},
+				refund: STAKE,
+			}),
+		).toBeUndefined();
 	});
 });

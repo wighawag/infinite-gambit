@@ -99,9 +99,19 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         /// @notice on the board
         Deployed,
         /// @notice revealed onto a spawn point another deployment revealed too
+        ///         in the same cycle, or whose footprint was not clear: a piece
+        ///         stood on it at the start of the cycle or arrived on it during
+        ///         it. Its stake is refunded to its owner's account reserve by
+        ///         {IGameCommit-settleDeployment}; until then `stake` still holds
+        ///         it, which is how a reader tells a pending refund.
         Failed,
-        /// @notice its deployment was never revealed in its cycle
-        Unrevealed
+        /// @notice its deployment was never revealed in its cycle; its stake is
+        ///         burned when the missed reveal is settled (`stake` is zero once
+        ///         it has been)
+        Unrevealed,
+        /// @notice its deployment was cancelled in its commit phase, and its
+        ///         stake went back to its owner's account reserve
+        Cancelled
     }
 
     /// @notice One entry of the army registry, resolved.

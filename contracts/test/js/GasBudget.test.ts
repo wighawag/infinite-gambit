@@ -8,7 +8,9 @@ import {
 	revealDeployment,
 	commitmentChain,
 	commitmentHashFor,
+	deployGameWith,
 	squareAt,
+	CYCLE_POLICY,
 	TURN_BOND,
 	type Move,
 } from './utils/index.js';
@@ -32,9 +34,11 @@ import {parseEther, zeroAddress} from 'viem';
  *
  * IT ASSERTS THE WORST CASE, NOT A TYPICAL ONE. A chess submission is one
  * action: a deployment, a pass or a move. The worst commit is the first
- * DEPLOYMENT, when every slot it writes is cold: it creates the army, moves
- * the stake between two reserves, starts waiting for the army and then
- * commits. The worst reveal is the most expensive of three: the first
+ * DEPLOYMENT, when every slot it writes is cold: it settles the account's
+ * previous deployment (none yet), creates the army, moves the stake between
+ * two reserves, starts waiting for the army and then commits; in a manual
+ * world it also remembers the army for the sweep of dead armies, which makes
+ * that world's first paid deployment the worst of all (measured below). The worst reveal is the most expensive of three: the first
  * deployment ever (which writes the whole open set of spawn points beside the
  * spawn point's record), a king's move (which reads the eight squares around
  * its destination on its own footprint), and a slider's longest move, 7
@@ -285,6 +289,113 @@ describe('the declared gas budget', function () {
 				`so a scheduled player's first deployment would run out of gas. Raise it in contracts/rocketh/config.ts.`,
 		);
 		console.log(`gas budget: paid first commit ${used}/${declaredCommit}`);
+	});
+
+	it('covers a deployment commit that first settles a failed deployment, in a manual world, paying a fresh payee', async function () {
+		// THE WORST COMMIT SINCE DEPLOYMENTS CAN FAIL. An account's next
+		// deployment settles its previous one first, so when that one failed the
+		// commit also writes the refund (two reserves, the army no longer waited
+		// for). Under a cycle that advances (the offline world, which spends the
+		// same declared figure) the commit also remembers the army for the sweep
+		// of dead armies. And the payment to a fresh payee is the paid case above.
+		const fixtures = await networkHelpers.loadFixture(deployAll);
+		const {env, GameToken, linkedData, actionsPerReveal, unnamedAccounts} =
+			fixtures;
+		const declaredCommit = BigInt(linkedData.commitGas);
+		const Game = await deployGameWith(fixtures, {
+			name: 'Game_gas_manual',
+			cyclePolicy: CYCLE_POLICY.Manual,
+			commitPhaseDuration: 0n,
+			revealPhaseDuration: 0n,
+		});
+		const [player, other] = unnamedAccounts as `0x${string}`[];
+		const SECRET_B =
+			'0x00000000000000000000000000000000000000000000000000000000000000b2';
+		const spawnPoint = squareAt(0, 0);
+		const armies: bigint[] = [];
+		const firstUsed: bigint[] = [];
+		for (const [owner, secret, payee] of [
+			[player, SECRET, '0x00000000000000000000000000000000000f00d3'],
+			[other, SECRET_B, '0x00000000000000000000000000000000000f00d4'],
+		] as const) {
+			await fundAccount({env, Game, GameToken}, owner);
+			// The very first deployment of a manual world, paid: every slot cold,
+			// the list of armies to sweep included.
+			const {army, receipt} = await commitDeployment(
+				{env, Game},
+				{
+					owner,
+					spawnPoint,
+					secret,
+					actionsPerReveal,
+					payee,
+					value: parseEther('0.0012'),
+				},
+			);
+			armies.push(army);
+			firstUsed.push(BigInt(receipt.gasUsed));
+		}
+		const advance = () =>
+			env.execute(Game, {
+				account: player,
+				functionName: 'advanceCycle',
+				args: [],
+			});
+		await advance();
+		await revealDeployment(
+			{env, Game},
+			{
+				account: player,
+				army: armies[0],
+				spawnPoint,
+				secret: SECRET,
+				actionsPerReveal,
+			},
+		);
+		await revealDeployment(
+			{env, Game},
+			{
+				account: other,
+				army: armies[1],
+				spawnPoint,
+				secret: SECRET_B,
+				actionsPerReveal,
+			},
+		);
+		await advance();
+
+		// Both failed; the player deploys again, paying for it with the refund.
+		const {receipt} = await commitDeployment(
+			{env, Game},
+			{
+				owner: player,
+				spawnPoint,
+				secret: SECRET,
+				actionsPerReveal,
+				payee: '0x00000000000000000000000000000000000f00d2',
+				value: parseEther('0.0012'),
+			},
+		);
+		const settlingUsed = BigInt(receipt.gasUsed);
+		const used = [settlingUsed, ...firstUsed].reduce((a, b) => (a > b ? a : b));
+		const reserve = (await env.read(Game, {
+			functionName: 'getReserve',
+			args: [armies[0]],
+		})) as bigint;
+		assert.strictEqual(reserve, 0n, 'the failed deployment was not refunded');
+
+		assert.ok(
+			declaredCommit >= (used * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`a deployment commit settling a failed one costs ${used} gas and the deployment declares commitGas ${declaredCommit}, ` +
+				`which is less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. It is the gas LIMIT of every commit. Raise it in contracts/rocketh/config.ts.`,
+		);
+		assert.ok(
+			declaredCommit <= used * GENEROSITY_CEILING,
+			`commitGas is declared at ${declaredCommit} against a measured ${used}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
+		);
+		console.log(
+			`gas budget: manual world: first paid commit ${firstUsed[0]}, settling commit ${settlingUsed}, declared ${declaredCommit}`,
+		);
 	});
 
 	it('is what the credits multiplier is derived from, so the two cannot drift apart', async function () {

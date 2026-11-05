@@ -75,7 +75,20 @@ export const CYCLE_POLICY = {
  *   deployment commit paying a fresh payee   326,148
  *   the first deployment reveal ever         230,649
  *
- * So COMMIT_GAS is the paid case plus 15%. REVEAL_GAS is left at the
+ * RE-MEASURED FOR DEPLOYMENT COLLISIONS (`chess-deployment-collisions`). A
+ * deployment commit now settles the account's previous deployment first (the
+ * refund of a failed one), and under a cycle that advances (the offline world,
+ * which budgets with these same figures) it also remembers the new army for
+ * the sweep of dead armies, a fresh array slot on the world's first one. A
+ * deployment reveal now checks that its footprint is clear.
+ *
+ *   deployment commit (cold slots, timed)              300,102
+ *   deployment commit paying a fresh payee (timed)     334,542
+ *   first paid deployment commit, manual world         372,267
+ *   the first deployment reveal ever                   347,288
+ *   a king's move (the worst reveal)                   408,521
+ *
+ * So COMMIT_GAS is the manual world's paid case plus 15%. REVEAL_GAS is left at the
  * template's 600,000, 2.6 times the deployment's reveal: inside the band
  * `GasBudget.test.ts` allows, and room for the moves that come next rather
  * than a figure that has to be raised the day they land.
@@ -104,7 +117,7 @@ export const CYCLE_POLICY = {
  * is bounded per transaction by this, and as a whole by `expectedActionsPerTurn`
  * below.
  */
-const COMMIT_GAS = 375_000n;
+const COMMIT_GAS = 430_000n;
 const REVEAL_GAS = 600_000n;
 
 /**

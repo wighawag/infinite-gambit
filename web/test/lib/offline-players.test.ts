@@ -376,4 +376,52 @@ describe('the other players in the offline world', () => {
 			expect(commitment.cycleNumber).toBe(0n);
 		}
 	});
+	it('keeps the world going when the person\u2019s deployment collides with a seat\u2019s: the seat sits out, the person deploys again with the refund', async () => {
+		const t = await setup();
+		const played = await playedByTheWorld({env: world!.env, table: TABLE});
+		const [open] =
+			await t.read<readonly [readonly bigint[], bigint]>('getOpenSpawnPoints');
+		// The person picks the spawn point the first seat deploys at.
+		const humanChain = await t.humanCommits(
+			deploymentAt(spawnPointForSeat(0, open)!),
+			t.chess.stake,
+		);
+		await t.players.tick();
+		await t.advance();
+		await t.humanReveals(humanChain);
+		await t.players.tick();
+		await t.advance();
+
+		expect((await t.armyOf(t.humanArmy)).status).toBe(ARMY_STATUS.Failed);
+		expect((await t.armyOf(played[0].identity)).status).toBe(
+			ARMY_STATUS.Failed,
+		);
+		expect((await t.armyOf(played[1].identity)).status).toBe(
+			ARMY_STATUS.Deployed,
+		);
+		// Only the army that landed is waited for; the dead seat sits out
+		// without a revert stopping the seats after it.
+		expect((await t.read<Attendance>('getAttendance')).waitedFor).toBe(1n);
+		await t.players.tick();
+		expect((await t.read<Attendance>('getAttendance')).committed).toBe(1n);
+		await t.advance();
+		await t.players.tick();
+		await t.advance();
+		expect((await t.read<Cycle>('getCycle')).commiting).toBe(true);
+
+		// The person deploys again: the refund still pending pays for it.
+		const next = await t.read<bigint>('getNextArmy', [HUMAN.address]);
+		expect(next).not.toBe(t.humanArmy);
+		const chain = buildMoveChain({
+			actions: deploymentAt(HUMAN_SPAWN),
+			secret: HUMAN_SECRET,
+			actionsPerReveal: t.chess.actionsPerReveal,
+		});
+		await t.send(t.human, {
+			functionName: 'makeCommitment',
+			args: [next, chain[0].hash, t.chess.stake, zeroAddress],
+		});
+		expect(await t.read<bigint>('getReserve', [t.humanArmy])).toBe(0n);
+		expect(await t.read<bigint>('getReserve', [next])).toBe(t.chess.stake);
+	});
 });

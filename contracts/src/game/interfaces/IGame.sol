@@ -40,7 +40,21 @@ interface IGameCommit is UsingGameTypes {
     ///      playing and may never withdraw it. And it only ever reaches an
     ///      account's reserve, because an army id is never an address: an
     ///      army's reserve IS its stake and leaves only through the game.
+    ///      Settles the caller's most recent deployment first
+    ///      ({settleDeployment}), so a failed one's refund can be withdrawn.
     function withdrawFromReserve(uint256 amount) external;
+
+    /// @notice Write the refund of `army`'s failed deployment: its stake goes
+    ///         back to its owner's ACCOUNT reserve, and it is no longer waited
+    ///         for. Anyone may call it, once the deployment's cycle is over.
+    /// @return refunded What moved; zero (and nothing happens) if the army's
+    ///         deployment did not fail, or its refund is already written.
+    /// @dev A deployment fails when another reveals the same spawn point in
+    ///      its cycle, or its footprint is not clear (a piece on it at the start
+    ///      of the cycle, or one arriving on it during it). Nothing runs when a
+    ///      cycle ends, so the refund waits for this call; the owner's next
+    ///      deployment and withdrawal make it for their most recent army.
+    function settleDeployment(uint256 army) external returns (uint256 refunded);
 
     /// @notice Commit to this cycle's submission for `player`.
     /// @param player The army the commitment is FOR (zero for the caller's own
@@ -60,7 +74,38 @@ interface IGameCommit is UsingGameTypes {
     ) external payable;
 
     /// @notice Withdraw a commitment before the reveal phase begins.
+    /// @dev Cancelling a DEPLOYMENT is free: the army's whole stake goes back
+    ///      to its owner's account reserve, and the cycle stops waiting for
+    ///      the army, which never exists on the board.
     function cancelCommitment(uint256 player) external;
+
+    // The settlements of a missed reveal and the advance live on the commit
+    // route rather than the reveal route only for SIZE: the reveal route holds
+    // the whole move rule and has no room left under the 24,576-byte limit.
+
+    /// @notice Settle one chunk of a missed reveal by showing it.
+    /// @dev Anyone may call it. A missed DEPLOYMENT forfeits the whole stake,
+    ///      which is burned; a missed pass forfeits nothing here
+    ///      (`docs/adr/0005-missed-reveal-freezes-the-army.md` is what a missed
+    ///      move costs, and it is not this route's).
+    function acknowledgeMissedReveal(
+        uint256 player,
+        Move[] calldata moves,
+        bytes32 secret,
+        bytes24 furtherActions
+    ) external;
+
+    /// @notice Settle a missed reveal WITHOUT its chunks, forfeiting the whole
+    ///         bond still earmarked for it (for a missed deployment, the whole
+    ///         stake, burned). Only the owner or their delegate.
+    function forfeitMissedReveal(uint256 player) external;
+
+    /// @notice Move the cycle on, if the rules already permit it. See the base.
+    /// @dev First stops waiting for every dead army (a failed, cancelled or
+    ///      unrevealed deployment), under `Manual` and `TimedWithEarlyAdvance`.
+    function advanceCycle()
+        external
+        returns (uint64 cycleNumber, bool commiting);
 }
 
 interface IGameReveal is UsingGameTypes {
@@ -83,26 +128,6 @@ interface IGameReveal is UsingGameTypes {
         bytes24 furtherActions,
         address payable payee
     ) external payable;
-
-    /// @notice Settle one chunk of a missed reveal by showing it.
-    /// @dev Anyone may call it. A missed DEPLOYMENT forfeits the stake; a
-    ///      missed pass forfeits nothing here (`docs/adr/0005-missed-reveal-freezes-the-army.md`
-    ///      is what a missed move costs, and it is not this route's).
-    function acknowledgeMissedReveal(
-        uint256 player,
-        Move[] calldata moves,
-        bytes32 secret,
-        bytes24 furtherActions
-    ) external;
-
-    /// @notice Settle a missed reveal WITHOUT its chunks, forfeiting the whole
-    ///         bond still earmarked for it. Only the owner or their delegate.
-    function forfeitMissedReveal(uint256 player) external;
-
-    /// @notice Move the cycle on, if the rules already permit it. See the base.
-    function advanceCycle()
-        external
-        returns (uint64 cycleNumber, bool commiting);
 }
 
 interface IGameGetters is UsingGameTypes {

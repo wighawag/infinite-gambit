@@ -17,6 +17,7 @@ export const ARMY_STATUS = {
 	Deployed: 2,
 	Failed: 3,
 	Unrevealed: 4,
+	Cancelled: 5,
 } as const;
 export type ArmyStatus = (typeof ARMY_STATUS)[keyof typeof ARMY_STATUS];
 
@@ -83,6 +84,34 @@ export function chooseArmy(
 	return next;
 }
 
+/**
+ * WHAT BECAME OF THE ACCOUNT'S LAST DEPLOYMENT, when it is not playing: its most
+ * recent army, if that one failed, was cancelled or was never revealed. The
+ * player is back at deployment then, and this is what to tell them.
+ */
+export function lastDeploymentOutcome<T extends Pick<ArmyView, 'status'>>(
+	armies: readonly T[],
+): T | undefined {
+	const last = armies[armies.length - 1];
+	if (!last || isLive(last)) return undefined;
+	return last;
+}
+
+/**
+ * The refund still to be WRITTEN for the account: the stake of its most recent
+ * army when that deployment failed and nobody has settled it yet (the army
+ * still holds its stake). The contract writes it on the account's next
+ * deployment or withdrawal (`settleDeployment`), so it is as good as in the
+ * account's reserve for either. Only the most recent army, which is the only
+ * one those settle.
+ */
+export function pendingRefund(
+	armies: readonly Pick<ArmyView, 'status' | 'stake'>[],
+): bigint {
+	const last = lastDeploymentOutcome(armies);
+	return last?.status === ARMY_STATUS.Failed ? last.stake : 0n;
+}
+
 export type ArmiesState =
 	| {step: 'Unloaded'}
 	| {
@@ -99,6 +128,10 @@ export type ArmiesStore = Readable<ArmiesState> & {
 	active: ActiveIdentityStore;
 	/** The army this client plays, resolved, once it exists. */
 	activeArmy: Readable<ArmyView | undefined>;
+	/** The account's last deployment, while it failed, was cancelled or missed. */
+	lastOutcome: Readable<ArmyView | undefined>;
+	/** The refund the account's next deployment or withdrawal writes. */
+	pendingRefund: Readable<bigint>;
 	/** Read the account's armies again. */
 	update(): Promise<void>;
 };
@@ -155,5 +188,21 @@ export function createArmies(params: {
 		return $armies.armies.find((army) => army.id === id);
 	});
 
-	return {subscribe: state.subscribe, active, activeArmy, update};
+	const lastOutcome = derived(state, ($armies) =>
+		$armies.step === 'Loaded'
+			? lastDeploymentOutcome($armies.armies)
+			: undefined,
+	);
+	const refund = derived(state, ($armies) =>
+		$armies.step === 'Loaded' ? pendingRefund($armies.armies) : 0n,
+	);
+
+	return {
+		subscribe: state.subscribe,
+		active,
+		activeArmy,
+		lastOutcome,
+		pendingRefund: refund,
+		update,
+	};
 }

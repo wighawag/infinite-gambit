@@ -49,6 +49,8 @@ abstract contract UsingGameStore is
         uint64 kingTo;
         /// @notice where it stood before that move
         uint64 kingFrom;
+        /// @notice whether its deployment was cancelled in its commit phase
+        bool cancelled;
     }
 
     /// @notice What the reveals have recorded about one square.
@@ -81,14 +83,27 @@ abstract contract UsingGameStore is
     /// @notice What the deployments revealed onto one spawn point add up to.
     /// @dev ACCUMULATED: `count` is how many deployments revealed it in
     ///      `cycle`, and `army` is meaningful only when that count is one, which
-    ///      is what makes it order-free (see `_revealDeployment`). Once a
-    ///      deployment has landed here (a count of one, its cycle over) the
-    ///      record is final: the spawn point is never open again. A failed one
-    ///      (a count above one) is overwritten by the next cycle that reveals
-    ///      the spawn point, because a failed spawn point is free.
+    ///      is what makes it order-free (see `_revealDeployment`).
+    ///
+    ///      `blocked` is whether its FOOTPRINT (the squares its layout puts a
+    ///      piece on) was not clear in `cycle`: a piece stood on one at the
+    ///      start of the cycle, or arrived on one during it. `arrivedIn` is the
+    ///      last cycle a piece arrived on the footprint, whether or not anyone
+    ///      was deploying here then: it is how an arrival revealed BEFORE the
+    ///      cycle's first deployment reveal is still seen by it. Both are only
+    ///      ever set, never cleared within a cycle, so they are order-free (see
+    ///      `_markArrival`).
+    ///
+    ///      A deployment LANDS when its cycle is over, the count is one and the
+    ///      footprint was not blocked. Once one has landed the record is final:
+    ///      the spawn point is never open again. A failed one is overwritten by
+    ///      the next cycle that reveals the spawn point, because a failed spawn
+    ///      point is free.
     struct SpawnRecord {
         uint64 cycle;
         uint32 count;
+        bool blocked;
+        uint64 arrivedIn;
         uint256 army;
     }
 
@@ -126,6 +141,14 @@ abstract contract UsingGameStore is
     ///      indices.
     uint64[] internal _openSpawnIndices;
     uint64 internal _nextSpawnIndex;
+
+    /// @notice THE ARMIES A CYCLE THAT ADVANCES MAY BE WAITING FOR: every army
+    ///         created under the `Manual` or `TimedWithEarlyAdvance` policy
+    ///         that the advance has not yet found dead (`_sweepDeadArmies`).
+    /// @dev Empty under `Timed`, where nothing reads the waited-for count.
+    ///      Bounded by the seats a world or a table has, because only those
+    ///      policies fill it.
+    uint256[] internal _awaitedArmies;
 
     /// @notice Create an instance of a game
     /// @param config configuration options for the game
