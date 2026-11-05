@@ -156,12 +156,12 @@ the word: what the framework calls a submission, its HUD calls a turn.
 
 ## This game: infinite chess
 
-chess-battleground is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), capturing a king takes its stake and absorbs its army, and the stake only leaves through an exit square. It also runs as closed tables for offline hotseat and single-player games.
+chess-battleground is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), capturing a king takes its stake and absorbs its army, and the stake only leaves through an exit square. It also runs online as closed tables with a winner, and offline as a hotseat world where each seat is a human at the same device or a machine-played seat (single player is the latter).
 
 Everything above this heading is the framework's and stays game-neutral. The words below are this game's own. The full rule set is in `work/specs/`, and the decisions behind it are in `docs/adr/`.
 
 **Army**:
-One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity.
+One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit or a capture, while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
 _Avoid_: player, faction, team, side
 
 **Move**:
@@ -181,11 +181,11 @@ A square where a king may leave the world with its stake. It is the only way a s
 _Avoid_: withdraw, cash out, escape
 
 **Capture**:
-Taking a piece by being the only piece to arrive on its square while it stays put. Capturing a king takes its stake and merges its army.
+Taking a piece that stayed put: by being the only piece to arrive on its square, or by being a moving king that survives a crowd of arrivals there (`docs/adr/0003-collision-table-king-survives-a-crowd.md`). Capturing a king takes its stake and merges its army.
 _Avoid_: kill, take (in code)
 
 **Merge**:
-What happens to an army whose king is captured: its pieces join the captor's army, which still makes one move per cycle.
+What happens to an army whose king is captured, or dies in a collision with a single enemy piece: its pieces join the captor's army, which still makes one move per cycle.
 _Avoid_: absorb, conquer, annex
 
 **Collision**:
@@ -197,7 +197,7 @@ Kings capturing each other in a ring within one cycle (A takes B while B takes A
 _Avoid_: mutual capture, swap, draw
 
 **Freeze**:
-What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured. In the framework's terms it is a forfeit.
+What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured. An army is frozen as soon as its reveal window closes unrevealed, before anyone settles it (frozen flag OR an unrevealed commitment from a past cycle). In the framework's terms it is a forfeit, and the cycle stops waiting for it.
 _Avoid_: ban, lock, penalty
 
 ## The work/ contract

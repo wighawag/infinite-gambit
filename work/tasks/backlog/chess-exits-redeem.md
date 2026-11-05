@@ -1,0 +1,62 @@
+---
+title: 'Exits: a king leaves with its stake, paid out in ETH, and nothing else can withdraw'
+slug: chess-exits-redeem
+spec: infinite-chess
+blockedBy: [chess-capture-loops]
+covers: [32, 33, 34, 35]
+---
+
+## What to build
+
+The only way a stake leaves the world, and the code that pays ETH out of the sale, so review it with care before promoting. See `docs/adr/0006-stake-erc20-reserve-exit-only.md`.
+
+- Exits sit at the centre of each spawn-grid cell (offset S/2 on both axes).
+- **The army leaves at the close of its landing cycle, not when somebody calls `exit`.** A king that lands on an exit with no collision has left the board as of the end of that cycle: resolved lazily (a flag read on resolution, not a loop over its pieces), it refuses further commits and can no longer be captured, and the rest of its army is gone. `exit(army)`, callable by ANYONE once that cycle has closed, only PAYS: the king's whole stake (resolved read-order-independently, see `chess-king-capture-merge`) goes to the army's owner. Otherwise a capture in the next cycle would race the call.
+- **What backs the payout.** Only `StakeSale` may mint the game token (the template's free faucet `mint` goes), and the sale KEEPS the ETH it receives (it no longer forwards payments to a recipient). `StakeSale` gains `redeem` at the same fixed price, paid from that ETH, so the exit returns ETH.
+- **Deterministic deploys** (AGENTS.md): `StakeSale`'s constructor takes the token and the game, so the token learns its minter through a guarded `setMinter` (its owner passed as a constructor argument, since under CREATE2 `msg.sender` is the factory), and the game reaches the sale through a guarded setter too. Both are covered by `DeterministicDeploys.test.ts`.
+- Today the free `mint` is also used by the contract test helpers (`contracts/test/js/utils`); move them onto buying through `StakeSale` (or an explicitly test-only path) rather than keeping a public mint.
+- **Withdrawal.** An ARMY's reserve can never be withdrawn directly. The ACCOUNT's reserve stays withdrawable and redeemable.
+- **Extend the "dead" predicate** with exited armies, so the `advanceCycle` sweep stops waiting for them (exits exist in the offline world, which runs world rules).
+- The client marks exits on the board and on the minimap, and offers the payout.
+
+Serialised after capture loops because it edits the same resolution code.
+
+## Acceptance criteria
+
+- [ ] A king landing alone on an exit is paid its whole stake in ETH and its army is removed.
+- [ ] A king whose arrival on an exit collides follows the collision table instead.
+- [ ] `exit(army)` works for any caller after the landing cycle has closed, pays only the army's owner, and cannot be claimed twice.
+- [ ] Exit calls and next-cycle capture attempts on the exited army, in either order, give the same payout and the same board.
+- [ ] An army reserve can no longer be withdrawn directly; an account reserve still can.
+- [ ] Only `StakeSale` can mint; `redeem` pays from the ETH the sale kept; a test shows tokens obtained any other way cannot drain it.
+- [ ] `StakeSale.redeem` has its own tests, alongside the existing `StakeSale.test.ts`, and `DeterministicDeploys.test.ts` still passes with the new game-to-sale link.
+- [ ] Tests cover the new behaviour.
+
+## Blocked by
+
+- `chess-capture-loops`
+
+## Prompt
+
+Goal: build the task above ("Exits: a king leaves with its stake, paid out in ETH, and nothing else can withdraw"), covering user stories 32, 33, 34, 35 of the spec `infinite-chess`. The "What to build" and "Acceptance criteria" sections above are the brief; "done" is every criterion met with the `verify` gate green.
+
+Read first: `AGENTS.md` (the Svelte conventions, the framework boundary, the commit-reveal rules), `CONTEXT.md` (the framework glossary and this game's words: army, move, spawn point, deployment, exit, capture, merge, collision, capture loop, freeze), the spec `work/specs/tasked/infinite-chess.md` (its user stories), and the ADRs in `docs/adr/`. In particular `0002-order-free-lazy-resolution.md` (reveals only accumulate order-free facts, every square resolves lazily, no rule may make a piece bounce back) and `0007-rules-live-only-in-the-contract.md` (the chess rules are `pure` contract code; the client reaches them only through the simulation route, `$lib/game/simulation`, and reads the board through a contract view that resolves lazily over a viewport; no TypeScript copy of the rules, no indexer for state).
+
+The contracts build on the commit-reveal base (`contracts/src/commit-reveal/`) through its seams (`_playerOf`, `_forfeit`, `_cycle`) and the game's own routes behind the router (`contracts/src/game/`). The pattern to follow is a `pure` rule, a load/apply split around it, and a simulation route that exposes the rule to the client. The template's reference game (`placement`) showed it until `chess-army-deployment` replaced it with chess; follow the chess code from then on, and its order-independence test in `contracts/test/js/` (which replaces the template's `Game.test.ts`). Two budgets bind every contract change: the declared reveal gas (`contracts/test/js/GasBudget.test.ts`; a reveal that runs out of gas is a missed reveal, which FREEZES the army) and the 24,576-byte deployed size of each route. The acceptance gate is `verify` in `dorfl.json`; it must be green.
+
+FIRST, check this task against current reality (it is a launch snapshot and may have DRIFTED): does it still match the code in `work/tasks/done/`, the relevant ADRs, and the tasks it depends on? If a dependency landed differently than this task assumes, or an ADR superseded an assumption here, do NOT build on the stale premise: route the task to needs-attention with the discrepancy as the reason (WORK-CONTRACT.md "Drift is a needs-attention signal"). Building on a stale task produces wrong-but-compiling work.
+
+RECORD non-obvious in-scope decisions you make while building, in a `## Decisions` block at the end of your FINAL REPORT. When the task did not specify some behaviour and you have to CHOOSE, do not leave the choice silent for a reviewer to reverse-engineer. That block is the ONE sanctioned channel for build-time rationale, and the runner transcribes it verbatim into the done record. So do NOT try to write the done record, the commit message, or the PR body yourself (you do no git and must not edit the task body), and do NOT open a `work/notes/observations/decisions-<slug>.md` note. If the choice meets the ADR gate (hard to reverse + surprising without context + a real trade-off, see `work/protocol/ADR-FORMAT.md`), ALSO write the durable WHY as an ADR in `docs/adr/` (next free number) and name it in the block.
+
+---
+
+### Claiming this task
+
+```sh
+# atomically claim it (works with a GitHub remote OR a local --bare remote):
+dorfl claim chess-exits-redeem --arbiter <remote>      # default --arbiter origin
+# then start work on the updated main:
+git fetch <remote> && git switch -c work/chess-exits-redeem <remote>/main
+# on completion, in the work branch's PR/merge:
+git mv work/tasks/ready/chess-exits-redeem.md work/tasks/done/chess-exits-redeem.md
+```
