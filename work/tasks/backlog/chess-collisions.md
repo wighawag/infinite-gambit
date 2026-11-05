@@ -4,7 +4,7 @@ slug: chess-collisions
 spec: infinite-chess
 blockedBy: [chess-deployment-collisions]
 covers: [13, 22, 23, 24, 25]
-needsAnswers: false
+needsAnswers: true
 ---
 
 ## What to build
