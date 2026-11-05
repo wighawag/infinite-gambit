@@ -4,7 +4,7 @@ slug: chess-collisions
 spec: infinite-chess
 blockedBy: [chess-deployment-collisions]
 covers: [13, 22, 23, 24, 25]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -59,3 +59,9 @@ git fetch <remote> && git switch -c work/chess-collisions <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-collisions.md work/tasks/done/chess-collisions.md
 ```
+
+## Applied answers 2026-11-05
+
+### q1: 'task:chess-collisions' was bounced — how should we proceed?
+
+keep. The gate failed on an infrastructure race, not on the work: `pnpm install` runs the root `prepare` (scripts/ensure-deployments.mjs, which runs `hardhat run` and so compiles) concurrently with `contracts prepare` (`hardhat compile`), and the two compiles raced on contracts/cache/build-info (ENOENT on rename). The committed work on work/task-chess-collisions is complete: do not redo it. Check it is still green and finish.
