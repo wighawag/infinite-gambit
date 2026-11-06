@@ -38,8 +38,11 @@ import {
 	type Transition,
 } from './transitions';
 import {
+	bob,
+	breath,
 	cssColourToHex,
 	exitBlocks,
+	FAR_GHOST_BOOST,
 	glyphOfLook,
 	labelsOf,
 	looksDiffer,
@@ -195,9 +198,18 @@ export function createChessPixiRenderer(params: {
 		badge.zIndex = z + 2;
 	}
 
-	/** Advance a piece's slide or rise, if it has one. */
+	/** Advance a piece's slide or rise, if it has one, or a ghost's breath. */
 	function animate(object: PieceObject, nowMs: number): void {
 		const {motion, arrival, look} = object;
+		if (!motion && !arrival) {
+			if (look.breathe !== undefined) {
+				const far = mode === 'pieces' ? 1 : FAR_GHOST_BOOST;
+				place(object, look, 0, breath(nowMs, look.breathe) * far);
+			} else if (look.bob) {
+				place(object, look, bob(nowMs), 1);
+			}
+			return;
+		}
 		if (motion) {
 			motion.start ??= nowMs;
 			const t = (nowMs - motion.start) / MOVE_MS;

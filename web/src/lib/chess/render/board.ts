@@ -27,6 +27,7 @@ import {
 } from './style';
 import {captureEffectsOf} from '../outcomes';
 import {PIECE_KIND} from '../board';
+import {PICK_RADIUS} from '../planning';
 import {
 	BADGE_OUTLINE,
 	ETH_TONES,
@@ -35,9 +36,12 @@ import {
 	kingBadge,
 	type Facet,
 } from './eth-diamond';
-import {labelsOf, type Label} from './pixi/view-model';
+import {breath, breathPhase, labelsOf, type Label} from './pixi/view-model';
 
 const SPAWN_COLOUR = '#ffd166';
+const OPEN_GHOST_COLOUR = '#d9d2c5';
+/** Half the side of a spawn point's footprint (5 x 5), in squares. */
+const SPAWN_FRAME_HALF = PICK_RADIUS + 0.5;
 /**
  * An exit, where a king may leave with its stake: the ETH diamond, in two
  * tones like the logo (`./eth-diamond`). The same mark sits on every king.
@@ -107,18 +111,24 @@ export function createChessBoardRenderer(params: {
 			}
 			context.globalAlpha = 1;
 
-			// Open spawn points: a ring where a deployment may land, filled for the
-			// one the player picked.
+			// Open spawn points are their ghost armies (drawn with the pieces).
+			// Under them, the footprint of the one picked or the one a click
+			// would pick, and a faint outline where no ghost is known yet.
+			const half = SPAWN_FRAME_HALF;
 			for (const point of view.spawnPoints) {
 				const {x, y} = point.position;
 				const picked = view.planned?.spawnPoint === point.spawnPoint;
-				context.strokeStyle = SPAWN_COLOUR;
-				context.lineWidth = 2 / scale;
-				context.strokeRect(x - 3.5, y - 3.5, 7, 7);
-				if (picked) {
-					context.globalAlpha = 0.15;
+				const hovered = view.hovered === point.spawnPoint;
+				if (picked || hovered) {
+					context.globalAlpha = picked ? 0.15 : 0.1;
 					context.fillStyle = SPAWN_COLOUR;
-					context.fillRect(x - 3.5, y - 3.5, 7, 7);
+					context.fillRect(x - half, y - half, 2 * half, 2 * half);
+					context.globalAlpha = 1;
+				} else if (!view.spawnGhosts?.has(point.spawnPoint)) {
+					context.globalAlpha = 0.35;
+					context.strokeStyle = SPAWN_COLOUR;
+					context.lineWidth = 1 / scale;
+					context.strokeRect(x - half, y - half, 2 * half, 2 * half);
 					context.globalAlpha = 1;
 				}
 			}
@@ -240,6 +250,25 @@ export function createChessBoardRenderer(params: {
 				// exits' mark, which a click on it opens into the amount.
 				if (piece.kind === PIECE_KIND.King) {
 					drawBadge(context, frame, piece, frozen ? 0.55 : 1);
+				}
+			}
+			// Each open spawn point's ghost army, barely there; the one under the
+			// mouse as the player's own, half-way to a planned one.
+			// The open ones breathe, in a wave across the grid (`breath`).
+			for (const [spawnPoint, pieces] of view.spawnGhosts ?? []) {
+				const hovered = spawnPoint === view.hovered;
+				const at = view.spawnPoints.find(
+					(point) => point.spawnPoint === spawnPoint,
+				)?.position;
+				const alpha = hovered
+					? 0.3
+					: 0.26 * breath(frame.timeMs, breathPhase(at ?? {x: 0, y: 0}));
+				for (const piece of pieces) {
+					if (!visible(piece)) continue;
+					drawPiece(context, frame, piece, {
+						colour: hovered ? YOUR_COLOUR : OPEN_GHOST_COLOUR,
+						alpha,
+					});
 				}
 			}
 			// The planned army, as a ghost: never mistaken for one on chain.

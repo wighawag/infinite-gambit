@@ -28,8 +28,8 @@ import Harness from './Canvas2DHarness.svelte';
 const SIZE = {width: 240, height: 180};
 
 /**
- * `#ffd166`: the colour this client's own army is drawn in, and the open
- * spawn points' outline.
+ * `#ffd166`: the colour this client's own army is drawn in, and the light on
+ * a hovered or picked spawn point.
  */
 const YOURS = {r: 0xff, g: 0xd1, b: 0x66};
 const BACKGROUND = {r: 0x0b, g: 0x10, b: 0x20};
@@ -174,30 +174,35 @@ describe('the canvas-2d host', () => {
 		});
 	});
 
-	it('outlines an open spawn point', async () => {
+	it('lights the footprint of the spawn point under the mouse, and only it', async () => {
 		const {store, canvas} = setup();
-		store.set({
-			step: 'Loaded',
+		const open = {
+			step: 'Loaded' as const,
 			cycleNumber: 1,
 			...board([]),
 			spawnPoints: [
 				{spawnPoint: squareAt(0, 0), position: {x: 0, y: 0}, nearest: []},
 			],
-		});
-
+		};
+		// Inside the 5 x 5 footprint, off any piece.
+		const inside = screenOf(2, 1);
+		store.set(open);
 		await painted(() => {
-			// The outline runs round the footprint, three and a half squares out,
-			// two pixels wide: read a pixel wholly inside it.
-			const border = screenOf(-3.55, 0);
-			expect(isNear(pixelAt(canvas(), border.x, border.y), YOURS, 40)).toBe(
+			expect(isNear(pixelAt(canvas(), inside.x, inside.y), BACKGROUND)).toBe(
 				true,
 			);
 		});
-		// The middle stays background: nothing stands there yet.
-		const middle = screenOf(0, 0);
-		expect(isNear(pixelAt(canvas(), middle.x, middle.y), BACKGROUND)).toBe(
-			true,
-		);
+
+		store.set({...open, hovered: squareAt(0, 0)});
+		// one tenth of the gold over the background
+		const lit = {
+			r: BACKGROUND.r * 0.9 + YOURS.r * 0.1,
+			g: BACKGROUND.g * 0.9 + YOURS.g * 0.1,
+			b: BACKGROUND.b * 0.9 + YOURS.b * 0.1,
+		};
+		await painted(() => {
+			expect(isNear(pixelAt(canvas(), inside.x, inside.y), lit, 6)).toBe(true);
+		});
 	});
 
 	it('does not draw a piece the camera cannot see', async () => {

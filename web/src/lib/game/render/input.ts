@@ -50,10 +50,43 @@ export function connectSurfaceInput(params: {
 		params.gestures,
 	);
 
+	// HOVER, beside the gestures rather than in them: it moves nothing and is
+	// not a gesture, only where an idle mouse points. A pressed button is a
+	// drag in the making, so it is not hovering; neither is a touch.
+	// The rect is cached for the reason `attachGestures` caches its own (a
+	// forced layout per mouse move otherwise), and dropped whenever the pointer
+	// leaves or the surface is resized.
+	let hovering = false;
+	let hoverRect: DOMRect | undefined;
+	function onHoverMove(event: PointerEvent) {
+		if (event.pointerType === 'touch' || event.buttons !== 0) {
+			onHoverLeave();
+			return;
+		}
+		const rect = (hoverRect ??= element.getBoundingClientRect());
+		hovering = true;
+		eventEmitter.emit(
+			'hovered',
+			cameraControl.toWorld({
+				x: event.clientX - rect.left,
+				y: event.clientY - rect.top,
+			}),
+		);
+	}
+	function onHoverLeave() {
+		hoverRect = undefined;
+		if (!hovering) return;
+		hovering = false;
+		eventEmitter.emit('hovered', undefined);
+	}
+	element.addEventListener('pointermove', onHoverMove);
+	element.addEventListener('pointerleave', onHoverLeave);
+
 	// `clientWidth`/`clientHeight` are CSS pixels and exclude borders, which is
 	// exactly the space the surface draws into. Device pixel ratio is applied by
 	// the host to its own backing store, never here.
 	function reportSize() {
+		hoverRect = undefined;
 		cameraControl.resize(element.clientWidth, element.clientHeight);
 	}
 	const observer = new ResizeObserver(reportSize);
@@ -64,6 +97,8 @@ export function connectSurfaceInput(params: {
 		dispose() {
 			observer.disconnect();
 			detachGestures();
+			element.removeEventListener('pointermove', onHoverMove);
+			element.removeEventListener('pointerleave', onHoverLeave);
 		},
 	};
 }

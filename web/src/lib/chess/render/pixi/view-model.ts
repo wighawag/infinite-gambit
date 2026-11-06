@@ -118,16 +118,85 @@ export type PieceLook = {
 	alpha: number;
 	/** Whether this is a stone, which never shows a glow. */
 	stone: boolean;
+	/**
+	 * An open spawn point's ghost breathes: its opacity swells and fades, at
+	 * this phase (radians), so the ghosts ripple across the board in a slow
+	 * wave rather than blinking together.
+	 */
+	breathe?: number;
+	/** The hovered ghost bobs, as if about to be set down. */
+	bob?: boolean;
 };
+
+/**
+ * Which ghost a piece is, if any: the planned army (`true`, as the player's
+ * own, translucent), an open spawn point's army (`'open'`, barely there in a
+ * neutral band, so the spawn points do not stand out of the wood), or the open
+ * one under the mouse (`'hovered'`, half-way to the planned one).
+ */
+export type Ghost = boolean | 'open' | 'hovered';
+
+/** The band of an open spawn point's ghost: the maple of the board's inlay. */
+export const OPEN_GHOST_BAND = '#e2cba0';
+export const OPEN_GHOST_ALPHA = 0.34;
+/**
+ * Zoomed out (discs rather than turned pieces) a ghost is a few pixels on a
+ * busy checkerboard, so it is shown this much stronger.
+ */
+export const FAR_GHOST_BOOST = 1.6;
+export const HOVERED_GHOST_ALPHA = 0.5;
+
+/**
+ * Where in its breath an open ghost is, from its spawn point: one phase for a
+ * whole army, so an army breathes as one, stepping diagonally across the grid.
+ */
+export function breathPhase(spawnPoint: Square): number {
+	return ((spawnPoint.x + spawnPoint.y) / 9) * 0.9;
+}
+
+/**
+ * How much of its opacity a breathing ghost shows at `timeMs`: between
+ * {@link BREATH_LOW} and 1, over {@link BREATH_MS}.
+ */
+export const BREATH_MS = 2600;
+export const BREATH_LOW = 0.55;
+export function breath(timeMs: number, phase: number): number {
+	const s = Math.sin((timeMs / BREATH_MS) * Math.PI * 2 - phase);
+	return BREATH_LOW + (1 - BREATH_LOW) * (0.5 + 0.5 * s);
+}
+
+/** How high the hovered ghost bobs at `timeMs`, in squares. */
+export const BOB_MS = 1100;
+export function bob(timeMs: number): number {
+	return 0.06 * (0.5 + 0.5 * Math.sin((timeMs / BOB_MS) * Math.PI * 2));
+}
 
 export function lookOf(
 	piece: PieceView,
 	view: Pick<BoardView, 'you' | 'frozen' | 'colours'>,
-	ghost = false,
+	ghost: Ghost = false,
+	/** An open ghost's spawn point, which sets its phase. */
+	spawnAt?: Square,
 ): PieceLook | undefined {
 	const kind = silhouetteOf(piece.kind);
 	if (!kind) return undefined;
 	const {x, y} = piece.position2d;
+	if (ghost === 'open' || ghost === 'hovered') {
+		const hovered = ghost === 'hovered';
+		const band = hovered ? YOUR_COLOUR : OPEN_GHOST_BAND;
+		return {
+			x,
+			y,
+			kind,
+			finish: 'boxwood',
+			band,
+			tone: band,
+			glow: hovered ? 0.6 : 0,
+			alpha: hovered ? HOVERED_GHOST_ALPHA : OPEN_GHOST_ALPHA,
+			stone: false,
+			...(hovered ? {bob: true} : {breathe: breathPhase(spawnAt ?? {x, y})}),
+		};
+	}
 	const mine = ghost || piece.army === view.you;
 	const band = mine ? YOUR_COLOUR : armyColour(piece.army, view.colours);
 	if (piece.kind === PIECE_KIND.Stone) {
@@ -185,6 +254,18 @@ export function pieceLooks(view: BoardView): Map<string, PieceLook> {
 		const look = lookOf(piece, view, true);
 		if (look) looks.set(`g:${piece.position}`, look);
 	}
+	// each open spawn point's ghost army, keyed by its spawn point as well:
+	// two footprints may overlap
+	for (const [spawnPoint, pieces] of view.spawnGhosts ?? []) {
+		const ghost = spawnPoint === view.hovered ? 'hovered' : 'open';
+		const at = view.spawnPoints.find(
+			(point) => point.spawnPoint === spawnPoint,
+		)?.position;
+		for (const piece of pieces) {
+			const look = lookOf(piece, view, ghost, at);
+			if (look) looks.set(`s:${spawnPoint}:${piece.position}`, look);
+		}
+	}
 	return looks;
 }
 
@@ -198,7 +279,9 @@ export function looksDiffer(a: PieceLook, b: PieceLook): boolean {
 		a.band !== b.band ||
 		a.tone !== b.tone ||
 		a.glow !== b.glow ||
-		a.alpha !== b.alpha
+		a.alpha !== b.alpha ||
+		a.breathe !== b.breathe ||
+		a.bob !== b.bob
 	);
 }
 
@@ -225,8 +308,12 @@ export function exitBlocks(
 // ---- highlights ------------------------------------------------------------
 
 export type OverlayModel = {
-	/** Open spawn points; `half` is the frame's half-size, in squares. */
-	spawns: Array<Square & {picked: boolean}>;
+	/**
+	 * Open spawn points: `picked` is the planned one, `hovered` the one a click
+	 * would pick, `ghosted` whether its ghost army is drawn (until it is, a
+	 * faint outline says where it is).
+	 */
+	spawns: Array<Square & {picked: boolean; hovered: boolean; ghosted: boolean}>;
 	selected?: Square;
 	destinations: Array<Square & {capture: boolean}>;
 	attacked: Square[];
@@ -273,6 +360,11 @@ export function overlayModel(view: BoardView): OverlayModel {
 		spawns: view.spawnPoints.map((point) => ({
 			...point.position,
 			picked: view.planned?.spawnPoint === point.spawnPoint,
+			hovered: view.hovered === point.spawnPoint,
+			ghosted:
+				view.spawnGhosts?.has(point.spawnPoint) === true ||
+				(view.planned?.spawnPoint === point.spawnPoint &&
+					view.ghost.length > 0),
 		})),
 		...(view.selected ? {selected: view.selected} : {}),
 		// a destination onto a piece is a capture: the contract listed it, so

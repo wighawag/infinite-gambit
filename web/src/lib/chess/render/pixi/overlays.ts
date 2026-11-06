@@ -1,5 +1,6 @@
 /**
- * Everything the board shows that is not wood or a piece: open spawn points,
+ * Everything the board shows that is not wood or a piece: the footprint of a
+ * hovered or picked spawn point (an open one is its ghost army, a piece),
  * the selection and its destinations, attacked squares, what the last cycle
  * did, and the planned piece-moves. Ported from
  * `spikes/pixi-wood-board/src/overlays.ts`, fed from `view-model.ts`'s
@@ -15,7 +16,6 @@ import {plannedMoveColour} from '../style';
 
 const GOLD = 0xffd166;
 const MAPLE = 0xe2cba0;
-const ROSEWOOD = 0x5a3018;
 const INK = 0x1a0c06;
 const RED = 0xd63b3b;
 const ORANGE = 0xf2994a;
@@ -45,34 +45,40 @@ export class Overlays {
 		const g = this.g.clear();
 		const at = (v: number) => v * c;
 
-		// Open spawn points: a marquetry frame around the footprint, a maple
-		// stripe with a rosewood line inside it and gold diamonds at the corners.
+		// Open spawn points are drawn as their ghost armies (`pieceLooks`), so
+		// the wood stays the wood. Under them: a warm glow on the footprint of
+		// the one a click would pick and of the one picked, and a faint inlay
+		// line where a ghost army has not been worked out yet.
 		const half = this.spawnFrameHalf;
 		for (const s of state.spawns) {
 			const x0 = at(s.x - half);
 			const y0 = at(s.y - half);
 			const w = 2 * half * c;
-			if (s.picked) g.rect(x0, y0, w, w).fill({color: GOLD, alpha: 0.12});
-			g.rect(x0 + c * 0.05, y0 + c * 0.05, w - c * 0.1, w - c * 0.1).stroke({
-				color: MAPLE,
-				width: c * 0.1,
-				alpha: 0.95,
-			});
-			g.rect(x0 + c * 0.14, y0 + c * 0.14, w - c * 0.28, w - c * 0.28).stroke({
-				color: ROSEWOOD,
-				width: c * 0.035,
-				alpha: 0.9,
-			});
-			for (const [cx, cy] of [
-				[x0, y0],
-				[x0 + w, y0],
-				[x0, y0 + w],
-				[x0 + w, y0 + w],
-			]) {
-				const r = c * 0.16;
-				g.poly([cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy])
-					.fill(GOLD)
-					.stroke({color: INK, width: c * 0.02, alpha: 0.6});
+			const r = c * 0.35;
+			if (s.picked || s.hovered) {
+				g.roundRect(x0, y0, w, w, r).fill({
+					color: GOLD,
+					alpha: s.picked ? 0.14 : 0.1,
+				});
+				g.roundRect(
+					x0 + c * 0.04,
+					y0 + c * 0.04,
+					w - c * 0.08,
+					w - c * 0.08,
+					r,
+				).stroke({
+					color: GOLD,
+					width: c * 0.05,
+					alpha: s.picked ? 0.7 : 0.5,
+				});
+			} else if (!s.ghosted) {
+				g.roundRect(
+					x0 + c * 0.1,
+					y0 + c * 0.1,
+					w - c * 0.2,
+					w - c * 0.2,
+					r,
+				).stroke({color: MAPLE, width: c * 0.03, alpha: 0.35});
 			}
 		}
 

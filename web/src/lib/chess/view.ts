@@ -63,6 +63,18 @@ export type BoardView = {
 	 * the sandbox. Absent until it answers.
 	 */
 	ghost: readonly PieceView[];
+	/**
+	 * Every open spawn point's ghost army, by the contract's layout
+	 * (`./spawn-ghosts.ts`): how an open spawn point is drawn. Not the planned
+	 * one while its own ghost is drawn, and absent for a spawn point the
+	 * sandbox has not answered for yet.
+	 */
+	spawnGhosts?: ReadonlyMap<bigint, readonly PieceView[]>;
+	/**
+	 * The open spawn point a click would pick where the mouse is now, while
+	 * the player has an army to deploy: lit up before the click.
+	 */
+	hovered?: bigint;
 	/** The army this client plays, for telling its pieces apart. */
 	you?: bigint;
 	/** The piece the player has selected to move, if any. */
@@ -127,6 +139,10 @@ export type LocalPlan = {
 	 * for exactly this spawn point.
 	 */
 	preview?: readonly Piece[];
+	/** Each open spawn point's ghost army, where the sandbox has answered. */
+	spawnGhosts?: ReadonlyMap<bigint, readonly Piece[]>;
+	/** The spawn point under the mouse, when a click there would pick it. */
+	hovered?: bigint;
 	/** The piece-moves planned this cycle, for a deployed army: up to three. */
 	moves?: readonly {from: bigint; to: bigint}[];
 	/** The piece selected to move. */
@@ -215,6 +231,21 @@ export function exitedArmiesOf(armies: readonly ArmyView[]): Set<bigint> {
 	);
 }
 
+/** The ghost armies of the open spawn points in view, but `except`. */
+function spawnGhostsOf(
+	spawnPoints: readonly SpawnPointView[],
+	ghosts: ReadonlyMap<bigint, readonly Piece[]>,
+	except: bigint | undefined,
+): Map<bigint, PieceView[]> {
+	const out = new Map<bigint, PieceView[]>();
+	for (const {spawnPoint} of spawnPoints) {
+		if (spawnPoint === except) continue;
+		const pieces = ghosts.get(spawnPoint);
+		if (pieces) out.set(spawnPoint, pieces.map(withPosition));
+	}
+	return out;
+}
+
 /**
  * Combine the confirmed board with local intent. Copied rather than annotated,
  * so a re-derive never leaves a planned mark behind on the onchain store.
@@ -239,11 +270,21 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 					spawnPoints: [local.spawnPoint],
 					armies: onchain.armies,
 				})[0]);
+	const ghost = (local.preview ?? []).map(withPosition);
+	// the planned spawn point's own ghost replaces its open one
+	const drawn = ghost.length > 0 ? local.spawnPoint : undefined;
 	return {
 		pieces,
 		spawnPoints,
 		...(planned ? {planned} : {}),
-		ghost: (local.preview ?? []).map(withPosition),
+		ghost,
+		...(local.spawnGhosts
+			? {spawnGhosts: spawnGhostsOf(spawnPoints, local.spawnGhosts, drawn)}
+			: {}),
+		...(local.hovered !== undefined &&
+		spawnPoints.some((point) => point.spawnPoint === local.hovered)
+			? {hovered: local.hovered}
+			: {}),
 		...(local.army !== undefined ? {you: local.army} : {}),
 		...(local.selected !== undefined
 			? {selected: positionOf(local.selected)}

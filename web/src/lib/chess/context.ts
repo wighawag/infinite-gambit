@@ -79,6 +79,11 @@ import {
 } from '$lib/game/core/commit-reveal/advance';
 import {holdResolvingCycle, type HeldBoardState} from './hold';
 import {holdPlanUntilBoardReleases} from './display-plan';
+import {
+	createHoveredSpawnPoint,
+	createSpawnGhosts,
+	withSpawnGhosts,
+} from './spawn-ghosts';
 import {SignerOutOfFundsError} from '$lib/game/core/commit-reveal/errors';
 import {createAccountReserve, type ReserveStore} from './reserve';
 import {createStakeAcquisition} from './acquisition';
@@ -257,7 +262,10 @@ type ChessGame = {
 	action: Move;
 	board: HeldBoardState;
 	view: BoardView;
-	planning: PlanningStore;
+	/** The plan, and which spawn point the mouse is over (`./spawn-ghosts.ts`). */
+	planning: PlanningStore & {
+		hoverSpawnPoint: (spawnPoint: bigint | undefined) => void;
+	};
 	missedReveal: MissedRevealStore;
 	stake: {step: 'stake'};
 	surface: GameSurface;
@@ -367,7 +375,8 @@ export function createGameContext(core: CoreServices): GameContext {
 	// is read once and run in a sandbox, so the army drawn for a planned spawn
 	// point is the layout the board will resolve, and the squares highlighted
 	// for a selected piece are the moves the reveal will accept. Nothing is
-	// fetched until a spawn point is planned or a piece selected.
+	// fetched until the board lists a spawn point (its ghost army,
+	// `./spawn-ghosts.ts`) or a piece is selected.
 	const sandbox = createBytecodeSandbox({
 		provider: core.publicClient,
 		contracts: {
@@ -579,9 +588,18 @@ export function createGameContext(core: CoreServices): GameContext {
 				you: activeIdentity,
 				legalMoves,
 			});
+			// Every open spawn point as the army that would stand there, and the
+			// one under the mouse.
+			const spawnGhosts = createSpawnGhosts({board: onchainState, simulate});
+			const hovered = createHoveredSpawnPoint();
 			return {
 				...planning,
-				plan: withAttacked(withPreview(planning.plan, preview), attacked),
+				hoverSpawnPoint: hovered.hover,
+				plan: withSpawnGhosts(
+					withAttacked(withPreview(planning.plan, preview), attacked),
+					spawnGhosts,
+					hovered,
+				),
 			};
 		},
 		hold: holdResolvingCycle,
@@ -607,6 +625,17 @@ export function createGameContext(core: CoreServices): GameContext {
 			}
 			const picked = spawnPointNear(square, board.spawnPoints);
 			if (picked !== undefined) planning.choose(picked);
+		},
+		// What a click there would pick, lit up: only a spawn point, and only
+		// while there is an army to deploy.
+		hover: (position, {planning}) => {
+			const board = get(crg.onchainState);
+			if (!position || board.step !== 'Loaded' || !get(needsDeployment)) {
+				planning.hoverSpawnPoint(undefined);
+				return;
+			}
+			const square = {x: Math.round(position.x), y: Math.round(position.y)};
+			planning.hoverSpawnPoint(spawnPointNear(square, board.spawnPoints));
 		},
 		start: () => {
 			// The reserve follows the account, the armies follow the account, and
