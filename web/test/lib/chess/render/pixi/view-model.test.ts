@@ -131,11 +131,41 @@ describe('pieces', () => {
 });
 
 describe('exits', () => {
-	it("group today's 1-square exits one each", () => {
-		const squares = exitsIn({minX: -10, minY: -10, maxX: 10, maxY: 10}, 16);
-		expect(exitBlocks(squares)).toEqual(
-			squares.map(({x, y}) => ({x, y, span: 1})),
-		);
+	it('keep a lone exit square as a 1-square exit', () => {
+		expect(
+			exitBlocks([
+				{x: 8, y: 8},
+				{x: -8, y: 8},
+			]),
+		).toEqual([
+			{x: 8, y: 8, span: 1},
+			{x: -8, y: 8, span: 1},
+		]);
+	});
+
+	// Whatever the rule in `$lib/chess/exits.ts` is (one square, or the 2 x 2
+	// block of ADR 0015), the exits drawn cover exactly the exit squares.
+	it('cover exactly the squares exits.ts lists, whatever its rule', () => {
+		for (const spacing of [6, 9, 16]) {
+			const squares = exitsIn(
+				{
+					minX: -spacing,
+					minY: -spacing,
+					maxX: 2 * spacing - 1,
+					maxY: 2 * spacing - 1,
+				},
+				spacing,
+			);
+			const covered = exitBlocks(squares).flatMap(({x, y, span}) =>
+				span === 2
+					? [`${x},${y}`, `${x + 1},${y}`, `${x},${y + 1}`, `${x + 1},${y + 1}`]
+					: [`${x},${y}`],
+			);
+			expect(new Set(covered).size).toBe(covered.length);
+			expect([...covered].sort()).toEqual(
+				squares.map(({x, y}) => `${x},${y}`).sort(),
+			);
+		}
 	});
 
 	it('group a 2 x 2 block into one exit named by its top-left square', () => {
