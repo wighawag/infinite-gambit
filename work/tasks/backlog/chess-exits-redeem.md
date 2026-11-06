@@ -4,7 +4,7 @@ slug: chess-exits-redeem
 spec: infinite-chess
 blockedBy: [chess-capture-loops]
 covers: [32, 33, 34, 35]
-needsAnswers: false
+needsAnswers: true
 ---
 
 ## What to build
