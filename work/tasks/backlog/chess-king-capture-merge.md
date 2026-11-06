@@ -4,7 +4,7 @@ slug: chess-king-capture-merge
 spec: infinite-chess
 blockedBy: [chess-collisions]
 covers: [26, 27, 28, 29, 30]
-needsAnswers: false
+needsAnswers: true
 ---
 
 ## What to build
