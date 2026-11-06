@@ -357,6 +357,46 @@ interface IGameSimulation is UsingGameTypes {
         uint64 from
     ) external pure returns (uint64[] memory destinations);
 
+    /// @notice Whether `moves` is a legal move for `army`, by the rule the
+    ///         reveal applies, judged against `board` (the board as it stood
+    ///         at the start of the cycle, as {IGameGetters-getPieces} returns
+    ///         it): at most `maxPieceMoves` piece-moves, none moving one piece
+    ///         twice, no two to one square, and each by one of `army`'s pieces
+    ///         and legal with the move's own vacated squares counted as empty
+    ///         (`docs/adr/0016`). An empty move, a pass, is legal. The order
+    ///         `moves` lists them in changes nothing.
+    /// @param maxPieceMoves the move's cap: 3, or 1 at a table that turns
+    ///        three piece-moves off. A PARAMETER because this reads nothing,
+    ///        so it cannot read a table's options.
+    /// @dev Reads nothing: the client runs it in its sandbox to refuse a
+    ///      planned move before it is committed, so the refusal is the rule
+    ///      and not a copy of it. Pass every piece within reach of every
+    ///      piece-move, as for {legalMoves}.
+    function isLegalWholeMove(
+        Piece[] calldata board,
+        uint256 army,
+        Move[] calldata moves,
+        uint256 maxPieceMoves
+    ) external pure returns (bool legal);
+
+    /// @notice Every square the piece on `from` may move to as one more
+    ///         piece-move of a move that already holds `others`: exactly the
+    ///         `to` for which {isLegalWholeMove} accepts `others` plus
+    ///         `from` to `to`, for the army of the piece on `from`. So it
+    ///         counts the squares `others` vacate as empty, offers nothing if
+    ///         the move is full or `others` is not legal, and never a square
+    ///         one of `others` goes to. Empty if `board` has nothing on
+    ///         `from`; {legalMoves} when `others` is empty (at any cap of one or
+    ///         more).
+    /// @dev Reads nothing: a planner runs it in its sandbox to offer a piece's
+    ///      destinations alongside the piece-moves already planned.
+    function legalMovesAlongside(
+        Piece[] calldata board,
+        uint64 from,
+        Move[] calldata others,
+        uint256 maxPieceMoves
+    ) external pure returns (uint64[] memory destinations);
+
     /// @notice What a piece of `kind` is worth in material: pawn 1, knight 3,
     ///         bishop 3, rook 5, queen 9, and nothing for a king or an empty
     ///         square. The figure a table's payout splits its stakes by.

@@ -87,7 +87,12 @@ export default deployScript(
 			// contract here: see "Deterministic deployments" in README.md.
 			// A route identical to the world's (Delegation) lands at the address
 			// the world's already has, and is shared: a route holds no state.
-			{deterministic: true},
+			{
+				deterministic: true,
+				// TEMPORARY: the vendored router, which routes past 48 selectors
+				// (this one carries more): see src/vendor/router/Router10X60.sol.
+				routerContract: {type: 'custom', artifact: artifacts.Router10X60},
+			},
 		);
 
 		await deploy<Abi_CommitRevealGameFactory>(

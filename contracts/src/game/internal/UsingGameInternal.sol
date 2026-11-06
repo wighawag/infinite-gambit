@@ -469,28 +469,20 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         // or sends two to one square, whole. Every piece-move is validated
         // against the start-of-cycle board, so an account seated at a table,
         // which has no pieces, can only ever pass.
-        uint256 n = moves.length;
-        if (n > ChessRules.MAX_PIECE_MOVES || furtherActions != bytes24(0)) {
-            revert OneMovePerCycle();
-        }
-        uint64[] memory vacated = new uint64[](n);
-        for (uint256 i = 0; i < n; i++) {
-            for (uint256 j = 0; j < i; j++) {
-                if (
-                    moves[j].from == moves[i].from || moves[j].to == moves[i].to
-                ) {
-                    revert OneMovePerCycle();
-                }
-            }
-            vacated[i] = moves[i].from;
-        }
+        // The cap and both refusals are {ChessRules-vacatedBy}, which the
+        // simulation route asks too.
+        (bool oneMove, uint64[] memory vacated) = ChessRules.vacatedBy(
+            moves,
+            ChessRules.MAX_PIECE_MOVES
+        );
+        if (!oneMove || furtherActions != bytes24(0)) revert OneMovePerCycle();
         // SIMULTANEOUS: every piece-move is judged on the start-of-cycle board
         // with all of `vacated` counted as gone, and records only order-free
         // facts, so the order they are listed in changes nothing. One cache of
         // start-of-cycle facts serves them all ({UsingGameBoard-Reads}): no
         // write of this reveal changes what it holds.
         UsingGameBoard.Reads memory reads;
-        for (uint256 i = 0; i < n; i++) {
+        for (uint256 i = 0; i < moves.length; i++) {
             _revealMove(player, moves[i], vacated, chunk.cycleNumber, reads);
         }
 

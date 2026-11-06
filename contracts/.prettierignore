@@ -30,3 +30,6 @@ docs
 deployments
 package.json
 pnpm-lock.yaml
+
+# vendored verbatim (plus a two-line fix), so a diff against upstream stays exact
+src/vendor

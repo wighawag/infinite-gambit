@@ -277,6 +277,45 @@ library ChessRules {
     ///         (`docs/adr/0016`).
     uint256 internal constant MAX_PIECE_MOVES = 3;
 
+    /// @notice Whether `moves` can be ONE army's move of at most
+    ///         `maxPieceMoves` piece-moves: none moves one piece twice and no
+    ///         two go to one square ({joins}). And the squares the move
+    ///         vacates, its origins, for {vacate}.
+    /// @dev The reveal and the simulation route both ask this, so the cap and
+    ///      the two refusals are one rule (`docs/adr/0016`). It judges no
+    ///      piece-move: that is {isLegalMove}'s, on {vacate}d contents.
+    ///      `calldata`, as the reveal holds its moves: a copy to memory put
+    ///      the Reveal route over the code size limit.
+    function vacatedBy(
+        T.Move[] calldata moves,
+        uint256 maxPieceMoves
+    ) internal pure returns (bool oneMove, uint64[] memory vacated) {
+        uint256 n = moves.length;
+        if (n > maxPieceMoves) return (false, vacated);
+        vacated = new uint64[](n);
+        for (uint256 i = 0; i < n; i++) {
+            uint64 from = moves[i].from;
+            if (!joins(moves, i, from, moves[i].to)) return (false, vacated);
+            vacated[i] = from;
+        }
+        oneMove = true;
+    }
+
+    /// @notice Whether a piece-move from `from` to `to` may be in one move
+    ///         with the first `count` of `moves`: it moves a different piece,
+    ///         to a different square, from each of them.
+    function joins(
+        T.Move[] calldata moves,
+        uint256 count,
+        uint64 from,
+        uint64 to
+    ) internal pure returns (bool) {
+        for (uint256 j = 0; j < count; j++) {
+            if (moves[j].from == from || moves[j].to == to) return false;
+        }
+        return true;
+    }
+
     /// @notice Make `contents` what the legality check judges: every one of
     ///         `squares` that is in `vacated` and holds a piece of `army` reads
     ///         as empty, because that piece moves away in the same cycle.

@@ -347,7 +347,11 @@ export async function deployGameWith(
 		{
 			account: env.namedAccounts.deployer,
 			artifact: (name: string, params: any) =>
-				env.deployViaRouter<Abi_IGame>(name, params, routes),
+				env.deployViaRouter<Abi_IGame>(name, params, routes, {
+					// As the deploy scripts: the router that routes past 48
+					// selectors (src/vendor/router/Router10X60.sol).
+					routerContract: {type: 'custom', artifact: artifacts.Router10X60},
+				}),
 			args: [config],
 		},
 		{owner: env.namedAccounts.admin, linkedData: config},

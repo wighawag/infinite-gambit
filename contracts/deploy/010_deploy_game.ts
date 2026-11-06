@@ -100,7 +100,12 @@ export default deployScript(
 				// The options are passed on: they carry `deterministic` to the
 				// router and its routes.
 				artifact: (name, params, options) =>
-					deployViaRouter<Abi_IGame>(name, params, routes, options),
+					deployViaRouter<Abi_IGame>(name, params, routes, {
+						...options,
+						// TEMPORARY: the vendored router, which routes past 48
+						// selectors (see src/vendor/router/Router10X60.sol).
+						routerContract: {type: 'custom', artifact: artifacts.Router10X60},
+					}),
 				args: [config],
 			},
 			{

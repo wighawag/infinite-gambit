@@ -28,13 +28,36 @@ const config: HardhatUserConfig = {
 			// london fork, so every profile pins evmVersion rather than
 			// following solc's default.
 			default: {
-				version: '0.8.28',
-				// A solc to use instead of downloading one, for a build with no
-				// network (the Nix package for a LAN box, nix/lan.nix, gives it the
-				// official WASM build). Keep it in step with `version`.
-				path: process.env.SOLC_PATH || undefined,
-				settings: {
-					evmVersion: 'london',
+				compilers: [
+					{
+						version: '0.8.28',
+						// A solc to use instead of downloading one, for a build with no
+						// network (the Nix package for a LAN box, nix/lan.nix, gives it
+						// the official WASM build). Keep it in step with `version`.
+						path: process.env.SOLC_PATH || undefined,
+						settings: {
+							evmVersion: 'london',
+						},
+					},
+				],
+				overrides: {
+					// THE VENDORED ROUTER, optimised in every profile, as the
+					// `solidity-proxy` artifact it stands in for was (runs
+					// 999999): every routed call pays its fallback, and the
+					// unoptimised build costs about a thousand gas more per call,
+					// which the gas budgets (`GasBudget.test.ts`) measure. TEMPORARY,
+					// with the copy: see src/vendor/router/Router10X60.sol.
+					'src/vendor/router/Router10X60.sol': {
+						version: '0.8.28',
+						path: process.env.SOLC_PATH || undefined,
+						settings: {
+							optimizer: {
+								enabled: true,
+								runs: 999999,
+							},
+							evmVersion: 'london',
+						},
+					},
 				},
 			},
 			production: {
