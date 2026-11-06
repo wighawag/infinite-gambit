@@ -20,10 +20,12 @@ import {
 	armyColour,
 	frozenColour,
 	FROZEN_RING,
-	ROCK_COLOUR,
+	isStone,
+	STONE_COLOUR,
 	YOUR_COLOUR,
 } from './style';
 import {exitsIn} from '../exits';
+import {captureEffectsOf} from '../outcomes';
 
 const SPAWN_COLOUR = '#ffd166';
 /** An exit square, where a king may leave with its stake. */
@@ -38,10 +40,15 @@ const ATTACKED_COLOUR = 'rgba(239, 71, 111, 0.22)';
 const LABEL_BACKGROUND = 'rgba(11, 16, 32, 0.8)';
 const LABEL_TEXT = '#ffffff';
 const FROZEN_LABEL_TEXT = '#cfe8ff';
+const STONE_LABEL_TEXT = '#d9d2c5';
 /** A square where the last cycle's arrivals collided and died. */
 const COLLISION_COLOUR = '#ef476f';
 /** A square where the last cycle captured a piece. */
 const CAPTURE_COLOUR = '#f78c6b';
+/** A square where the piece that took a king landed as a queen. */
+const PROMOTION_COLOUR = '#ffd166';
+/** A square where a capture left a stone. */
+const STONE_MADE_COLOUR = '#d9d2c5';
 /** Below this many pixels per square there is no room for a glyph. */
 const MIN_GLYPH_SCALE = 6;
 
@@ -141,9 +148,24 @@ export function createChessBoardRenderer(params: {
 
 			// What the last cycle did, as the contract resolved it: a tinted
 			// square with a cross where pieces died colliding, an outline where a
-			// piece was captured. Under the pieces, so a survivor stays readable.
+			// piece was captured, a second outline where the captor landed as a
+			// queen, and a dashed one where a capture left a stone. Under the
+			// pieces, so a survivor stays readable.
 			for (const outcome of view.outcomes) {
 				const {x, y} = outcome.position2d;
+				const effects = captureEffectsOf(outcome);
+				if (effects.promoted) {
+					context.strokeStyle = PROMOTION_COLOUR;
+					context.lineWidth = 2 / scale;
+					context.strokeRect(x - 0.3, y - 0.3, 0.6, 0.6);
+				}
+				if (effects.stoneMade) {
+					context.strokeStyle = STONE_MADE_COLOUR;
+					context.lineWidth = 2 / scale;
+					context.setLineDash([0.12, 0.08]);
+					context.strokeRect(x - 0.48, y - 0.48, 0.96, 0.96);
+					context.setLineDash([]);
+				}
 				if (outcome.died > 0) {
 					context.globalAlpha = 0.25;
 					context.fillStyle = COLLISION_COLOUR;
@@ -183,20 +205,24 @@ export function createChessBoardRenderer(params: {
 
 			for (const piece of view.pieces.values()) {
 				if (!visible(piece)) continue;
-				// A rock (army zero) is greyed out: nobody plays it. A frozen
-				// army is greyed too, in its own drained hue and ringed, so the
-				// two are never confused: a frozen army still has a stake.
-				const rock = piece.army === 0n;
-				const frozen = !rock && (view.frozen?.has(piece.army) ?? false);
+				// A stone is a square tile edged in the colour of the army it
+				// was: nobody plays it, and it holds that army's stake. A frozen
+				// army is greyed, in its own drained hue and ringed.
+				const ownColour =
+					piece.army === view.you ? YOUR_COLOUR : armyColour(piece.army);
+				if (isStone(piece.kind)) {
+					drawPiece(context, frame, piece, {
+						colour: STONE_COLOUR,
+						alpha: 1,
+						ring: ownColour,
+						square: true,
+					});
+					continue;
+				}
+				const frozen = view.frozen?.has(piece.army) ?? false;
 				drawPiece(context, frame, piece, {
-					colour: rock
-						? ROCK_COLOUR
-						: frozen
-							? frozenColour(piece.army)
-							: piece.army === view.you
-								? YOUR_COLOUR
-								: armyColour(piece.army),
-					alpha: rock ? 0.6 : frozen ? 0.55 : 1,
+					colour: frozen ? frozenColour(piece.army) : ownColour,
+					alpha: frozen ? 0.55 : 1,
 					...(frozen ? {ring: FROZEN_RING} : {}),
 				});
 			}
@@ -215,6 +241,15 @@ export function createChessBoardRenderer(params: {
 						text: king.frozen ? FROZEN_LABEL_TEXT : LABEL_TEXT,
 					});
 				}
+				// And every stone's: what capturing it would take.
+				for (const stone of view.stones ?? []) {
+					const {x, y} = stone.position2d;
+					if (x < bounds.minX || x > bounds.maxX) continue;
+					if (y < bounds.minY || y > bounds.maxY) continue;
+					drawLabel(context, frame, stone.position2d, stone.stakeLabel, {
+						text: STONE_LABEL_TEXT,
+					});
+				}
 			}
 			context.restore();
 		},
@@ -225,14 +260,19 @@ function drawPiece(
 	context: CanvasRenderingContext2D,
 	frame: Frame,
 	piece: PieceView,
-	style: {colour: string; alpha: number; ring?: string},
+	style: {colour: string; alpha: number; ring?: string; square?: boolean},
 ) {
 	const scale = frame.transform.scale;
 	const centre = toScreen(frame, piece.position2d.x, piece.position2d.y);
 	context.globalAlpha = style.alpha;
 	context.fillStyle = style.colour;
 	context.beginPath();
-	context.arc(centre.x, centre.y, scale * 0.42, 0, Math.PI * 2);
+	if (style.square) {
+		const half = scale * 0.4;
+		context.rect(centre.x - half, centre.y - half, half * 2, half * 2);
+	} else {
+		context.arc(centre.x, centre.y, scale * 0.42, 0, Math.PI * 2);
+	}
 	context.fill();
 	if (style.ring) {
 		context.strokeStyle = style.ring;

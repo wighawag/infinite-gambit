@@ -1,7 +1,9 @@
 /**
  * EXITS: where they are, and the call that pays an army that left through one
  * (which of the account's armies is owed is `armies.ts`'s `unpaidExit`)
- * (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`).
+ * (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`, whose
+ * rocks `docs/adr/0013` removed: an exited army's pieces leave the board, and
+ * its payout includes every stake it captured).
  *
  * Whether an army has exited is the contract's to say (the registry's
  * `Exited` status, resolved lazily from closed-cycle facts); nothing here works

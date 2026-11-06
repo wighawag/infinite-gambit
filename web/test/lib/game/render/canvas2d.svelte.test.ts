@@ -39,13 +39,21 @@ type Colour = {r: number; g: number; b: number};
 /** The army the tests play as. */
 const YOU = 7n << 160n;
 
-function piece(x: number, y: number, army = YOU): [bigint, PieceView] {
+function piece(
+	x: number,
+	y: number,
+	army = YOU,
+	kind: PieceView['kind'] = 1,
+): [bigint, PieceView] {
 	const position = squareAt(x, y);
 	return [
 		position,
-		{position, army, kind: 1, forward: 0, moved: false, position2d: {x, y}},
+		{position, army, kind, forward: 0, moved: false, position2d: {x, y}},
 	];
 }
+
+/** `#8d8579`: a stone's tile (`$lib/chess/render/style.ts`). */
+const STONE = {r: 0x8d, g: 0x85, b: 0x79};
 
 function board(pieces: [bigint, PieceView][]): BoardView {
 	return {
@@ -153,6 +161,20 @@ describe('the canvas-2d host', () => {
 		expect(isNear(pixelAt(canvas(), corner.x, corner.y), BACKGROUND)).toBe(
 			true,
 		);
+	});
+
+	it("draws a stone as a stone tile, not in its army's colour", async () => {
+		const {store, canvas} = setup();
+		store.set({
+			step: 'Loaded',
+			cycleNumber: 1,
+			...board([piece(2, 1, YOU, 7)]),
+		});
+
+		await painted(() => {
+			const at = screenOf(2, 1);
+			expect(isNear(pixelAt(canvas(), at.x, at.y), STONE)).toBe(true);
+		});
 	});
 
 	it('outlines an open spawn point', async () => {

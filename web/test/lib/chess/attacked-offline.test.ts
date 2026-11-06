@@ -24,6 +24,7 @@ const CHAIN_ID = 9007199254740125;
 const YOU = 1n << 160n;
 const THEM = 2n << 160n;
 const FROZEN = 3n << 160n;
+const STONE = 4n << 160n;
 
 let world: EmbeddedWorld | undefined;
 afterEach(async () => {
@@ -52,7 +53,7 @@ const army = (id: bigint, status: number): ArmyView => ({
 });
 
 describe('the attacked squares, by the deployed rule', () => {
-	it('mark where an enemy may legally move, and nothing a frozen army or a rock could', async () => {
+	it('mark where an enemy may legally move, and nothing a frozen army or a stone could', async () => {
 		world = await createEmbeddedWorld({
 			chainId: CHAIN_ID,
 			chain: {
@@ -87,9 +88,9 @@ describe('the attacked squares, by the deployed rule', () => {
 			// The enemy: a knight, and a pawn advancing South that has moved.
 			piece(THEM, 2, 1, PIECE_KIND.Knight),
 			piece(THEM, 5, 5, PIECE_KIND.Pawn, DIRECTION.South, true),
-			// A frozen army's rook and a rock: neither moves again.
+			// A frozen army's rook and a stone: neither moves again.
 			piece(FROZEN, -3, 0, PIECE_KIND.Rook),
-			piece(0n, -5, -5, PIECE_KIND.Queen),
+			piece(STONE, -5, -5, PIECE_KIND.Stone),
 		];
 		const pieces = new Map(board.map((p) => [p.position, p]));
 		const attackers = attackersOf({
@@ -98,6 +99,7 @@ describe('the attacked squares, by the deployed rule', () => {
 				army(YOU, ARMY_STATUS.Deployed),
 				army(THEM, ARMY_STATUS.Deployed),
 				army(FROZEN, ARMY_STATUS.Frozen),
+				army(STONE, ARMY_STATUS.Captured),
 			],
 			you: YOU,
 		});
@@ -133,7 +135,7 @@ describe('the attacked squares, by the deployed rule', () => {
 			]),
 		);
 		// Not its other diagonal, onto an empty square: it may not move there
-		// this cycle. Nor anything the frozen rook or the rock could reach.
+		// this cycle. Nor anything the frozen rook or the stone could reach.
 		expect(marked).toHaveLength(10);
 		expect(marked).not.toContainEqual({x: 4, y: 4});
 		expect(marked).not.toContainEqual({x: -2, y: 0});

@@ -3,8 +3,8 @@
  * level picks its move (`work/specs/tasked/infinite-chess.md`, story 43).
  *
  * WHAT IT DOES. Each cycle it captures the most valuable enemy piece one of its
- * pieces can reach (a king above everything, then by material: queen 9, rook
- * 5, bishop 3, knight 3, pawn 1), and when it can capture nothing it makes a
+ * pieces can reach (a king or a stone above everything, then by material:
+ * queen 9, rook 5, bishop 3, knight 3, pawn 1), and when it can capture nothing it makes a
  * random legal move. Ties are broken by the seat's seeded random, so a test
  * reproduces and two seats do not move alike.
  *
@@ -13,8 +13,8 @@
  * may move to is `legalMoves`, and what a piece is worth is `materialOf`, both
  * run from the Simulation route's bytecode in the seats' sandbox. The only
  * thing decided here is the POLICY on top: a king outranks any material (it
- * carries the stake), and a rock (a piece of army 0) is worth nothing to aim
- * at, though moving onto one stays among the random legal moves.
+ * carries the stake), and so does a stone, which holds its army's whole stake
+ * and is worth nothing as material (`docs/adr/0014`).
  *
  * WHAT IT SEES (the framework's PA6): the board through the contract's own
  * resolving view (`getPieces`), its army through the registry (`getArmy`), and
@@ -50,9 +50,9 @@ export const LOOK_AROUND = 24;
 export type Target = {kind: PieceKind; army: bigint};
 
 /**
- * How much a seat wants to capture `target`: zero for nothing, its own army or
- * a rock; above every material value for a king; otherwise the contract's
- * material value, handed in as `material`.
+ * How much a seat wants to capture `target`: zero for nothing or its own army;
+ * above every material value for a king or a stone, both of which carry a
+ * stake; otherwise the contract's material value, handed in as `material`.
  */
 export function captureValue(
 	target: Target | undefined,
@@ -60,9 +60,11 @@ export function captureValue(
 	material: (kind: PieceKind) => number,
 	kingValue: number,
 ): number {
-	if (!target || target.army === 0n || target.army === own) return 0;
+	if (!target || target.army === own) return 0;
 	if (target.kind === PIECE_KIND.None) return 0;
-	if (target.kind === PIECE_KIND.King) return kingValue;
+	if (target.kind === PIECE_KIND.King || target.kind === PIECE_KIND.Stone) {
+		return kingValue;
+	}
 	return material(target.kind);
 }
 

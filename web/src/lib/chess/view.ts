@@ -11,7 +11,7 @@
  * stays where the chain has it until the cycle is over.
  */
 import type {ViewMerge} from '$lib/view';
-import type {BoardState, Piece} from './board';
+import {PIECE_KIND, type BoardState, type Piece} from './board';
 import {positionOf, type Position} from './squares';
 import {describeSpawnPoints, type SpawnPointView} from './spawn-points';
 import type {SquareOutcome} from './outcomes';
@@ -34,6 +34,17 @@ export type KingView = {
 	stakeLabel: string;
 	/** Its army is frozen (`docs/adr/0005-missed-reveal-freezes-the-army.md`). */
 	frozen: boolean;
+};
+
+/**
+ * A stone on the board, labelled with the stake it holds: the registry's stake
+ * for the army it was, which nobody has taken yet (`docs/adr/0014`).
+ */
+export type StoneView = {
+	army: bigint;
+	position2d: Position;
+	stake: bigint;
+	stakeLabel: string;
 };
 
 export type BoardView = {
@@ -67,9 +78,11 @@ export type BoardView = {
 	outcomesCycle: number;
 	/** Every king standing on the board, with its army's stake. */
 	kings?: readonly KingView[];
+	/** Every stone in view, with the stake it holds. */
+	stones?: readonly StoneView[];
 	/**
 	 * The armies the registry says are frozen, a missed reveal not yet settled
-	 * included: their pieces are drawn greyed out, apart from rocks.
+	 * included: their pieces are drawn greyed out.
 	 */
 	frozen?: ReadonlySet<bigint>;
 	/**
@@ -113,9 +126,9 @@ const KING_ON_THE_BOARD: ReadonlySet<number> = new Set([
 
 /**
  * Every king on the board, at the square the registry has it on and with the
- * stake the registry says its army holds (merged stakes included, as far as
- * the registry counts them). Nothing is worked out here: both are the
- * contract's answers.
+ * stake the registry says its army holds (the stakes of the armies it took
+ * included, as far as the registry counts them). Nothing is worked out here:
+ * both are the contract's answers.
  */
 export function kingsOf(armies: readonly ArmyView[]): KingView[] {
 	return armies
@@ -132,6 +145,30 @@ export function kingsOf(armies: readonly ArmyView[]): KingView[] {
 				frozen,
 			};
 		});
+}
+
+/**
+ * Every stone among `pieces`, with the stake the registry says its army still
+ * holds: a stone is labelled with the army it was, whose stake is its own
+ * until someone captures it. Nothing is worked out here either.
+ */
+export function stonesOf(
+	pieces: ReadonlyMap<bigint, Piece>,
+	armies: readonly ArmyView[],
+): StoneView[] {
+	const stakes = new Map(armies.map((army) => [army.id, army.stake]));
+	const stones: StoneView[] = [];
+	for (const piece of pieces.values()) {
+		if (piece.kind !== PIECE_KIND.Stone) continue;
+		const stake = stakes.get(piece.army) ?? 0n;
+		stones.push({
+			army: piece.army,
+			position2d: positionOf(piece.position),
+			stake,
+			stakeLabel: `${STAKE.amount(stake)} (stone)`,
+		});
+	}
+	return stones;
 }
 
 /** The armies the registry says are frozen. */
@@ -183,6 +220,7 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 		})),
 		outcomesCycle: onchain.outcomes.cycleNumber,
 		kings: kingsOf(onchain.armies),
+		stones: stonesOf(onchain.pieces, onchain.armies),
 		frozen: frozenArmiesOf(onchain.armies),
 		attacked: (local.attacked ?? []).map(positionOf),
 		...(local.move

@@ -19,14 +19,14 @@
  * gathers the answers (`docs/adr/0007-rules-live-only-in-the-contract.md`).
  *
  * WHOSE PIECES. An army that can move: one the registry has on the board and
- * not frozen. A frozen army never moves again, so it threatens nothing, and a
- * rock (army zero) is nobody's and never moves.
+ * not frozen. A frozen army never moves again, so it threatens nothing, and
+ * neither does a stone, which never moves (`docs/adr/0014`).
  */
 import {derived, type Readable} from 'svelte/store';
 import {latestResult, type LatestResult} from '$lib/game/simulation';
 import type {OnchainStateValue} from '$lib/game/core/seams';
 import {ARMY_STATUS, type ArmyView} from './armies';
-import type {BoardState, Piece} from './board';
+import {PIECE_KIND, type BoardState, type Piece} from './board';
 import {piecesAround} from './planning';
 import type {LocalPlan} from './view';
 
@@ -38,7 +38,7 @@ export type LegalMoves = (
 
 /**
  * The pieces that may move this cycle against `you`: every piece of another
- * army the registry has standing on the board (not frozen, not a rock).
+ * army the registry has standing on the board (not frozen), stones aside.
  */
 export function attackersOf(params: {
 	pieces: ReadonlyMap<bigint, Piece>;
@@ -52,7 +52,7 @@ export function attackersOf(params: {
 	);
 	const attackers: Piece[] = [];
 	for (const piece of params.pieces.values()) {
-		if (piece.army === params.you || piece.army === 0n) continue;
+		if (piece.army === params.you || piece.kind === PIECE_KIND.Stone) continue;
 		if (moving.has(piece.army)) attackers.push(piece);
 	}
 	return attackers.sort((a, b) =>
