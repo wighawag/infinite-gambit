@@ -10,6 +10,11 @@ covers: [31]
 
 When kings capture each other in a ring within one cycle (A takes B while B takes A, or longer), the pieces that captured the kings die, every king in the loop survives where it stood, and each owner takes over the army (and stake) it captured. See `docs/adr/0004-capture-loops-rotate-ownership.md`. Loops are detected by following the "captured into" pointers once the cycle is final, so it stays order-free. The capturing pieces die rather than bouncing back so resolution stays lazy.
 
+> FORWARD-POINTER (conductor, from what `chess-king-capture-merge` landed; see its `## Decisions` and `docs/adr/0009-merges-resolve-through-captured-into-pointers.md`):
+> - **Loops are where "captured into" pointers come back round.** `UsingGameBoard._armyOf` today stops when the walk returns to its start and treats the army as its own, and `_treeStake` counts a looped army's own reserve only. This task replaces that with the rotation of ADR 0004, still decided only from closed-cycle facts, still order-free for reveals AND for reads/folds (test both).
+> - **Re-check the "a king on the board is never of a merged army" assumption.** Reveals resolve the army of the mover and its destination only; path squares and a king's neighbours are read unresolved (`_rawSquareAt`). After a loop, every king survives while its army changes owner, so a king on the board CAN belong to a merged army. Make sure the king-adjacency rule and every legality check still see the right army (resolve where needed, inside the reveal gas budget, `GasBudget.test.ts`).
+> - The king-capturing pieces die: put that in both `ChessRules.settle` and `ChessRules.outcome` (one table, two functions), and keep `_isDead`/the registry consistent.
+
 ## Acceptance criteria
 
 - [ ] A two-army loop and a three-army loop each rotate ownership and stakes, kill the king-capturing pieces, and leave every king in place.

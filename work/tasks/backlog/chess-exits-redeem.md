@@ -21,6 +21,11 @@ The only way a stake leaves the world, and the code that pays ETH out of the sal
 
 Serialised after capture loops because it edits the same resolution code.
 
+> FORWARD-POINTER (conductor, from what `chess-king-capture-merge` landed; see `docs/adr/0009-merges-resolve-through-captured-into-pointers.md`):
+> - **A captor's stake is not in its own reserve.** No reserve moves on a capture: a merged army's stake is its own reserve plus, recursively, the reserves of the armies it took (`UsingGameBoard._stakeOf`/`_treeStake`), and that walk is bounded at `MAX_CHAIN = 8` levels. The exit must pay the WHOLE merged stake: collect every reserve of the tree into the payout (debit them, so nothing can be paid twice), in bounded gas, and never strand a reserve deeper than the bound. Moving a victim's reserve up into its captor when its capture is folded (in `_foldCapture`, a closed-cycle fact) keeps the tree sum unchanged and flattens it over time; an exit that still meets a tree deeper than it can collect in one transaction needs a permissionless, incremental way to collect it first. Add a test with a merged tree deeper than `MAX_CHAIN`. If you cannot make the payout complete and bounded, STOP and surface it rather than pay a truncated stake.
+> - **Extend the ONE `_isDead` predicate** (failed/cancelled/unrevealed deployment, captured) with exited; a dead army's commit reverts `NotInGame`.
+> - **Route sizes** are tight (`RouteSizes.test.ts`): `chess-deployment-collisions` already moved entry points from `GameReveal` to `GameCommit`, and `chess-king-capture-merge` added a `GameRegistry` route.
+
 ## Acceptance criteria
 
 - [ ] A king landing alone on an exit is paid its whole stake in ETH and its army is removed.
