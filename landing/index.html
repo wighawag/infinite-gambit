@@ -18,13 +18,11 @@
 	<body>
 		<header class="hero">
 			<div class="board" aria-hidden="true">
-				<!-- The Devcon inlay: the Ethereum logo, upright, across the four squares meeting at the
-				     board's centre, maple where it crosses rosewood and rosewood where it crosses maple. -->
+				<!-- The Devcon inlay: the Ethereum logo as four triangles, one in each of the squares meeting at
+				     the board's centre, maple on rosewood and rosewood on maple. -->
 				<svg class="inlay" viewBox="-1 -1 2 2">
-					<clipPath id="onMaple"><rect x="0" y="-1" width="1" height="1" /><rect x="-1" y="0" width="1" height="1" /></clipPath>
-					<clipPath id="onRosewood"><rect x="-1" y="-1" width="1" height="1" /><rect x="0" y="0" width="1" height="1" /></clipPath>
-					<g clip-path="url(#onMaple)" class="rosewood"><g transform="scale(0.0205) translate(-128 -48)"><path d="M128 4 L155 48 L128 63 L101 48 Z" /><path d="M101 55 L128 70 L155 55 L128 92 Z" /></g></g>
-					<g clip-path="url(#onRosewood)" class="maple"><g transform="scale(0.0205) translate(-128 -48)"><path d="M128 4 L155 48 L128 63 L101 48 Z" /><path d="M101 55 L128 70 L155 55 L128 92 Z" /></g></g>
+					<path class="maple" d="M0.0 -0.98 L-0.53 0.0 L0.0 0.0 Z" /><path class="rosewood" d="M0.0 -0.98 L0.53 0.0 L0.0 0.0 Z" />
+					<path class="rosewood" d="M0.0 0.94 L-0.53 0.0 L0.0 0.38 Z" /><path class="maple" d="M0.0 0.94 L0.53 0.0 L0.0 0.38 Z" />
 				</svg>
 			</div>
 			<nav class="top">

@@ -115,6 +115,12 @@ def flat(kind):
 
 
 S = 80
+INLAY = {
+    'tl': [(0, -0.98), (-0.53, 0), (0, 0)],
+    'tr': [(0, -0.98), (0.53, 0), (0, 0)],
+    'bl': [(0, 0.94), (-0.53, 0), (0, 0.38)],
+    'br': [(0, 0.94), (0.53, 0), (0, 0.38)],
+}
 LIGHT, DARK = '#e2cba0', '#7a4a2c'  # maple and rosewood, sampled from the Devcon board
 YOU, THEM, THIRD = '#ffd166', '#6ea8ff', '#ef6f8f'
 
@@ -126,16 +132,17 @@ def board(cols, rows, origin=None):
             out.append(f'<rect x="{c*S}" y="{r*S}" width="{S}" height="{S}" fill="{LIGHT if (r+c)%2==0 else DARK}"/>')
     out.append(f'<rect width="{cols*S}" height="{rows*S}" filter="url(#grain)"/>')
     if origin:
+        # The Devcon inlay, as on the board: four triangles, one per square
+        # around the corner where they meet, each in the opposite wood to its
+        # square (inverted marquetry). Square units relative to the corner,
+        # logo upright: a diamond split down the middle over a chevron.
         OX, OY = origin
-        LOGO = ''.join(f'<path d="{d}"/>' for d in PRISM)
-        place = f'translate({OX} {OY}) scale(1.7) translate(-128 -48)'
-        four = [(OX - S, OY - S), (OX, OY - S), (OX - S, OY), (OX, OY)]
-        light = lambda p: ((p[0] // S) + (p[1] // S)) % 2 == 0
-        sq = lambda p: f'<rect x="{p[0]}" y="{p[1]}" width="{S}" height="{S}"/>'
-        out.append('<clipPath id="onLight">' + ''.join(sq(p) for p in four if light(p)) + '</clipPath>')
-        out.append('<clipPath id="onDark">' + ''.join(sq(p) for p in four if not light(p)) + '</clipPath>')
-        out.append(f'<g clip-path="url(#onLight)"><g transform="{place}" fill="{DARK}">{LOGO}</g></g>')
-        out.append(f'<g clip-path="url(#onDark)"><g transform="{place}" fill="{LIGHT}">{LOGO}</g></g>')
+        tris = {(-1, -1): INLAY['tl'], (0, -1): INLAY['tr'], (-1, 0): INLAY['bl'], (0, 0): INLAY['br']}
+        for (dc, dr), pts in tris.items():
+            c, r = OX // S + dc, OY // S + dr
+            wood = DARK if (r + c) % 2 == 0 else LIGHT
+            path = 'M' + ' L'.join(f'{OX + x * S:.1f} {OY + y * S:.1f}' for x, y in pts) + ' Z'
+            out.append(f'<path d="{path}" fill="{wood}"/>')
     return out
 
 

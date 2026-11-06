@@ -89,10 +89,10 @@
 <rect x="800" y="480" width="80" height="80" fill="#e2cba0"/>
 <rect x="880" y="480" width="80" height="80" fill="#7a4a2c"/>
 <rect width="960" height="560" filter="url(#grain)"/>
-<clipPath id="onLight"><rect x="400" y="240" width="80" height="80"/><rect x="480" y="320" width="80" height="80"/></clipPath>
-<clipPath id="onDark"><rect x="480" y="240" width="80" height="80"/><rect x="400" y="320" width="80" height="80"/></clipPath>
-<g clip-path="url(#onLight)"><g transform="translate(480 320) scale(1.7) translate(-128 -48)" fill="#7a4a2c"><path d="M128 4 L156 50 L128 66 L100 50 Z"/><path d="M100 57 L128 73 L156 57 L128 96 Z"/></g></g>
-<g clip-path="url(#onDark)"><g transform="translate(480 320) scale(1.7) translate(-128 -48)" fill="#e2cba0"><path d="M128 4 L156 50 L128 66 L100 50 Z"/><path d="M100 57 L128 73 L156 57 L128 96 Z"/></g></g>
+<path d="M480.0 241.6 L437.6 320.0 L480.0 320.0 Z" fill="#7a4a2c"/>
+<path d="M480.0 241.6 L522.4 320.0 L480.0 320.0 Z" fill="#e2cba0"/>
+<path d="M480.0 395.2 L437.6 320.0 L480.0 350.4 Z" fill="#e2cba0"/>
+<path d="M480.0 395.2 L522.4 320.0 L480.0 350.4 Z" fill="#7a4a2c"/>
 <rect x="485" y="165" width="70" height="70" rx="8" fill="none" stroke="#c0392b" stroke-width="4" stroke-dasharray="10 8" opacity="0.85"/>
 <rect x="565" y="245" width="70" height="70" rx="8" fill="none" stroke="#c0392b" stroke-width="4" stroke-dasharray="10 8" opacity="0.85"/>
 <path d="M280.0 440.0 L512.0 208.0" stroke="#1a0c06" stroke-width="5" stroke-dasharray="3 10" stroke-linecap="round" fill="none"/>
