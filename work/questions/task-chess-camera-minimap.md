@@ -9,3 +9,4 @@
 <!-- q1 fields: id=q1 kind=stuck -->
 
 **Your answer** (write below this line):
+keep. The gate failed in prepare on the known hardhat compile race (two concurrent compiles from the install prepare scripts, see work/notes/observations/prepare-races-two-hardhat-compiles.md), not on the work. The committed work on work/task-chess-camera-minimap is complete: do not redo it; the conductor rebases the branch onto main, check it is still green and finish.
