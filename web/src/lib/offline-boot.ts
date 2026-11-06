@@ -265,10 +265,41 @@ export async function deployEverySeat(params: {
 			),
 		});
 		if (verdict.permitted && humans[0]) {
-			await sendAs(humans[0].address, {
-				functionName: 'advanceCycle',
-				args: [],
-			});
+			// Judged against the cycle as it stands right before the send, so a
+			// move that happened earlier in this step cannot excuse a real failure.
+			const judged = await readCycle();
+			// Already moved since the verdict: nothing to send, the next step
+			// starts from the chain.
+			if (
+				judged.cycleNumber !== cycle.cycleNumber ||
+				judged.isCommitPhase !== cycle.isCommitPhase
+			) {
+				continue;
+			}
+			try {
+				await sendAs(humans[0].address, {
+					functionName: 'advanceCycle',
+					args: [],
+				});
+			} catch (err) {
+				// A LOST RACE IS NOT A FAILED BOOT. Somebody else's advance (the
+				// page's advance client, another tab on this world) can be mined
+				// between the reading above and this send, and then this one reverts
+				// (StillWaitingToReveal, StillWaitingToCommit) although the cycle
+				// moved exactly as the boot wanted. The contract is the judge, so
+				// re-read: if the cycle moved, carry on from the chain; if it did
+				// not, the failure is real.
+				// A failed re-read reports the send's error, not its own.
+				const after = await readCycle().catch(() => {
+					throw err;
+				});
+				if (
+					after.cycleNumber === judged.cycleNumber &&
+					after.isCommitPhase === judged.isCommitPhase
+				) {
+					throw err;
+				}
+			}
 		}
 	}
 	throw new Error(

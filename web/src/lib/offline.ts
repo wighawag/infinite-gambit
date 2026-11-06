@@ -322,6 +322,15 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	 * game's own. One person needs none: they reveal themselves, as before.
 	 */
 	let pokeAdvance = () => {};
+	/**
+	 * How many times the board is PLAYING (between the ready world's `start` and its
+	 * stop). The seats act during the boot too (`deployEverySeat` ticks their
+	 * loop), and the advance client's `check` runs whether or not it was
+	 * started: poked then, it pushed the cycle while the boot was about to,
+	 * and the boot's own advance reverted with StillWaitingToCommit, which
+	 * failed the world. So nothing pokes it until the board is playing.
+	 */
+	let playing = 0;
 	const revealer = hotseatHere
 		? createLocalRevealer({
 				provider: world.provider as never,
@@ -348,7 +357,9 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 		establishConnection: world.establishConnection,
 		...(revealer ? {scheduler: revealer.scheduler} : {}),
 	});
-	pokeAdvance = () => void context.context.game.cycleAdvance.check();
+	pokeAdvance = () => {
+		if (playing > 0) void context.context.game.cycleAdvance.check();
+	};
 
 	// Dev/debug: the world on the console, beside the `context` handle `core.ts`
 	// installs. Worth having for a world specifically, because the only way to
@@ -519,7 +530,7 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 		players: played,
 		// A played commit can complete unanimity just as the human's can, and the
 		// advance client would otherwise find out on its own one-second poll.
-		onActed: () => void context.context.game.cycleAdvance.check(),
+		onActed: () => pokeAdvance(),
 		...(decider ? {strategy: decider.strategy, turns: decider.turns} : {}),
 	});
 
@@ -557,6 +568,7 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 		context: {
 			context: context.context,
 			start: () => {
+				playing++;
 				const stopContext = context.start();
 				const stopPlayers = players.start();
 				const stopPoke = pokeWhenTheHumanActs({
@@ -565,7 +577,11 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 				});
 				const stopRevealer = revealer?.start() ?? (() => {});
 				const stopHotseat = hotseat?.start() ?? (() => {});
+				let stopped = false;
 				return () => {
+					// Counted once, however often this stop is called.
+					if (!stopped) playing--;
+					stopped = true;
 					stopHotseat();
 					stopRevealer();
 					stopPoke();

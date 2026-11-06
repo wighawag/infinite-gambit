@@ -130,7 +130,7 @@ async function setup(seats: number, humans: number) {
 	 * `crashAt` cuts it off before the send it names (by its place among the
 	 * people's sends), which is the tab closing there.
 	 */
-	async function boot(crashAt?: number) {
+	async function boot(crashAt?: number, options: {raced?: boolean} = {}) {
 		const sends: Sends = [];
 		const machines = createOfflinePlayers({
 			provider: built.provider,
@@ -150,6 +150,11 @@ async function setup(seats: number, humans: number) {
 				}
 				sends.push({address, functionName: String(request.functionName)});
 				const key = people.find((p) => p.address === address)!.privateKey;
+				if (options.raced && request.functionName === 'advanceCycle') {
+					// Somebody else (the page's advance client, another tab) judged
+					// the same cycle and got their advance mined first.
+					await keys.send(key, request);
+				}
 				await keys.send(key, request);
 			},
 			machines,
@@ -280,6 +285,15 @@ describe('a fresh offline world', () => {
 			world = undefined;
 		}
 	}, 60_000);
+
+	it('carries on when another advance gets mined before its own', async () => {
+		// What reverts the boot's own advance with StillWaitingToReveal or
+		// StillWaitingToCommit: the cycle already moved, which is what the boot
+		// was after. A lost race is not a failed boot.
+		const t = await setup(3, 1);
+		await t.boot(undefined, {raced: true});
+		await t.expectEverySeatDeployed();
+	});
 
 	it('deploys nothing on a restore that already has its armies', async () => {
 		const t = await setup(3, 1);
