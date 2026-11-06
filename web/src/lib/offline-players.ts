@@ -6,6 +6,13 @@ import {
 	type SerialisedLoop,
 } from '$lib/game/core/played';
 import {playedSeatSecret} from '$lib/game/core/secret';
+import {
+	RANDOM_LEVEL,
+	decidePlayedTurn,
+	seededRandom,
+	type PlayedTurnStore,
+	type Strategy,
+} from '$lib/game/core/strategy';
 import {createCycleReader} from '$lib/game/core/commit-reveal/cycle';
 import {chunkDueNext} from '$lib/game/core/commit-reveal/chain';
 import type {ChessConfig} from '$lib/chess/config';
@@ -18,7 +25,7 @@ import {
 import {
 	ARMY_STATUS,
 	armyViewOf,
-	isLive,
+	chooseArmy,
 	type ArmyView,
 } from '$lib/chess/armies';
 
@@ -34,8 +41,24 @@ import {
  * WHAT A SEAT DOES, IN CHESS. Only armies are members, so a seat is nothing to
  * the cycle until it has deployed one (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
  * So a seat's first submission is a DEPLOYMENT, at an open spawn point it can
- * work out again at reveal time; after that it PASSES (an empty submission)
- * every cycle, until the greedy bot (`chess-greedy-bot`) gives it moves.
+ * work out again at reveal time. After that, at the `greedy` level, it asks the
+ * game's STRATEGY (`$lib/chess/strategy`, through `$lib/game/core/strategy`)
+ * for one move each cycle, in the commit phase, and the move it decided is
+ * STORED before it is committed, because a move that depends on the board
+ * cannot be re-derived once the board has moved. At `random` it PASSES (an
+ * empty submission) every cycle.
+ *
+ * A SEAT WHOSE ARMY IS GONE DEPLOYS ANOTHER. An account may own several armies
+ * (`nonce << 160 | owner`), so a seat plays the most recent live army it OWNS,
+ * and with none (its army failed to deploy, was captured, froze, or a capture
+ * loop handed it to someone else) its NEXT army id, which is what it deploys
+ * as. Everything a seat keeps is keyed by the army it is for (the derived
+ * secret, the stored move), so a new army starts on new keys and leaves
+ * nothing in flight behind: the old army is dead, and any commitment it still
+ * holds from a past cycle is settled first. When the account's reserve cannot
+ * pay for the new army (counting a failed deployment's refund the commit will
+ * write), the seat buys a stake with its own play money, through the same
+ * `StakeSale.purchase` provisioning used.
  *
  * IT DEPLOYS AT ONCE, and the cycle does not run away with it: the world names
  * every seat, the people's included, as deployments its cycle waits for
@@ -58,16 +81,51 @@ export type OfflinePlayer = {
 	privateKey: `0x${string}`;
 	/** The account the key is. */
 	address: `0x${string}`;
-	/** The army it plays as: its first (`nonce << 160 | address`). */
+	/**
+	 * Its FIRST army (`1 << 160 | address`), which it plays until that army is
+	 * gone; then each later one in turn (see the module).
+	 */
 	identity: bigint;
 	/**
 	 * Which of the world's seats it is, from zero, so the seats deploy on
 	 * different spawn points.
 	 */
 	seat: number;
-	/** How it plays: absent means `random`, the only level there is yet. */
+	/** How it plays: absent means `random` (deploys, then passes). */
 	level?: string;
 };
+
+/**
+ * WHICH ARMY A SEAT PLAYS: the most recent live army its account still OWNS,
+ * and with none, its next army id (which its next deployment creates). An army
+ * a capture loop handed to another account is listed under its creator but
+ * played by its new owner, so it does not count.
+ */
+export function armyToPlay(
+	armies: readonly Pick<ArmyView, 'id' | 'status' | 'owner'>[],
+	next: bigint,
+	address: `0x${string}`,
+): bigint {
+	const owned = armies.filter(
+		(army) => army.owner.toLowerCase() === address.toLowerCase(),
+	);
+	return chooseArmy(owned, next);
+}
+
+/**
+ * Whether a seat must buy a stake before it can deploy: its account reserve,
+ * plus the refund of a failed most recent deployment (which the deployment's
+ * commit writes first), is less than one army's stake.
+ */
+export function needsStake(params: {
+	reserve: bigint;
+	last: Pick<ArmyView, 'status' | 'stake'> | undefined;
+	stake: bigint;
+}): boolean {
+	const refund =
+		params.last?.status === ARMY_STATUS.Failed ? params.last.stake : 0n;
+	return params.reserve + refund < params.stake;
+}
 
 /** What `getCommitment` hands back. */
 type Commitment = {hash: `0x${string}`; cycleNumber: bigint; bond: bigint};
@@ -99,17 +157,28 @@ export function createOfflinePlayers(params: {
 	deployments: DeploymentsStore;
 	config: ChessConfig;
 	players: readonly OfflinePlayer[];
+	/**
+	 * How a seat at a level other than `random` decides its move. Without it
+	 * (or without {@link turns}) every seat passes once deployed.
+	 */
+	strategy?: Strategy<Move>;
+	/** Where a decided move is kept between its commit and its reveal. */
+	turns?: PlayedTurnStore<Move>;
 	/** How often to look. The framework's loop owns the default. */
 	pollInterval?: number;
 	/** Called after a pass in which a player actually SENT something. */
 	onActed?: () => void;
 }): SerialisedLoop {
-	const {provider, deployments, config, players} = params;
+	const {provider, deployments, config, players, strategy, turns} = params;
 
 	const records = deployments.get();
 	const game = {
 		address: records.contracts.Game.address,
 		abi: records.contracts.Game.abi,
+	};
+	const sale = {
+		address: config.sale.address,
+		abi: records.contracts.StakeSale.abi,
 	};
 	const chain = {
 		id: records.chain.id,
@@ -133,11 +202,11 @@ export function createOfflinePlayers(params: {
 	const send = (player: OfflinePlayer, request: Record<string, unknown>) =>
 		keys.send(player.privateKey, request);
 
-	const secretFor = (player: OfflinePlayer, cycleNumber: number) =>
+	const secretFor = (identity: bigint, cycleNumber: number) =>
 		playedSeatSecret({
 			chainId: records.chain.id,
 			contract: game.address,
-			identity: player.identity,
+			identity,
 			cycleNumber,
 		});
 
@@ -148,8 +217,63 @@ export function createOfflinePlayers(params: {
 			actionsPerReveal: config.actionsPerReveal,
 		});
 
-	async function armyOf(player: OfflinePlayer): Promise<ArmyView> {
-		return armyViewOf(await read('getArmy', [player.identity]));
+	/** Whether this seat asks the strategy rather than passing. */
+	function decides(player: OfflinePlayer): boolean {
+		return (
+			strategy !== undefined &&
+			turns !== undefined &&
+			(player.level ?? RANDOM_LEVEL) !== RANDOM_LEVEL
+		);
+	}
+
+	/** The move this seat stored for an army in a cycle, if it decided one. */
+	function storedTurn(
+		player: OfflinePlayer,
+		identity: bigint,
+		cycleNumber: number,
+	): readonly Move[] | undefined {
+		return decides(player) ? turns?.get(identity, cycleNumber) : undefined;
+	}
+
+	/**
+	 * The move a deployed army makes this cycle: the strategy's, decided once
+	 * and stored before it is returned, so a commit never carries a move that
+	 * is not stored. A strategy that throws (its sandbox did not start, a read
+	 * failed) is answered with a pass, stored in its place: a seat that cannot
+	 * decide still commits, because a seat that does not commit holds up the
+	 * cycle.
+	 */
+	async function turnFor(
+		player: OfflinePlayer,
+		identity: bigint,
+		cycleNumber: number,
+	): Promise<readonly Move[]> {
+		if (!decides(player) || !strategy || !turns) return PASS;
+		return decidePlayedTurn({
+			store: turns,
+			strategy: async (input) => {
+				try {
+					return await strategy(input);
+				} catch (err) {
+					console.warn(
+						'an offline player could not decide its move, and passes',
+						err,
+					);
+					return PASS;
+				}
+			},
+			identity,
+			cycleNumber,
+			level: player.level ?? RANDOM_LEVEL,
+			random: seededRandom({
+				chainId: records.chain.id,
+				contract: game.address,
+				identity,
+				cycleNumber,
+			}),
+			// One move per army per cycle.
+			budget: {actionsAtMost: 1},
+		});
 	}
 
 	/** The deployment this seat makes in this cycle, from its open set. */
@@ -165,32 +289,62 @@ export function createOfflinePlayers(params: {
 	}
 
 	/**
-	 * Every submission this file could have committed for a seat in a cycle: its
-	 * deployment (when it was deploying then) and a pass. The hash decides.
+	 * Every submission this file could have committed for an army in a cycle:
+	 * its deployment (when it was deploying then), the move it stored, and a
+	 * pass. The hash decides.
 	 */
 	async function candidates(
 		player: OfflinePlayer,
-		army: ArmyView,
+		army: ArmyView | undefined,
+		identity: bigint,
 		cycleNumber: number,
 	): Promise<(readonly Move[])[]> {
 		const deploying =
-			army.status === ARMY_STATUS.Deploying &&
+			army?.status === ARMY_STATUS.Deploying &&
 			Number(army.deployedIn) === cycleNumber;
 		const deployment = deploying ? await deploymentFor(player) : undefined;
-		return deployment ? [deployment, PASS] : [PASS];
+		const stored = storedTurn(player, identity, cycleNumber);
+		return [
+			...(deployment ? [deployment] : []),
+			...(stored ? [stored] : []),
+			PASS,
+		];
+	}
+
+	/**
+	 * Make sure the account can pay for its next army: buy one stake with the
+	 * seat's own play money when its reserve (and a pending refund) falls short.
+	 */
+	async function fund(
+		player: OfflinePlayer,
+		last: ArmyView | undefined,
+	): Promise<void> {
+		const reserve = await read<bigint>('getReserve', [BigInt(player.address)]);
+		if (!needsStake({reserve, last, stake: config.stake})) return;
+		await send(player, {
+			...sale,
+			functionName: 'purchase',
+			// No stipend and no key to forward it to: the seat's own key pays its
+			// gas, and the sale refuses a stipend with nowhere to go.
+			args: [player.address, NO_PAYEE, 0n],
+			value: config.sale.price,
+		});
 	}
 
 	async function commit(
 		player: OfflinePlayer,
-		army: ArmyView,
+		army: ArmyView | undefined,
+		identity: bigint,
+		last: ArmyView | undefined,
 		cycleNumber: number,
 		onChain: Commitment,
 	): Promise<void> {
-		const secret = secretFor(player, cycleNumber);
+		const secret = secretFor(identity, cycleNumber);
 		let actions: readonly Move[];
-		if (army.status === ARMY_STATUS.None) {
+		if (army === undefined) {
 			const deployment = await deploymentFor(player);
 			if (!deployment) return;
+			await fund(player, last);
 			actions = deployment;
 		} else if (
 			army.status === ARMY_STATUS.Deploying &&
@@ -199,13 +353,15 @@ export function createOfflinePlayers(params: {
 			// Its deployment, committed this cycle: re-made below only if the head
 			// on chain is not the one this build would have made.
 			actions = (await deploymentFor(player)) ?? PASS;
+		} else if (army.status === ARMY_STATUS.Deployed) {
+			actions = await turnFor(player, identity, cycleNumber);
 		} else {
 			actions = PASS;
 		}
 		const chainOfActions = chainOf(actions, secret);
 
 		// ALREADY DONE, OR DONE WRONG: a commitment this build cannot open would
-		// freeze the world once the reveal phase opened, and the commit phase is
+		// freeze the army once the reveal phase opened, and the commit phase is
 		// the only phase in which anything can still be done about it. Replacing a
 		// commitment made in the same cycle is counted once.
 		if (
@@ -218,7 +374,7 @@ export function createOfflinePlayers(params: {
 		await send(player, {
 			functionName: 'makeCommitment',
 			args: [
-				player.identity,
+				identity,
 				chainOfActions[0].hash,
 				bondFor(config, actions),
 				NO_PAYEE,
@@ -229,14 +385,20 @@ export function createOfflinePlayers(params: {
 
 	async function reveal(
 		player: OfflinePlayer,
-		army: ArmyView,
+		army: ArmyView | undefined,
+		identity: bigint,
 		cycleNumber: number,
 		onChain: Commitment,
 	): Promise<void> {
 		// Nothing committed in this cycle means nothing owed.
 		if (Number(onChain.cycleNumber) !== cycleNumber) return;
-		const secret = secretFor(player, cycleNumber);
-		for (const actions of await candidates(player, army, cycleNumber)) {
+		const secret = secretFor(identity, cycleNumber);
+		for (const actions of await candidates(
+			player,
+			army,
+			identity,
+			cycleNumber,
+		)) {
 			const chainOfActions = chainOf(actions, secret);
 			const from = chunkDueNext(chainOfActions, onChain.hash);
 			if (from === undefined) continue;
@@ -244,7 +406,7 @@ export function createOfflinePlayers(params: {
 				await send(player, {
 					functionName: 'reveal',
 					args: [
-						player.identity,
+						identity,
 						chainOfActions[i].actions,
 						secret,
 						chainOfActions[i].furtherActions,
@@ -257,66 +419,89 @@ export function createOfflinePlayers(params: {
 		}
 		console.warn(
 			'an offline player is holding a commitment this build cannot open, so the cycle cannot close',
-			{identity: player.identity, cycleNumber},
+			{identity, cycleNumber},
 		);
 	}
 
 	/**
-	 * Settle a commitment from a past cycle: shown a pass, which costs nothing,
-	 * when that is what it was; otherwise without the chunks. A missed
-	 * deployment cannot be rebuilt once its cycle is over (the open set has
-	 * moved on), and forfeiting its stake is what it costs anyway.
+	 * Settle a commitment from a past cycle: shown, which costs nothing more,
+	 * when it was a pass or the move this seat stored; otherwise without the
+	 * chunks. A missed deployment cannot be rebuilt once its cycle is over (the
+	 * open set has moved on), and forfeiting its stake is what it costs anyway.
 	 */
 	async function settle(
 		player: OfflinePlayer,
+		identity: bigint,
 		onChain: Commitment,
 	): Promise<void> {
 		const cycleNumber = Number(onChain.cycleNumber);
-		const secret = secretFor(player, cycleNumber);
-		const pass = chainOf(PASS, secret);
-		if (chunkDueNext(pass, onChain.hash) !== undefined) {
-			await send(player, {
-				functionName: 'acknowledgeMissedReveal',
-				args: [player.identity, PASS, secret, pass[0].furtherActions],
-				gas: config.gas.reveal,
-			});
-			return;
+		const secret = secretFor(identity, cycleNumber);
+		const stored = storedTurn(player, identity, cycleNumber);
+		for (const actions of [...(stored ? [stored] : []), PASS]) {
+			const chainOfActions = chainOf(actions, secret);
+			if (chunkDueNext(chainOfActions, onChain.hash) !== undefined) {
+				await send(player, {
+					functionName: 'acknowledgeMissedReveal',
+					args: [
+						identity,
+						chainOfActions[0].actions,
+						secret,
+						chainOfActions[0].furtherActions,
+					],
+					gas: config.gas.reveal,
+				});
+				return;
+			}
 		}
 		await send(player, {
 			functionName: 'forfeitMissedReveal',
-			args: [player.identity],
+			args: [identity],
 		});
 	}
+
+	/** Whether `onChain` is a commitment from a cycle before `cycleNumber`. */
+	const isStale = (onChain: Commitment, cycleNumber: number) =>
+		onChain.cycleNumber !== 0n && Number(onChain.cycleNumber) < cycleNumber;
 
 	async function act(
 		player: OfflinePlayer,
 		cycle: {cycleNumber: number; commiting: boolean},
 	): Promise<void> {
-		const [onChain, army] = await Promise.all([
-			read<Commitment>('getCommitment', [player.identity]),
-			armyOf(player),
+		const [rawArmies, next] = await Promise.all([
+			read<readonly Parameters<typeof armyViewOf>[0][]>('getArmiesOf', [
+				player.address,
+			]),
+			read<bigint>('getNextArmy', [player.address]),
 		]);
+		const armies = rawArmies.map(armyViewOf);
+		const identity = armyToPlay(armies, next, player.address);
+		const army = armies.find((candidate) => candidate.id === identity);
+		const owned = armies.filter(
+			(candidate) =>
+				candidate.owner.toLowerCase() === player.address.toLowerCase(),
+		);
+		const last = owned[owned.length - 1];
 
 		// A COMMITMENT FROM A PAST CYCLE IS SETTLED RATHER THAN CARRIED: the
-		// contract refuses every later commitment until it is.
-		if (
-			onChain.cycleNumber !== 0n &&
-			Number(onChain.cycleNumber) < cycle.cycleNumber
-		) {
-			await settle(player, onChain);
-			return;
+		// contract refuses every later commitment until it is. The army played,
+		// and the account's most recent one when that is a dead army (a seat
+		// moves on to a new army only once the old one cannot act).
+		for (const id of new Set([
+			...(army ? [identity] : []),
+			...(last ? [last.id] : []),
+		])) {
+			const onChain = await read<Commitment>('getCommitment', [id]);
+			if (isStale(onChain, cycle.cycleNumber)) {
+				await settle(player, id, onChain);
+				return;
+			}
 		}
 
-		// A DEAD ARMY ACTS NO MORE: its deployment failed, was cancelled or was
-		// never revealed. The contract refuses its commitments and the advance no
-		// longer waits for it, and a revert here would stop every seat after this
-		// one for the pass. The seat simply sits out.
-		if (army.status !== ARMY_STATUS.None && !isLive(army)) return;
-
+		const onChain = await read<Commitment>('getCommitment', [identity]);
 		if (cycle.commiting) {
-			await commit(player, army, cycle.cycleNumber, onChain);
+			await commit(player, army, identity, last, cycle.cycleNumber, onChain);
 		} else {
-			await reveal(player, army, cycle.cycleNumber, onChain);
+			await reveal(player, army, identity, cycle.cycleNumber, onChain);
 		}
 	}
 

@@ -192,6 +192,10 @@ _Avoid_: withdraw, cash out, escape
 At a table the seat IS the army: buying a seat creates a new army for the buyer, funded with one stake, on the table's next spawn point (a tighter grid, from a counter that only increases, so a seat that leaves leaves a gap and moves nobody). That purchase is the deployment; there is no deployment commit at a table. The armies stand inert and hidden until the creator starts the table. Before the start the owner may leave with the whole stake (`leaveTable`), the one time an army's stake is withdrawn directly.
 _Avoid_: player slot, seat account
 
+**Greedy level**:
+How a played seat of the offline world plays by default: each cycle it captures the most valuable enemy piece one of its pieces can reach (a king above any material, then by material; a rock is never a target), and otherwise makes a random legal move. Legality and material are the contract's, run from the Simulation route (`legalMoves`, `materialOf`). A played seat whose army is gone (failed, captured, frozen) deploys its account's NEXT army, buying a stake with its play money when the reserve cannot pay. The other level, `random`, deploys and then passes.
+_Avoid_: AI, difficulty, bot
+
 **Material**:
 What a table's stakes are split by at its cycle cap: pawn 1, knight 3, bishop 3, rook 5, queen 9, the king nothing, counted for the army each piece resolves to (a rock counts for nobody). Before the cap, the last king standing takes every stake instead. Each army's share is paid in ETH by `claim(army)`, which anyone may call (`docs/adr/0012-a-table-counts-material-from-the-zones-its-reveals-list.md`).
 _Avoid_: score, points, value

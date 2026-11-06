@@ -59,6 +59,11 @@ contract GameSimulation is IGameSimulation, UsingGameInternal {
         }
     }
 
+    /// @inheritdoc IGameSimulation
+    function materialOf(PieceKind kind) external pure returns (uint256) {
+        return ChessRules.materialOf(kind);
+    }
+
     /// @dev What `board` has on `position`: kind `None` if nothing.
     function _onBoard(
         Piece[] calldata board,

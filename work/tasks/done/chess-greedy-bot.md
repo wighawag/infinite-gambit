@@ -50,3 +50,16 @@ git fetch <remote> && git switch -c work/chess-greedy-bot <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-greedy-bot.md work/tasks/done/chess-greedy-bot.md
 ```
+
+## Decisions
+
+- **Material values come from a new contract view, `materialOf` on the Simulation route.** I chose this because the task says scoring comes from the contract's own rule, and the material table already exists in `ChessRules` (tables use it for payouts). The alternative was a TypeScript value table, which would be a copy of a rule (ADR 0007). It changes the `IGameSimulation` and `IGame` ABI by one pure function, so the route's bytecode, and with it the deterministic addresses, changes. Nothing is deployed yet, so that costs nothing.
+- **"King highest" is the bot's own policy, not a contract number.** The contract values a king at 0 material, so the strategy ranks it one above the largest material value. Rocks score 0 but stay among the random legal moves.
+- **Greedy is a level and the default; "Deploys and passes" stays available.** I exported `AI_DEFAULT_LEVEL = 'greedy'`, so a fresh lobby choice starts there. A world restored from a record keeps the levels it was built with, so older worlds are still `random`. The alternative was making every machine seat greedy and dropping the level choice. This touches the lobby, through the `AI_LEVELS` and `AI_DEFAULT_LEVEL` exports it already reads.
+- **A redeploying seat buys its stake with its own play money** (`StakeSale.purchase`, no stipend) when its reserve plus any pending refund is less than one stake. Without this, a captured or frozen seat could never come back, and the task requires that the world always has its machine opponents. Unlike the human's stake, this one is refilled, but only after the old army is really gone. Topping it up at boot was the alternative, and the existing code rules that out as the "refill on reload" hazard.
+- **Which army a seat plays (`armyToPlay`):** the most recent live army whose `owner` is still the seat's account, otherwise `getNextArmy`. An army that a capture loop handed to another account counts as gone for that seat. Before acting, the seat settles a stale commitment on the army it plays and on its most recent owned army.
+- **The bot only looks within 24 squares of its king** (`LOOK_AROUND`). A piece that wandered further, or a merged army's pieces left far away, are not moved by the bot. I rejected scanning the whole board: it costs more, and pieces that far away cannot affect captures near the army.
+- **New persisted key `offline-world:played-turns`** holds the seats' decided moves, keyed per (chain, contract, army, cycle) with the framework's `createPlayedTurnStore` and this game's `MOVE_STORAGE` format. It is a wire from its first build. Nothing is deployed yet, so introducing it costs nothing.
+- **If the strategy throws, the seat stores and commits a pass**, so a seat that cannot decide never holds up the manual cycle.
+
+No ADR written: none of these is hard to reverse before the first deploy.

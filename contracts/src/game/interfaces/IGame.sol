@@ -358,6 +358,14 @@ interface IGameSimulation is UsingGameTypes {
         Piece[] calldata board,
         uint64 from
     ) external pure returns (uint64[] memory destinations);
+
+    /// @notice What a piece of `kind` is worth in material: pawn 1, knight 3,
+    ///         bishop 3, rook 5, queen 9, and nothing for a king or an empty
+    ///         square. The figure a table's payout splits its stakes by.
+    /// @dev Reads nothing: the offline world's machine seats run it in their
+    ///      sandbox to rank what they can capture, so their scoring is the
+    ///      contract's table and not a copy of it.
+    function materialOf(PieceKind kind) external pure returns (uint256);
 }
 
 interface IGame is
