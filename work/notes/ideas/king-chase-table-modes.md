@@ -40,3 +40,9 @@ Next step: grill this into a spec (which mode first, N, how the lobby offers it)
 - **N = 3** for now.
 - **Words: a move is several piece-moves.** `CONTEXT.md`'s Move becomes up to N piece-moves by different pieces of one army in one cycle, and a new Piece-move entry is one chess move by one piece.
 - Still open: what a piece-move sees of the same army's other piece-moves, which toggles the online and offline worlds use, and B's collision rows.
+
+## Settled by the maintainer (2026-11-07, later)
+
+- **Only mode A is built.** Mode B (guarding the king's square) is dropped for now. Had it been built: the guard kills every enemy arriving on the king's square, and a king that steps away while its own piece lands there is just A's vacated square.
+- **An army's piece-moves are simultaneous, like everyone else's.** Each is checked against the board at the start of the cycle, with the army's own pieces that move this cycle counted as gone, and the order the player lists them in does not matter. Allowed: moving onto, or sliding through, a square the army's own piece leaves, and swapping two pieces. Refused: two of its piece-moves to one square, and two piece-moves by one piece. Across armies nothing changes (ADR-0002, the collision table). This replaces the 2026-11-06 "in the order the player gave them".
+- **Where A is on:** the online and offline worlds have it on; each table chooses.
