@@ -24,7 +24,20 @@ import {createIndexedDBDeploymentStore} from '@rocketh/web';
 import {createContext} from '$lib/context/index';
 import type {Context} from '$lib/context/types';
 import {createOfflinePlayers, type OfflinePlayer} from '$lib/offline-players';
-import {RANDOM_LEVEL, type AiLevel} from '$lib/game/core/strategy';
+import {createPublicClient, custom} from 'viem';
+import {createPlayedTurnStore, type AiLevel} from '$lib/game/core/strategy';
+import {
+	createBytecodeSandbox,
+	type BytecodeSandbox,
+} from '$lib/game/simulation';
+import {pieceOf, type PieceKind} from '$lib/chess/board';
+import {armyViewOf} from '$lib/chess/armies';
+import {MOVE_STORAGE} from '$lib/chess/storage';
+import {
+	CHESS_LEVELS,
+	GREEDY_LEVEL,
+	createChessStrategy,
+} from '$lib/chess/strategy';
 import {pokeWhenTheHumanActs} from '$lib/game/core/played';
 import {
 	MOST_SEATS,
@@ -45,6 +58,7 @@ import {
 import {authoriseTheBrowsersKey} from '$lib/game/acquire';
 import {resolveChessConfig} from '$lib/chess/config';
 import {awaitDeploymentsOf, firstArmyOf} from '$lib/chess/awaited-deployments';
+import type {Move} from '$lib/chess/commit-reveal';
 
 export {firstArmyOf};
 
@@ -143,13 +157,25 @@ export const CHAIN_ID_STORAGE_KEY = 'offline-world:chain-id';
 export const LOCAL_HUMANS_AT_MOST = MOST_SEATS;
 
 /**
- * THE LEVELS A WORLD SEAT MAY PLAY AT, chosen per seat at the lobby. One, for
- * now: a seat deploys and then passes. The greedy bot (`chess-greedy-bot`) adds
- * the second. Read by the byte-identical lobby off this module.
+ * THE LEVELS A WORLD SEAT MAY PLAY AT, chosen per seat at the lobby: `greedy`
+ * (captures the most valuable piece it can reach, else a random legal move;
+ * `$lib/chess/strategy`) and `random` (deploys, then passes). Read by the
+ * byte-identical lobby off this module.
  */
-export const AI_LEVELS: readonly AiLevel[] = [
-	{id: RANDOM_LEVEL, label: 'Deploys and passes'},
-];
+export const AI_LEVELS: readonly AiLevel[] = CHESS_LEVELS;
+/**
+ * THE LEVEL A WORLD SEAT STARTS AT in a fresh choice: greedy, so single player
+ * has opponents that punish a blunder (the spec's story 43). A world restored
+ * from a record keeps the levels it was built with.
+ */
+export const AI_DEFAULT_LEVEL = GREEDY_LEVEL;
+/**
+ * Where the world's machine seats keep the move they decided, between its
+ * commit and its reveal. A WIRE from its first build, like the record it holds
+ * (`$lib/game/core/strategy`): a record a later build cannot read is a seat
+ * that cannot open its commitment, and an army that freezes.
+ */
+export const PLAYED_TURNS_STORAGE_KEY = 'offline-world:played-turns';
 const PLAY_MONEY = 10n ** 24n;
 
 /**
@@ -465,6 +491,7 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	 * is not disposed when a router navigates away); what stops is the playing.
 	 */
 	const played = await playedByTheWorld({env: world.env, table});
+	const decider = playedSeatDecider(world, played);
 	// EVERY SEAT DEPLOYS BEFORE THE FIRST CYCLE TURNS OVER: the people here and
 	// the seats the world plays. Only armies are members, so without this the
 	// first to deploy would close the commit phase on everyone else. See
@@ -481,6 +508,7 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 		// A played commit can complete unanimity just as the human's can, and the
 		// advance client would otherwise find out on its own one-second poll.
 		onActed: () => void context.context.game.cycleAdvance.check(),
+		...(decider ? {strategy: decider.strategy, turns: decider.turns} : {}),
 	});
 
 	const ready: OfflineWorldStatus = {
@@ -502,6 +530,9 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 					stopRevealer();
 					stopPoke();
 					stopPlayers();
+					// The seats' sandbox stops with the board; a later decision starts
+					// it again.
+					decider?.sandbox.dispose();
 					stopContext();
 				};
 			},
@@ -510,6 +541,99 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	showHotseat(hotseat);
 	status.set(ready);
 	return ready;
+}
+
+/**
+ * HOW THE WORLD'S SEATS DECIDE, when one of them plays at a level other than
+ * `random`: this game's strategy over the world's own provider, with the rules
+ * run from the Simulation route's bytecode in a sandbox of the seats' own (not
+ * the player's, which is the game context's and rebuilt with it), and the
+ * store their decided moves are kept in. Undefined when every seat plays
+ * `random`, so such a world builds no sandbox and stores nothing.
+ *
+ * EXPORTED for the world test, which builds the seats exactly as this does.
+ * Handed the provider and nothing of the page: no context, no submission, no
+ * handover.
+ */
+export function playedSeatDecider(
+	world: Pick<EmbeddedWorld, 'provider' | 'deployments'>,
+	played: readonly OfflinePlayer[],
+	options: {
+		storage?: Pick<Storage, 'getItem' | 'setItem'>;
+		/** Where the sandbox's node runs; a Worker by default. */
+		node?: Parameters<typeof createBytecodeSandbox>[0]['node'];
+	} = {},
+):
+	| {
+			strategy: ReturnType<typeof createChessStrategy>;
+			turns: ReturnType<typeof createPlayedTurnStore<Move>>;
+			sandbox: BytecodeSandbox<'rules'>;
+	  }
+	| undefined {
+	if (played.every((seat) => seat.level === undefined)) return undefined;
+	const records = world.deployments.get();
+	const game = {
+		address: records.contracts.Game.address,
+		abi: records.contracts.Game.abi,
+	};
+	const sandbox = createBytecodeSandbox({
+		provider: world.provider as never,
+		...(options.node ? {node: options.node} : {}),
+		contracts: {
+			rules: {
+				address:
+					records.contracts.Game_Implementation_Router_Simulation_Route.address,
+			},
+		},
+	});
+	const publicClient = createPublicClient({
+		chain: worldChain(world),
+		transport: custom(world.provider as never),
+	});
+	const read = async <T>(functionName: string, args: unknown[]) =>
+		(await publicClient.readContract({
+			...game,
+			functionName,
+			args,
+		} as never)) as T;
+	const strategy = createChessStrategy({
+		readArmy: async (army) =>
+			armyViewOf(
+				await read<Parameters<typeof armyViewOf>[0]>('getArmy', [army]),
+			),
+		readPieces: async ({minX, minY, maxX, maxY}) =>
+			(
+				await read<readonly [readonly Parameters<typeof pieceOf>[0][], bigint]>(
+					'getPieces',
+					[minX, minY, maxX, maxY],
+				)
+			)[0].map(pieceOf),
+		legalMoves: async (board, from) => [
+			...((await sandbox.call({
+				contract: 'rules',
+				abi: game.abi,
+				functionName: 'legalMoves',
+				args: [board, from],
+			})) as unknown as readonly bigint[]),
+		],
+		materialOf: async (kind: PieceKind) =>
+			Number(
+				(await sandbox.call({
+					contract: 'rules',
+					abi: game.abi,
+					functionName: 'materialOf',
+					args: [kind],
+				})) as unknown as bigint,
+			),
+	});
+	const turns = createPlayedTurnStore<Move>({
+		storage: options.storage ?? localStorage,
+		key: PLAYED_TURNS_STORAGE_KEY,
+		chainId: records.chain.id,
+		contract: game.address,
+		format: MOVE_STORAGE,
+	});
+	return {strategy, turns, sandbox};
 }
 
 /** The world's chain as viem wants it, for the clients the world's own loops build. */

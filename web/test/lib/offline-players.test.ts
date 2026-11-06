@@ -7,6 +7,7 @@ import {
 	type Account,
 } from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';
+import {createNode} from 'webevm';
 import {createEmbeddedWorld, type EmbeddedWorld} from '$lib/embedded';
 import {
 	config,
@@ -16,6 +17,7 @@ import {
 	OFFLINE_DEPLOYMENT,
 	offlineIdentityOf,
 	playedByTheWorld,
+	playedSeatDecider,
 	stakeForOfflinePlayer,
 } from '$lib/offline';
 import {
@@ -376,7 +378,7 @@ describe('the other players in the offline world', () => {
 			expect(commitment.cycleNumber).toBe(0n);
 		}
 	});
-	it('keeps the world going when the person\u2019s deployment collides with a seat\u2019s: the seat sits out, the person deploys again with the refund', async () => {
+	it('keeps the world going when the person\u2019s deployment collides with a seat\u2019s: the seat redeploys with its next army, the person with the refund', async () => {
 		const t = await setup();
 		const played = await playedByTheWorld({env: world!.env, table: TABLE});
 		const [open] =
@@ -399,15 +401,24 @@ describe('the other players in the offline world', () => {
 		expect((await t.armyOf(played[1].identity)).status).toBe(
 			ARMY_STATUS.Deployed,
 		);
-		// Only the army that landed is waited for; the dead seat sits out
-		// without a revert stopping the seats after it.
+		// Only the army that landed is waited for, until the seat redeploys.
 		expect((await t.read<Attendance>('getAttendance')).waitedFor).toBe(1n);
+
+		// THE SEAT DEPLOYS AGAIN, as its NEXT army, paid by its pending refund.
+		const second = await t.read<bigint>('getNextArmy', [played[0].address]);
+		expect(second).not.toBe(played[0].identity);
 		await t.players.tick();
-		expect((await t.read<Attendance>('getAttendance')).committed).toBe(1n);
+		expect((await t.armyOf(second)).status).toBe(ARMY_STATUS.Deploying);
+		expect(await t.read<bigint>('getReserve', [played[0].identity])).toBe(0n);
+		expect(await t.read<bigint>('getReserve', [second])).toBe(t.chess.stake);
+		const attendance = await t.read<Attendance>('getAttendance');
+		expect(attendance.waitedFor).toBe(2n);
+		expect(attendance.committed).toBe(2n);
 		await t.advance();
 		await t.players.tick();
 		await t.advance();
 		expect((await t.read<Cycle>('getCycle')).commiting).toBe(true);
+		expect((await t.armyOf(second)).status).toBe(ARMY_STATUS.Deployed);
 
 		// The person deploys again: the refund still pending pays for it.
 		const next = await t.read<bigint>('getNextArmy', [HUMAN.address]);
@@ -424,4 +435,120 @@ describe('the other players in the offline world', () => {
 		expect(await t.read<bigint>('getReserve', [t.humanArmy])).toBe(0n);
 		expect(await t.read<bigint>('getReserve', [next])).toBe(t.chess.stake);
 	});
+
+	it('buys a stake with its own play money when the army is gone and the reserve is empty', async () => {
+		const t = await setup();
+		const played = await playedByTheWorld({env: world!.env, table: TABLE});
+		await t.players.tick();
+		expect((await t.armyOf(played[0].identity)).status).toBe(
+			ARMY_STATUS.Deploying,
+		);
+
+		// The seat's own key cancels its deployment and takes the stake out, so
+		// its first army is gone and its account holds nothing.
+		const seat = t.senderFor(played[0].privateKey);
+		await t.send(seat, {
+			functionName: 'cancelCommitment',
+			args: [played[0].identity],
+		});
+		await t.send(seat, {
+			functionName: 'withdrawFromReserve',
+			args: [t.chess.stake],
+		});
+		expect(
+			await t.read<bigint>('getReserve', [BigInt(played[0].address)]),
+		).toBe(0n);
+		expect((await t.armyOf(played[0].identity)).status).toBe(
+			ARMY_STATUS.Cancelled,
+		);
+
+		await t.players.tick();
+		const second = await t.read<bigint>('getArmiesOf', [played[0].address]);
+		const armies = (second as unknown as ArmyRaw[]).map(armyViewOf);
+		expect(armies).toHaveLength(2);
+		expect(armies[1].status).toBe(ARMY_STATUS.Deploying);
+		expect(await t.read<bigint>('getReserve', [armies[1].id])).toBe(
+			t.chess.stake,
+		);
+	});
+
+	it('plays a legal move every cycle at the greedy level, decided once and stored before its commit', async () => {
+		const t = await setup();
+		const table = tableOf(SEATS_BY_DEFAULT, 1, ['greedy', 'greedy']);
+		const played = await playedByTheWorld({env: world!.env, table});
+		expect(played.every((seat) => seat.level === 'greedy')).toBe(true);
+		const storage = memoryStorage();
+		const decider = playedSeatDecider(world!, played, {
+			storage,
+			node: () => createNode({}) as never,
+		})!;
+		const greedy = createOfflinePlayers({
+			provider: world!.provider,
+			deployments: world!.deployments,
+			config: t.chess,
+			players: played,
+			strategy: decider.strategy,
+			turns: decider.turns,
+		});
+		try {
+			const humanChain = await t.humanCommits(
+				deploymentAt(HUMAN_SPAWN),
+				t.chess.stake,
+			);
+			await greedy.tick();
+			await t.advance();
+			await t.humanReveals(humanChain);
+			await greedy.tick();
+			await t.advance();
+
+			for (let round = 0; round < 2; round++) {
+				const pass = await t.humanCommits([], 0n);
+				await greedy.tick();
+				const {cycleNumber} = await t.read<Cycle>('getCycle');
+				for (const seat of played) {
+					const turn = decider.turns.get(seat.identity, Number(cycleNumber));
+					expect(turn, `round ${round}`).toHaveLength(1);
+					expect(turn![0].from).not.toBe(turn![0].to);
+				}
+				expect((await t.read<Attendance>('getAttendance')).committed).toBe(3n);
+				await t.advance();
+				await t.humanReveals(pass);
+				// A RELOAD between commit and reveal: a fresh loop reads the stored
+				// move back and opens what the first one committed.
+				const reloaded = createOfflinePlayers({
+					provider: world!.provider,
+					deployments: world!.deployments,
+					config: t.chess,
+					players: played,
+					strategy: decider.strategy,
+					turns: decider.turns,
+				});
+				await reloaded.tick();
+				expect((await t.read<Attendance>('getAttendance')).revealed).toBe(3n);
+				await t.advance();
+			}
+
+			// Every seat's army stands, not frozen, and has moved pieces.
+			for (const seat of played) {
+				const army = await t.armyOf(seat.identity);
+				expect(army.status).toBe(ARMY_STATUS.Deployed);
+				const [pieces] = await t.read<
+					readonly [readonly {army: bigint; moved: boolean}[], bigint]
+				>('getPieces', [-64, -64, 64, 64]);
+				expect(
+					pieces.filter((p) => p.army === seat.identity && p.moved).length,
+				).toBeGreaterThan(0);
+			}
+		} finally {
+			decider.sandbox.dispose();
+		}
+	}, 120_000);
 });
+
+function memoryStorage() {
+	const map = new Map<string, string>();
+	return {
+		getItem: (key: string) => map.get(key) ?? null,
+		setItem: (key: string, value: string) => void map.set(key, value),
+	};
+}

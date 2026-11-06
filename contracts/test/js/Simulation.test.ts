@@ -86,4 +86,20 @@ describe('the simulation route', function () {
 		expect(fromRoute).toEqual(fromGame);
 		expect((fromRoute as readonly Piece[]).length).toEqual(20);
 	});
+
+	it('values material as the table payout does, from the route alone', async function () {
+		const f = await networkHelpers.loadFixture(deployAll);
+		const route = f.env.get('Game_Implementation_Router_Simulation_Route');
+		// None, Pawn, Knight, Bishop, Rook, Queen, King.
+		const values: bigint[] = [];
+		for (let kind = 0; kind <= 6; kind++) {
+			values.push(
+				(await f.env.read(
+					{address: route.address, abi: f.Game.abi},
+					{functionName: 'materialOf', args: [kind]},
+				)) as bigint,
+			);
+		}
+		expect(values).toEqual([0n, 1n, 3n, 3n, 5n, 9n, 0n]);
+	});
 });
