@@ -4,7 +4,7 @@ slug: three-piece-moves-simulation-route
 spec: three-piece-moves
 blockedBy: [three-piece-moves-in-the-contract]
 covers: [5]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -35,3 +35,15 @@ Goal: build the task above. The "What to build" and "Acceptance criteria" sectio
 Read first: `AGENTS.md`, `docs/adr/0007` and `0016`, the done record `work/tasks/done/three-piece-moves-in-the-contract.md`, `contracts/src/game/routes/GameSimulation.sol` with `IGame.sol`, `ChessRules.sol`, `contracts/test/js/Simulation.test.ts`, `contracts/test/js/RouteSizes.test.ts`, and `web/src/lib/chess/table.ts` (how the sandbox runs the route at a table).
 
 Work in small steps, and `git commit -am "wip: <step>"` after each one. RECORD non-obvious in-scope decisions in a `## Decisions` block at the end of your FINAL REPORT. Do not write the done record, commit message or PR body yourself, and do not edit this task body.
+
+## Applied answers 2026-11-06
+
+### q1: 'task:three-piece-moves-simulation-route' was bounced — how should we proceed?
+
+keep. The maintainer decided (2026-11-07): vendor a fixed router here, for now. Steps, in order, each its own wip commit:
+1. Your previous implementation is restored on this branch (commit "wip: restore the whole-move route and its tests"): the route in `GameSimulation.sol`, `IGame.sol`, `ChessRules.sol`, `UsingGameInternal.sol`, plus `contracts/test/js/WholeMove.test.ts` and `web/test/lib/chess/whole-move-abi.test.ts` (that web test's folder was a guess by the conductor: move it if it belongs elsewhere). Build on it, do not restart.
+2. Vendor `Router10X60.sol` from `solidity-proxy@0.5.2` (`solc_0_8/router/Router10X60.sol`) into `contracts/src/vendor/router/Router10X60.sol` (adjust its imports to the package's other files, which stay in `node_modules`), with exactly the two-line fix: entries 48 to 53 assign `tmp_sigs_08 = tmp_sigs_08 | ...` and entries 54 and up assign `tmp_sigs_09 = tmp_sigs_09 | ...`. A header comment says where it comes from, what the bug was, and that it is TEMPORARY until `solidity-proxy` is fixed and republished (then delete this copy and the option below).
+3. Pass `routerContract: {type: 'custom', artifact: <the vendored router artifact>}` to `deployViaRouter` in BOTH `contracts/deploy/010_deploy_game.ts` and `contracts/deploy/030_deploy_lobby.ts` (and any other `deployViaRouter` call, including test fixtures and the LAN/offline deploy path if they deploy routers separately). Keep `deterministic: true`. Every deterministic address changes; nothing is deployed (`git ls-files contracts/deployments` is empty), so that is fine; regenerate whatever the web reads (`scripts/ensure-deployments.mjs`).
+4. Add a contract test that a router carrying more than 48 selectors routes every one of them (call each selector of `GameLobbyImplementation`, now about 50, and none reverts `UNKNOWN_METHOD`), so the bug cannot come back silently.
+5. Record the vendoring in `work/notes/observations/router-loses-selectors-past-48.md` (append: "worked around by vendoring, see `contracts/src/vendor/router/`").
+Then finish the task's own acceptance criteria as written (the property test at cap 3 and cap 1, the per-piece answer, `legalMoves` unchanged, `RouteSizes.test.ts` and `DeterministicDeploys.test.ts` green). Mind the Reveal route: 58 bytes of code-size headroom.
