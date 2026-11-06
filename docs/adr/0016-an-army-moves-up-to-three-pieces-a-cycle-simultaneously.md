@@ -1,0 +1,11 @@
+---
+status: proposed
+---
+
+# An army moves up to three pieces a cycle, simultaneously, where its rules say so
+
+Where several piece-moves are on (the online and offline worlds, and any table whose creator turns it on), an army's move is up to three piece-moves, each by a different piece. They are simultaneous, like every other army's: each is checked against the board at the start of the cycle, with the army's own pieces that move this cycle counted as gone, and the order the player lists them in changes nothing. So a piece may move onto, or slide through, a square its own army's piece leaves, and two pieces may swap; two piece-moves to one square, or two by one piece, are refused. Across armies nothing changes (`docs/adr/0002-order-free-lazy-resolution.md`, `docs/adr/0003-collision-table-king-survives-a-crowd.md`). A deployment is the whole move of its cycle. Where it is off, a move is one piece-move, as before.
+
+We did it because one move per army lets a lone attacker chase a king forever (`work/notes/ideas/king-chase-table-modes.md`): the king spends its only move running from the square the attacker lands on. With three piece-moves the king can step away while another piece takes the attacker on the square the king left, which is why a square vacated by the army's own piece must be usable. We rejected applying an army's piece-moves in the player's order: it is legal under the commit-reveal rule (the order is the player's own, fixed in the commitment), but "own movers count as gone" matches how resolution already works, cannot make the listed order matter, and is simpler to read and test. ADR-0001's objection to more tempo, that a merged empire would snowball, has no object since `docs/adr/0013` removed merges: every army is one army, and one stake still buys one army and its three piece-moves, whichever wallet holds it. We dropped the other candidate, a piece guarding its own king's square, for now.
+
+A table carries the choice as one bit of the `gameOptions` its creator passes to `createGame`, which the framework already stores per clone, so a table needs no storage of its own. Amends `docs/adr/0001-one-move-per-army-merge-on-capture.md` (one move per army stays; a move is now up to three piece-moves). Spec: `work/specs/proposed/three-piece-moves.md`.
