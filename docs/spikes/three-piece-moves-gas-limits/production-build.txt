@@ -1,0 +1,493 @@
+deployment commit (the first ever): gasUsed 285037
+  intrinsic (21000)                 21000    7.4%
+  calldata                           1188    0.4%
+  dispatch: proxy + router          10951    3.8%
+  commit-reveal: commitment         46500   16.3%
+  commit-reveal: reserve            27200    9.5%
+  commit-reveal: attendance         66700   23.4%
+  commit-reveal: cycle state         4700    1.6%
+  commit-reveal: roster              2100    0.7%
+  game: army record                 22700    8.0%
+  game: army count                  22200    7.8%
+  game: army list                   22200    7.8%
+  events                             8935    3.1%
+  hashing                             672    0.2%
+  compute                           10691    3.8%
+  unknown                           22100    7.8%
+  refund                            -4800   -1.7%
+  storage ops: read, cold 14x = 29400; read, warm 18x = 1800; write, fresh 8x = 160000; write, fresh (cold) 2x = 44200; write, same 2x = 200; write, update 1x = 2900
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r3/2300 w1/20000 fresh
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r2/2200 w1/20000 fresh
+    commit-reveal: attendance    commitReveal.waitedFor                       r2/2200 w1/20000 fresh
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r0/0 w1/22100 fresh cold
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r2/2200 w1/20000 fresh
+    commit-reveal: commitment    commitReveal.commitments[0x709979..79c8].hash,cycleNumber r2/2200 
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r3/2300 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r4/2400 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r2/2200 w1/20000 fresh
+    commit-reveal: reserve       commitReveal.reserve[0x709979..79c8]         r1/2100 w1/2900 update refund 4800
+    commit-reveal: roster        commitReveal.roster                          r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army count             _armyCountOf[0x709979..79c8]                 r2/2200 w1/20000 fresh
+    game: army list              _armyIds                                     r2/2200 w1/20000 fresh
+    game: army record            _armies[0x170997..79c8].{owner..index}       r5/2500 w3/20200 fresh
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r0/0 w1/22100 fresh cold
+deployment reveal (the first ever): gasUsed 273676
+  intrinsic (21000)                 21000    7.7%
+  calldata                           1376    0.5%
+  dispatch: proxy + router          17808    6.5%
+  commit-reveal: commitment         10200    3.7%
+  commit-reveal: attendance          5200    1.9%
+  commit-reveal: cycle state         4200    1.5%
+  game: square records              44100   16.1%
+  game: spawn records               37300   13.6%
+  game: army record                  5500    2.0%
+  game: open spawn set              89700   32.8%
+  events                             4024    1.5%
+  hashing                            1614    0.6%
+  calls out                           100    0.0%
+  compute                           36354   13.3%
+  refund                            -4800   -1.8%
+  storage ops: read, cold 40x = 84000; read, warm 21x = 2100; write, fresh 5x = 100000; write, same 7x = 700; write, update 4x = 11600
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/2900 update refund 4800
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r2/2200 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 w1/2900 update
+    game: open spawn set         _nextSpawnIndex                              r2/2200 w1/20000 fresh
+    game: open spawn set         _openSpawnIndices                            r1/2100 w1/20000 fresh
+    game: open spawn set         _openSpawnIndices[0]                         r4/2400 w4/20300 same
+    game: open spawn set         _openSpawnIndices[1]                         r4/2400 w4/20300 fresh
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r5/2500 w2/20100 fresh
+    game: spawn records          _spawns[1].{cycle..armyIndex}                r1/2100 
+    game: spawn records          _spawns[2].{cycle..armyIndex}                r1/2100 
+    game: spawn records          _spawns[3].{cycle..armyIndex}                r1/2100 
+    game: spawn records          _spawns[4].{cycle..armyIndex}                r1/2100 
+    game: spawn records          _spawns[5].{cycle..armyIndex}                r1/2100 
+    game: spawn records          _spawns[6].{cycle..armyIndex}                r1/2100 
+    game: spawn records          _spawns[7].{cycle..armyIndex}                r1/2100 
+    game: square records         _squares[(-1,-1)].{cycle..kingIndex}         r1/2100 
+    game: square records         _squares[(-1,-2)].{cycle..kingIndex}         r1/2100 
+    game: square records         _squares[(-1,0)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(-1,1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(-1,2)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(-2,-1)].{cycle..kingIndex}         r1/2100 
+    game: square records         _squares[(-2,0)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(-2,1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,-2)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(0,1)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(0,2)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(1,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(1,-2)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(1,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(1,2)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(2,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(2,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(2,1)].{cycle..kingIndex}           r1/2100 
+pawn step, fresh squares: gasUsed 165278
+  intrinsic (21000)                 21000   12.7%
+  calldata                           1400    0.8%
+  dispatch: proxy + router          11494    7.0%
+  commit-reveal: commitment          7400    4.5%
+  commit-reveal: attendance          5200    3.1%
+  commit-reveal: cycle state         4200    2.5%
+  commit-reveal: roster              2100    1.3%
+  game: square records              46500   28.1%
+  game: spawn records                2400    1.5%
+  game: zone index                  22300   13.5%
+  game: army record                  4900    3.0%
+  events                             2268    1.4%
+  hashing                             864    0.5%
+  compute                           31152   18.8%
+  unknown                            2100    1.3%
+  refund                                0    0.0%
+  storage ops: read, cold 15x = 31500; read, warm 17x = 1700; write, fresh 3x = 60000; write, same 2x = 200; write, update 2x = 5800
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    commit-reveal: roster        commitReveal.roster                          r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r3/2300 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r4/2400 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(0,2)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: square records         _squares[(0,3)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: zone index             _touchedSquares[0]                           r2/2200 w2/20100 fresh
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r1/2100 
+plain move commit (the army first commit after its deployment): gasUsed 75290
+  intrinsic (21000)                 21000   27.9%
+  calldata                           1116    1.5%
+  dispatch: proxy + router          10951   14.5%
+  commit-reveal: commitment          7400    9.8%
+  commit-reveal: reserve             2100    2.8%
+  commit-reveal: attendance          7200    9.6%
+  commit-reveal: cycle state         4500    6.0%
+  game: square records               2100    2.8%
+  game: spawn records                2400    3.2%
+  game: army record                  5400    7.2%
+  events                             2012    2.7%
+  hashing                             462    0.6%
+  compute                            8649   11.5%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 21x = 2100; write, same 1x = 100; write, update 2x = 5800
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r1/2100 
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r2/2200 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r2/2200 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r3/2300 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r8/2800 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r4/2400 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+pawn step, touched squares: gasUsed 102658
+  intrinsic (21000)                 21000   20.5%
+  calldata                           1400    1.4%
+  dispatch: proxy + router          11494   11.2%
+  commit-reveal: commitment          7400    7.2%
+  commit-reveal: attendance          5200    5.1%
+  commit-reveal: cycle state         4200    4.1%
+  game: square records              14600   14.2%
+  game: army record                  4900    4.8%
+  events                             2268    2.2%
+  hashing                             654    0.6%
+  compute                           27342   26.6%
+  unknown                            2200    2.1%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 37x = 3700; write, same 1x = 100; write, update 4x = 11600
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r3/2300 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(0,3)].{cycle..kingIndex}           r15/3500 w1/2900 update
+    game: square records         _squares[(0,4)].{cycle..kingIndex}           r12/3200 w1/2900 update
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r2/2200 
+7-square slider, fresh squares: gasUsed 246968
+  intrinsic (21000)                 21000    8.5%
+  calldata                           1424    0.6%
+  dispatch: proxy + router          11494    4.7%
+  commit-reveal: commitment          7400    3.0%
+  commit-reveal: attendance          5200    2.1%
+  commit-reveal: cycle state         4200    1.7%
+  commit-reveal: roster              2100    0.9%
+  game: square records              59100   23.9%
+  game: spawn records               25300   10.2%
+  game: zone index                  27100   11.0%
+  game: army record                  4900    2.0%
+  events                             2268    0.9%
+  hashing                            1284    0.5%
+  compute                           71998   29.2%
+  unknown                            2200    0.9%
+  refund                                0    0.0%
+  storage ops: read, cold 23x = 48300; read, warm 25x = 2500; write, fresh 4x = 80000; write, same 1x = 100; write, update 3x = 8700
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    commit-reveal: roster        commitReveal.roster                          r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r3/2300 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r8/2800 
+    game: spawn records          _spawns[2].{cycle..armyIndex}                r5/2500 w1/20000 fresh
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: square records         _squares[(2,2)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(3,3)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(4,4)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(5,5)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(6,6)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(7,7)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(8,8)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: zone index             _touchedSquares[0]                           r1/2100 w1/2900 update
+    game: zone index             _touchedSquares[4294967297]                  r1/2100 w1/20000 fresh
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r2/2200 
+7-square slider, touched squares: gasUsed 167172
+  intrinsic (21000)                 21000   12.6%
+  calldata                           1424    0.9%
+  dispatch: proxy + router          11494    6.9%
+  commit-reveal: commitment          7400    4.4%
+  commit-reveal: attendance          5200    3.1%
+  commit-reveal: cycle state         4200    2.5%
+  game: square records              27200   16.3%
+  game: spawn records                8200    4.9%
+  game: army record                  4900    2.9%
+  events                             2268    1.4%
+  hashing                            1116    0.7%
+  compute                           70370   42.1%
+  unknown                            2400    1.4%
+  refund                                0    0.0%
+  storage ops: read, cold 20x = 42000; read, warm 50x = 5000; write, same 1x = 100; write, update 5x = 14500
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r3/2300 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r11/3100 w1/2900 update
+    game: spawn records          _spawns[2].{cycle..armyIndex}                r2/2200 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r12/3200 w1/2900 update
+    game: square records         _squares[(2,2)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(3,3)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(4,4)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(5,5)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(6,6)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(7,7)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(8,8)].{cycle..kingIndex}           r15/3500 w1/2900 update
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r4/2400 
+king step, fresh squares: gasUsed 231758
+  intrinsic (21000)                 21000    9.1%
+  calldata                           1388    0.6%
+  dispatch: proxy + router          11494    5.0%
+  commit-reveal: commitment          7400    3.2%
+  commit-reveal: attendance          5200    2.2%
+  commit-reveal: cycle state         4200    1.8%
+  game: square records              61000   26.3%
+  game: spawn records                5600    2.4%
+  game: zone index                   5200    2.2%
+  game: army record                 25200   10.9%
+  events                             2268    1.0%
+  hashing                            1284    0.6%
+  compute                           78224   33.8%
+  unknown                            2300    1.0%
+  refund                                0    0.0%
+  storage ops: read, cold 20x = 42000; read, warm 43x = 4300; write, fresh 3x = 60000; write, same 3x = 300; write, update 4x = 11600
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r5/2500 w2/20100 same
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r7/2700 w1/2900 update
+    game: square records         _squares[(0,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r4/2400 w1/20000 fresh
+    game: square records         _squares[(0,1)].{cycle..kingIndex}           r8/2800 
+    game: square records         _squares[(1,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(1,0)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r11/3100 
+    game: square records         _squares[(2,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(2,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(2,1)].{cycle..kingIndex}           r1/2100 
+    game: zone index             _touchedSquares[0]                           r2/2200 w2/3000 update
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r3/2300 
+king step, touched squares: gasUsed 183257
+  intrinsic (21000)                 21000   11.5%
+  calldata                           1388    0.8%
+  dispatch: proxy + router          11494    6.3%
+  commit-reveal: commitment          7400    4.0%
+  commit-reveal: attendance          5200    2.8%
+  commit-reveal: cycle state         4200    2.3%
+  game: square records              30800   16.8%
+  game: spawn records                5600    3.1%
+  game: army record                  8300    4.5%
+  events                             2268    1.2%
+  hashing                            1116    0.6%
+  compute                           81891   44.7%
+  unknown                            2600    1.4%
+  refund                                0    0.0%
+  storage ops: read, cold 19x = 39900; read, warm 87x = 8700; write, same 2x = 200; write, update 6x = 17400
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r7/2700 w2/3000 update
+    game: army record            _armies[0x170997..79c8].{owner..index}       r6/2600 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r7/2700 w1/2900 update
+    game: square records         _squares[(-1,-1)].{cycle..kingIndex}         r1/2100 
+    game: square records         _squares[(-1,0)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(-1,1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r12/3200 w1/2900 update
+    game: square records         _squares[(0,1)].{cycle..kingIndex}           r8/2800 
+    game: square records         _squares[(1,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(1,0)].{cycle..kingIndex}           r34/5400 w1/2900 update
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r11/3100 
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r6/2600 
+plain move commit (a later cycle): gasUsed 75954
+  intrinsic (21000)                 21000   27.6%
+  calldata                           1116    1.5%
+  dispatch: proxy + router          10951   14.4%
+  commit-reveal: commitment          7400    9.7%
+  commit-reveal: reserve             2100    2.8%
+  commit-reveal: attendance          7200    9.5%
+  commit-reveal: cycle state         4500    5.9%
+  game: square records               2400    3.2%
+  game: spawn records                2400    3.2%
+  game: army record                  5600    7.4%
+  events                             2012    2.6%
+  hashing                             462    0.6%
+  compute                            8813   11.6%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 26x = 2600; write, same 1x = 100; write, update 2x = 5800
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r1/2100 
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r2/2200 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r2/2200 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r3/2300 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r8/2800 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r8/2800 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r4/2400 
+    game: square records         _squares[(1,0)].{cycle..kingIndex}           r4/2400 
+  the gas profile of a plain move
+three piece-moves (pawn, 7-square slider, king), fresh squares: gasUsed 490407
+  intrinsic (21000)                 21000    4.3%
+  calldata                           1972    0.4%
+  dispatch: proxy + router          11542    2.4%
+  commit-reveal: commitment          7400    1.5%
+  commit-reveal: attendance          5200    1.1%
+  commit-reveal: cycle state         4200    0.9%
+  commit-reveal: roster              2200    0.4%
+  game: square records             158900   32.4%
+  game: spawn records               28900    5.9%
+  game: zone index                  45000    9.2%
+  game: army record                 25600    5.2%
+  events                             2268    0.5%
+  hashing                            2778    0.6%
+  compute                          171047   34.9%
+  unknown                            2400    0.5%
+  refund                                0    0.0%
+  storage ops: read, cold 32x = 67200; read, warm 54x = 5400; write, fresh 10x = 200000; write, same 6x = 600; write, update 3x = 8700
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    commit-reveal: roster        commitReveal.roster                          r2/2200 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r5/2500 w2/20100 same
+    game: army record            _armies[0x170997..79c8].{owner..index}       r10/3000 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r15/3500 w1/2900 update
+    game: spawn records          _spawns[2].{cycle..armyIndex}                r5/2500 w1/20000 fresh
+    game: square records         _squares[(0,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r4/2400 w1/20000 fresh
+    game: square records         _squares[(0,1)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(0,2)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: square records         _squares[(0,3)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: square records         _squares[(1,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(1,0)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r5/2500 w1/20000 fresh
+    game: square records         _squares[(2,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(2,0)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(2,1)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(2,2)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(3,3)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(4,4)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(5,5)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(6,6)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(7,7)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(8,8)].{cycle..kingIndex}           r2/2200 w1/20000 fresh
+    game: zone index             _touchedSquares[0]                           r5/2500 w5/20400 fresh
+    game: zone index             _touchedSquares[4294967297]                  r1/2100 w1/20000 fresh
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r4/2400 
+three piece-moves commit (the army first commit after its deployment): gasUsed 75290
+  intrinsic (21000)                 21000   27.9%
+  calldata                           1116    1.5%
+  dispatch: proxy + router          10951   14.5%
+  commit-reveal: commitment          7400    9.8%
+  commit-reveal: reserve             2100    2.8%
+  commit-reveal: attendance          7200    9.6%
+  commit-reveal: cycle state         4500    6.0%
+  game: square records               2100    2.8%
+  game: spawn records                2400    3.2%
+  game: army record                  5400    7.2%
+  events                             2012    2.7%
+  hashing                             462    0.6%
+  compute                            8649   11.5%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 21x = 2100; write, same 1x = 100; write, update 2x = 5800
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r1/2100 
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r2/2200 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r2/2200 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r3/2300 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].{owner..index}       r8/2800 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r4/2400 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r1/2100 
+three piece-moves (pawn, 7-square slider, king), touched squares: gasUsed 314897
+  intrinsic (21000)                 21000    6.7%
+  calldata                           1972    0.6%
+  dispatch: proxy + router          11542    3.7%
+  commit-reveal: commitment          7400    2.3%
+  commit-reveal: attendance          5200    1.7%
+  commit-reveal: cycle state         4200    1.3%
+  game: square records              64900   20.6%
+  game: spawn records                9000    2.9%
+  game: army record                  8700    2.8%
+  events                             2268    0.7%
+  hashing                            2316    0.7%
+  compute                          173399   55.1%
+  unknown                            3000    1.0%
+  refund                                0    0.0%
+  storage ops: read, cold 29x = 60900; read, warm 144x = 14400; write, same 2x = 200; write, update 10x = 29000
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r1/2100 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r7/2700 w2/3000 update
+    game: army record            _armies[0x170997..79c8].{owner..index}       r10/3000 
+    game: spawn records          _spawns[0].{cycle..armyIndex}                r19/3900 w1/2900 update
+    game: spawn records          _spawns[2].{cycle..armyIndex}                r2/2200 
+    game: square records         _squares[(-1,-1)].{cycle..kingIndex}         r1/2100 
+    game: square records         _squares[(-1,0)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(-1,1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(0,0)].{cycle..kingIndex}           r12/3200 w1/2900 update
+    game: square records         _squares[(0,1)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(0,2)].{cycle..kingIndex}           r12/3200 w1/2900 update
+    game: square records         _squares[(0,3)].{cycle..kingIndex}           r15/3500 w1/2900 update
+    game: square records         _squares[(1,-1)].{cycle..kingIndex}          r1/2100 
+    game: square records         _squares[(1,0)].{cycle..kingIndex}           r34/5400 w1/2900 update
+    game: square records         _squares[(1,1)].{cycle..kingIndex}           r15/3500 w1/2900 update
+    game: square records         _squares[(2,2)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(3,3)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(4,4)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(5,5)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(6,6)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(7,7)].{cycle..kingIndex}           r1/2100 
+    game: square records         _squares[(8,8)].{cycle..kingIndex}           r15/3500 w1/2900 update
+    unknown                      0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6 r10/3000 

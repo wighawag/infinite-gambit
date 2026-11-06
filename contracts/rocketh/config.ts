@@ -64,32 +64,49 @@ export const CYCLE_POLICY = {
  * established channel for what the client must agree with the deploy about.
  *
  * MEASURED FOR CHESS, on the test build `GasBudget.test.ts` runs (no optimiser;
- * the optimised build a chain runs costs 4% to 23% less, the safe direction).
- * Re-measured with the one-slot square record
- * (`lean-rules-one-slot-square-record-and-tight-gas-limits`, `docs/gas.md`),
- * which names armies in storage by a compact index and reads each square once:
- * NO REVEAL WALKS A CHAIN (merges, capture chains and loops are gone,
- * `docs/adr/0013`, `docs/adr/0014`), so what a capture adds is bounded by the
- * two squares a move touches and the armies on the squares it reads.
+ * the optimised build a chain runs costs 4% to 25% less, the safe direction,
+ * `docs/gas.md`). Re-measured for THREE PIECE-MOVES
+ * (`three-piece-moves-gas-limits`, `docs/adr/0016`): a move is now up to three
+ * piece-moves, all in one reveal, so the worst reveal is three piece-moves,
+ * each as dear as the rules allow. NO REVEAL WALKS A CHAIN (merges, capture
+ * chains and loops are gone, `docs/adr/0013`, `docs/adr/0014`), so what a
+ * capture adds is bounded by the two squares each piece-move touches and the
+ * armies on the squares it reads.
  *
  *   the worst commit: a first paid deployment commit in a manual world,
- *   which settles the previous deployment and pays a fresh payee     368,249
- *   a plain move's commit                                              83,974
- *   the first deployment reveal ever                                  300,510
- *   a king's move into a zone nobody touched                          300,148
- *   the two-victim square (the dearest capture measured)              308,056
- *   the worst reveal: a king's move whose origin and destination each
- *   fold a two-victim square, noting three candidates for a stake, and
- *   whose 8 neighbours each hold a piece of a different fallen army
- *   whose fall is not folded yet (the vanish check, cold)             695,871
+ *   which settles the previous deployment and pays a fresh payee     370,098
+ *   a plain move's commit (one piece-move or three: it stores a hash)  85,823
+ *   the first deployment reveal ever                                  301,675
+ *   the two-victim square (the dearest capture measured)              354,276
+ *   the dearest plain move: the king's first step and two 7-square
+ *   sliders over stale squares, in one reveal                         676,044
+ *   the worst reveal: that move with each of its three piece-moves
+ *   folding a two-victim square at its origin and at its destination
+ *   and noting three candidates for a stake, and with each of the 22
+ *   squares it reads holding a piece of a different fallen army whose
+ *   fall is not folded yet (the vanish check, cold)                 1,831,734
  *
  * Each figure is its worst case plus `GasBudget.test.ts`'s minimum headroom
- * (10%), rounded up to ten thousand: COMMIT_GAS 410,000 (was 430,000),
- * REVEAL_GAS 770,000 (was 720,000 before a moving king meeting one piece on a
- * king or stone was also noted for the standing army, the stone that holds its
- * stake when the captor falls; 1,100,000 before that, sized for the dearer
- * record and the capture loops). Under the generosity ceiling too: three times the
- * plainest reveal (the deployment's, about 901,000).
+ * (10%), rounded up to ten thousand: COMMIT_GAS 410,000 (unchanged: a commit
+ * stores a hash, whatever the move holds), REVEAL_GAS 2,020,000 (was 770,000,
+ * priced on one piece-move a reveal; 720,000 and 1,100,000 before that). Under
+ * the generosity ceiling too, now three times the dearest PLAIN move, the
+ * three piece-moves above (2,028,132). The window is narrow: the figure is
+ * 5,093 above the required 2,014,907 and 8,132 below that ceiling. Gas added
+ * to EVERY reveal widens it (the ceiling rises three times as fast as the
+ * worst); about 4,600 added to the worst alone closes it, since the rounded
+ * figure would be 2,030,000 (`docs/gas.md`, "The declared figures").
+ *
+ * WHAT IT COSTS PLAYERS. `creditsGasMultiplier` below is COMMIT_GAS +
+ * REVEAL_GAS, 2,430,000 where it was 1,180,000, so a credit is about twice the
+ * gas it was and every player is shown about half the credits for the same
+ * balance: in the world, and at every table, those that turn three
+ * piece-moves off included, since a table's figure prices the same worst
+ * (`LOBBY_REVEAL_GAS` below). The stipend a purchase gives the playing key, and
+ * the prepayment fuzd takes to reveal for a player (each transaction's declared
+ * gas at the chain's `expectedWorstGasPrice`), rise with `revealGas` the same
+ * way. Nothing is SPENT beyond what a reveal uses: the figure is a limit and a
+ * reservation, and a plain move still costs what it costs (`docs/gas.md`).
  *
  * Both carry a margin over the reading, because they size a RESERVATION: over
  * reserving costs a slightly larger first payment, under reserving costs a
@@ -110,16 +127,21 @@ export const CYCLE_POLICY = {
  * below.
  */
 const COMMIT_GAS = 410_000n;
-const REVEAL_GAS = 770_000n;
+const REVEAL_GAS = 2_020_000n;
 /**
  * A TABLE'S REVEAL: the world's, plus listing every zone a reveal touches first
- * (`UsingGameTable._tally` counts the material at the cap from that list).
- * About 65,000 at worst (two zones, a slot each), so a table's worst reveal is
- * 760,730 and this is that plus the minimum headroom (10%), rounded up (was
- * 790,000, and 1,150,000 before that); priced in `GasBudget.test.ts`, whose generosity ceiling is three
- * times a table's plainest reveal (about 1,095,000).
+ * (`UsingGameTable._tally` counts the material at the cap from that list). A
+ * move of three piece-moves touches up to six squares, so it lists up to six
+ * zones: 67,571 at worst (four measured at 44,141, two more, and one more
+ * fresh slot of the list), so a table's worst reveal is 1,899,305 and this is
+ * that plus the minimum headroom (10%), rounded up (was 840,000, priced on
+ * one piece-move listing two zones; 790,000 and 1,150,000 before that). A
+ * table that turns three piece-moves off still declares it: one figure per
+ * deployment, shared by every clone. Priced in `GasBudget.test.ts`, whose
+ * generosity ceiling is three times a table's plain three-piece-move reveal
+ * (about 2,231,000).
  */
-const LOBBY_REVEAL_GAS = 840_000n;
+const LOBBY_REVEAL_GAS = 2_090_000n;
 
 /**
  * HOW MANY SPAWN POINTS THE OFFLINE WORLD OPENS (K), which is the one thing
@@ -156,12 +178,17 @@ export const OFFLINE_OPEN_SPAWN_POINTS = 10n;
  * An average with its expectation written down is worth more than an exact
  * figure with no unit.
  *
- * ONE, IN CHESS, TODAY: an army submits at most one move per cycle
- * (`CONTEXT.md`), and a deployment is one action too. A move may now hold up to
- * three piece-moves (`docs/adr/0016`), but the client still submits one, and
- * any move fits one chunk (`actionsPerReveal` is three), so the expected turn
- * is still exactly one commit and one reveal: `ceil(1 / 3)` and `ceil(3 / 3)`
- * are both one.
+ * ONE, IN CHESS, because what it sizes is how many TRANSACTIONS a turn takes,
+ * and a chess turn is exactly one commit and one reveal whatever it holds. A
+ * move is now up to three piece-moves (`docs/adr/0016`), three actions, but it
+ * must arrive in ONE chunk: the contract refuses a chained one
+ * (`OneMovePerCycle`), and `actionsPerReveal` is three so that a whole move
+ * fits. So `ceil(1 / 3)` and `ceil(3 / 3)` are both one reveal, a pass and a
+ * deployment are one too, and raising this to three would size the same
+ * stipend while claiming a turn is three of something it is not. What three
+ * piece-moves DID change is the cost of that one reveal, and that is
+ * `REVEAL_GAS` above (about two and a half times what it was), which the
+ * stipend already multiplies.
  *
  * It sizes the gas stipend and nothing else today. It is deliberately NOT used
  * to price a credit: a credit count is shown to the player as what they can
@@ -184,6 +211,13 @@ export const config = {
 	// configuration would produce a confident, wrong move count, so
 	// web/src/lib/core/connection/credits.ts falls back to native currency
 	// unless it knows what an action actually costs.
+	//
+	// A CREDIT IS A WORST-CASE MOVE, so it is a floor: since a move became up
+	// to three piece-moves the worst reveal is about two and a half times
+	// dearer (see REVEAL_GAS), and the same balance shows about half the
+	// credits it did, for every player, whether they move one piece or three.
+	// A plain move spends a fraction of it (`docs/gas.md`), so in practice a
+	// player makes more moves than their credits say.
 	chains: {
 		// A LAN box (github:wighawag/ethereum-lan-node): its dev chain, which no
 		// public chain list knows. nix/lan.nix deploys for it at build time, as
@@ -228,7 +262,9 @@ export const config = {
 				// One commit plus one reveal step, both at their declared worst
 				// case (see COMMIT_GAS): derived from the one measurement rather
 				// than typed out again, because two copies of one measurement is
-				// how a credit ends up priced against a game nobody runs.
+				// how a credit ends up priced against a game nobody runs. In
+				// chess a move is always one reveal step, its three piece-moves
+				// included, so a credit is one move.
 				creditsGasMultiplier: COMMIT_GAS + REVEAL_GAS,
 				supportsSendRawTransactionSync: false,
 			},
