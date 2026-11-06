@@ -1,0 +1,332 @@
+@font-face {
+	font-family: 'Cinzel';
+	src: url('fonts/Cinzel-VariableFont_wght.ttf') format('truetype');
+	font-weight: 400 900;
+	font-display: swap;
+}
+
+:root {
+	--night: #16110d;
+	--walnut: #2a1d14;
+	--maple: #e9d6b4;
+	--maple-dark: #b98a5a;
+	--ink: #f6efe4;
+	--muted: #b8a993;
+	--gold: #f5b83d;
+	--you: #ffd166;
+	--them: #8fb8ff;
+	--sq: 72px;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	margin: 0;
+	background: var(--night);
+	color: var(--ink);
+	font: 18px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+	font-family: 'Cinzel', Georgia, serif;
+	font-weight: 700;
+	line-height: 1.15;
+	margin: 0 0 0.6em;
+}
+
+a {
+	color: var(--gold);
+}
+
+/* Hero: an endless board that fades into the night, with the Devcon board's
+   Ethereum inlay across the four squares that meet at its centre. */
+.hero {
+	position: relative;
+	min-height: min(100vh, 940px);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.board {
+	position: absolute;
+	inset: -2px;
+	background:
+		conic-gradient(var(--maple-dark) 25%, transparent 0 50%, var(--maple-dark) 0 75%, transparent 0) calc(50% + var(--sq) / 2) calc(82% + var(--sq) / 2) / calc(var(--sq) * 2) calc(var(--sq) * 2),
+		var(--walnut);
+	opacity: 0.22;
+	-webkit-mask: radial-gradient(ellipse 75% 70% at 50% 82%, #000 15%, transparent 75%);
+	mask: radial-gradient(ellipse 75% 70% at 50% 82%, #000 15%, transparent 75%);
+	animation: drift 60s linear infinite;
+}
+
+@keyframes drift {
+	to {
+		background-position:
+			calc(50% + var(--sq) * 2.5) calc(82% + var(--sq) * 2.5),
+			0 0;
+	}
+}
+
+.inlay {
+	position: absolute;
+	left: 50%;
+	top: 82%;
+	width: calc(var(--sq) * 2);
+	height: calc(var(--sq) * 2);
+	transform: translate(-50%, -50%);
+	display: grid;
+	place-items: center;
+}
+
+.inlay svg {
+	height: 80%;
+	fill: var(--gold);
+	opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.board {
+		animation: none;
+	}
+}
+
+.top {
+	position: relative;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 24px 32px;
+}
+
+.lockup {
+	height: 44px;
+}
+
+.gh {
+	text-decoration: none;
+	color: var(--muted);
+	font-weight: 600;
+}
+
+.hero-copy {
+	position: relative;
+	margin: auto;
+	max-width: 1000px;
+	padding: 0 24px 22vh;
+	text-align: center;
+}
+
+.hero-mark {
+	width: 120px;
+	filter: drop-shadow(0 12px 30px rgba(245, 184, 61, 0.25));
+}
+
+.hero h1 {
+	font-size: clamp(1.8rem, 4vw, 3.1rem);
+}
+
+.lede {
+	color: var(--muted);
+	font-size: 1.2rem;
+	max-width: 620px;
+	margin: 0 auto 2rem;
+}
+
+.cta {
+	display: flex;
+	gap: 16px;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.btn {
+	display: inline-block;
+	padding: 14px 28px;
+	border: 2px solid var(--gold);
+	border-radius: 10px;
+	color: var(--ink);
+	text-decoration: none;
+	font-family: 'Cinzel', Georgia, serif;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+}
+
+.btn.primary {
+	background: var(--gold);
+	color: var(--night);
+}
+
+.btn:hover {
+	transform: translateY(-1px);
+}
+
+/* Sections */
+main section {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 96px 24px;
+}
+
+main h2 {
+	font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+	text-align: center;
+	margin-bottom: 1.4em;
+}
+
+.steps {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+	gap: 24px;
+}
+
+.steps li {
+	background: var(--walnut);
+	border-radius: 16px;
+	padding: 28px;
+}
+
+.num {
+	display: inline-grid;
+	place-items: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: var(--gold);
+	color: var(--night);
+	font-family: 'Cinzel', serif;
+	font-weight: 900;
+	margin-bottom: 14px;
+}
+
+.steps h3 {
+	font-size: 1.2rem;
+}
+
+.steps p,
+.cards figcaption,
+.fair p,
+.crops li {
+	color: var(--muted);
+}
+
+.cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 24px;
+}
+
+.cards figure {
+	margin: 0;
+	background: var(--walnut);
+	border-radius: 16px;
+	padding: 20px;
+}
+
+.cards strong,
+.crops strong {
+	color: var(--ink);
+}
+
+.mini {
+	width: 100%;
+	border-radius: 10px;
+	margin-bottom: 12px;
+}
+
+.sq-l {
+	fill: var(--maple);
+}
+
+.sq-d {
+	fill: var(--maple-dark);
+}
+
+.mini .p {
+	font: 30px 'DejaVu Sans', 'Segoe UI Symbol', 'Noto Sans Symbols 2', sans-serif;
+	text-anchor: middle;
+	dominant-baseline: central;
+	paint-order: stroke;
+	stroke-width: 2px;
+}
+
+.mini .you {
+	fill: var(--you);
+	stroke: var(--night);
+}
+
+.mini .them {
+	fill: var(--them);
+	stroke: var(--night);
+}
+
+.mini .arrow {
+	fill: none;
+	stroke-width: 4;
+	stroke-linecap: round;
+	stroke-dasharray: 2 8;
+}
+
+.mini .arrow.you {
+	stroke: var(--night);
+}
+
+.mini .arrow.them {
+	stroke: #2b4a80;
+}
+
+.mini .boom {
+	font: 900 34px system-ui, sans-serif;
+	fill: #c0392b;
+	text-anchor: middle;
+	dominant-baseline: central;
+}
+
+.fair > div {
+	max-width: 760px;
+	margin: 0 auto;
+	font-size: 1.1rem;
+}
+
+.fair h2 {
+	color: var(--gold);
+}
+
+.crops ul {
+	list-style: none;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 20px;
+}
+
+.crops li {
+	border-left: 3px solid var(--gold);
+	padding: 4px 0 4px 18px;
+}
+
+.play {
+	text-align: center;
+}
+
+.play-mark {
+	width: 90px;
+}
+
+footer {
+	text-align: center;
+	color: var(--muted);
+	padding: 40px 24px 60px;
+	font-size: 0.9rem;
+}

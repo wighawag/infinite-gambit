@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Infinite Gambit: everyone moves at once</title>
+		<meta name="description" content="Simultaneous, staked chess on an infinite onchain board. Everyone moves at once, and gas never decides a fight." />
+		<meta property="og:title" content="Infinite Gambit" />
+		<meta property="og:description" content="Everyone moves at once. Gas never decides a fight." />
+		<meta property="og:image" content="brand/preview.png" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="theme-color" content="#16110d" />
+		<link rel="icon" href="brand/icon.svg" type="image/svg+xml" />
+		<link rel="icon" href="brand/favicon-32.png" sizes="32x32" type="image/png" />
+		<link rel="apple-touch-icon" href="brand/icon-192.png" />
+		<link rel="stylesheet" href="style.css" />
+	</head>
+	<body>
+		<header class="hero">
+			<div class="board" aria-hidden="true">
+				<div class="inlay">
+					<svg viewBox="96 0 64 96"><path d="M128 4 L155 48 L128 63 L101 48 Z" /><path d="M101 55 L128 70 L155 55 L128 92 Z" /></svg>
+				</div>
+			</div>
+			<nav class="top">
+				<img src="brand/lockup-light.svg" alt="Infinite Gambit" class="lockup" />
+				<a class="gh" href="https://github.com/wighawag/chess-battleground">GitHub</a>
+			</nav>
+			<div class="hero-copy">
+				<img src="brand/logo-light.svg" alt="" class="hero-mark" />
+				<h1>Chess for everyone at once,<br />on a board with no edges.</h1>
+				<p class="lede">Stake an army, hide your move, reveal it with everyone else. Capture a king to take its stake. Walk your king home to cash out.</p>
+				<div class="cta">
+					<a class="btn primary" href="#play">Play now</a>
+					<a class="btn" href="#how">How it works</a>
+				</div>
+			</div>
+		</header>
+
+		<main>
+			<section id="how" class="how">
+				<h2>One cycle</h2>
+				<ol class="steps">
+					<li>
+						<span class="num">1</span>
+						<h3>Stake and spawn</h3>
+						<p>Buy a stake with ETH and pick a spawn point in secret. Your army appears at the end of the cycle: a king holding your stake, ringed by pawns.</p>
+					</li>
+					<li>
+						<span class="num">2</span>
+						<h3>Commit</h3>
+						<p>Every army makes one move per cycle. You commit it as a hash, so nobody can see it while they choose theirs.</p>
+					</li>
+					<li>
+						<span class="num">3</span>
+						<h3>Reveal together</h3>
+						<p>Everyone opens their moves, and they all resolve against the board as it was at the start of the cycle.</p>
+					</li>
+					<li>
+						<span class="num">4</span>
+						<h3>Capture or cash out</h3>
+						<p>Take a king and its stake and army are yours. Bring your king to an exit to take your winnings home. Miss a reveal and your army freezes.</p>
+					</li>
+				</ol>
+			</section>
+
+			<section class="rules">
+				<h2>Simultaneous chess has new rules</h2>
+				<div class="cards">
+					<figure>
+						<svg viewBox="0 0 120 120" class="mini">
+							<use href="#grid" />
+							<text x="20" y="60" class="p them">♝</text>
+							<text x="60" y="60" class="p you">♞</text>
+							<path d="M28 52 Q44 38 54 48" class="arrow them" />
+							<path d="M66 64 Q86 92 96 100" class="arrow you" />
+						</svg>
+						<figcaption><strong>Dodge.</strong> Move away and the capture misses: the attacker lands on an empty square.</figcaption>
+					</figure>
+					<figure>
+						<svg viewBox="0 0 120 120" class="mini">
+							<use href="#grid" />
+							<text x="20" y="60" class="p you">♜</text>
+							<text x="100" y="60" class="p them">♜</text>
+							<path d="M30 46 L90 46" class="arrow you" />
+							<path d="M90 74 L30 74" class="arrow them" />
+						</svg>
+						<figcaption><strong>Swap.</strong> Two pieces that trade squares or cross paths both complete their moves.</figcaption>
+					</figure>
+					<figure>
+						<svg viewBox="0 0 120 120" class="mini">
+							<use href="#grid" />
+							<text x="20" y="100" class="p you">♝</text>
+							<text x="100" y="100" class="p them">♝</text>
+							<path d="M28 90 L54 66" class="arrow you" />
+							<path d="M92 90 L66 66" class="arrow them" />
+							<text x="60" y="60" class="boom">✕</text>
+						</svg>
+						<figcaption><strong>Collision.</strong> Two or more pieces landing on one square: they all die.</figcaption>
+					</figure>
+					<figure>
+						<svg viewBox="0 0 120 120" class="mini">
+							<use href="#grid" />
+							<text x="60" y="60" class="p them">♚</text>
+							<text x="20" y="100" class="p you">♝</text>
+							<path d="M28 90 L52 68" class="arrow you" />
+						</svg>
+						<figcaption><strong>Capture.</strong> One arriver takes a piece that stayed put. Take a king, and its stake and army are yours.</figcaption>
+					</figure>
+				</div>
+			</section>
+
+			<section class="fair">
+				<div>
+					<h2>Gas never decides a fight</h2>
+					<p>On most onchain games, whoever's transaction lands first wins. Here a reveal only records facts that do not depend on order: where each piece came from, where it went, and how many pieces arrived on each square. Every square resolves lazily from those facts, with no settlement transaction for anyone to pay.</p>
+					<p>The rules live in one place only: the contract. The game runs the contract's own code in an EVM inside your browser, so what you see is exactly what the chain will do.</p>
+				</div>
+			</section>
+
+			<section class="crops">
+				<h2>It keeps working without us</h2>
+				<ul>
+					<li><strong>Runs from anywhere.</strong> A static site that works from IPFS or any host, with no backend.</li>
+					<li><strong>Plays offline.</strong> The whole world can run on a chain inside your browser: hotseat on one device, or single player.</li>
+					<li><strong>Open source.</strong> AGPL-3.0. Build and run every part from the repository.</li>
+					<li><strong>Nothing tracks you.</strong> No analytics, keys stay on your device, moves stay hidden until reveal.</li>
+				</ul>
+			</section>
+
+			<section id="play" class="play">
+				<img src="brand/logo-light.svg" alt="" class="play-mark" />
+				<h2>Your move.</h2>
+				<div class="cta">
+					<a class="btn primary" href="#">Enter the world</a>
+					<a class="btn" href="#">Play offline</a>
+				</div>
+			</section>
+		</main>
+
+		<footer>
+			<p>Built at ETHGlobal Mumbai 2026 · <a href="https://github.com/wighawag/chess-battleground">Source</a> · AGPL-3.0</p>
+		</footer>
+
+		<svg width="0" height="0" style="position: absolute">
+			<defs>
+				<g id="grid">
+					<rect x="0" y="0" width="40" height="40" class="sq-l" /><rect x="40" y="0" width="40" height="40" class="sq-d" /><rect x="80" y="0" width="40" height="40" class="sq-l" />
+					<rect x="0" y="40" width="40" height="40" class="sq-d" /><rect x="40" y="40" width="40" height="40" class="sq-l" /><rect x="80" y="40" width="40" height="40" class="sq-d" />
+					<rect x="0" y="80" width="40" height="40" class="sq-l" /><rect x="40" y="80" width="40" height="40" class="sq-d" /><rect x="80" y="80" width="40" height="40" class="sq-l" />
+				</g>
+			</defs>
+		</svg>
+	</body>
+</html>
