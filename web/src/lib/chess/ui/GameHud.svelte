@@ -13,9 +13,10 @@
 	import TablePanel from '$lib/game/lobby/ui/TablePanel.svelte';
 	import TableLobby from '$lib/game/lobby/ui/TableLobby.svelte';
 	import {tableSettingsOf} from '$lib/game/lobby/table';
+	import Minimap from './Minimap.svelte';
 
 	const context = getAppContext();
-	const {game} = context;
+	const {game, render} = context;
 	const hud = createHud(context);
 
 	const submission = game.submission;
@@ -118,6 +119,10 @@
 			<TablePanel table={game.table} />
 		</div>
 	{/if}
+	<!-- Where the fighting is, and the way back to your army. -->
+	<div class="absolute right-3 bottom-3">
+		<Minimap minimap={render.minimap} follow={render.follow} />
+	</div>
 	<!-- Phase and cycle -->
 	<div
 		class="pointer-events-auto w-fit rounded-lg bg-background/85 p-3 shadow-lg backdrop-blur"
