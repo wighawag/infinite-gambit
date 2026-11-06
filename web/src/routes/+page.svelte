@@ -117,10 +117,10 @@
 			<figure>
 				<svg viewBox="0 0 120 120" class="mini" aria-hidden="true">
 					<use href="#grid" />
-					<text x="20" y="60" class="p them">♝</text>
-					<text x="60" y="60" class="p you">♞</text>
-					<path d="M28 52 Q44 38 54 48" class="arrow them" />
-					<path d="M66 64 Q86 92 96 100" class="arrow you" />
+					<text x="20" y="60" class="p them">♜</text>
+					<text x="60" y="60" class="p you">♝</text>
+					<path d="M30 46 L56 46" class="arrow them" />
+					<path d="M70 70 L96 96" class="arrow you" />
 				</svg>
 				<figcaption>
 					<strong>Dodge.</strong> Move away and the capture misses: the attacker lands
