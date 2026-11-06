@@ -8,6 +8,8 @@ covers: [10, 12]
 
 ## What to build
 
+> FORWARD-NOTE (conductor, after PRs #30 to #34 merged): the human planner (`web/src/lib/chess/planning.ts`, `context.ts`) now reads the cap with `readMaxPieceMoves` (the game's `getMaxPieceMoves`) and asks the contract through `wholeMoveRoute({call, maxPieceMoves})` from `web/src/lib/chess/piece-moves.ts` (`isLegal` = `isLegalWholeMove`, `alongside` = `legalMovesAlongside`); reuse those for the bot rather than a second path. The bot today is `strategy.ts`, fed `legalMoves` by `web/src/lib/offline.ts` (around line 667): keep `legalMoves` and its signature (other callers use it). The planner also introduced the user-visible word "piece-move" (HUD, help text, refusal sentences), so the CONTEXT.md entry should match how it is used there. `docs/adr/0016` is accepted.
+
 The machine players and the glossary follow `docs/adr/0016`.
 
 - **The greedy bot** (`$lib/chess/strategy.ts`, CONTEXT "Greedy level") picks up to the cap of piece-moves by different pieces, captures first as now, each choice checked through the whole-move simulation route (`three-piece-moves-simulation-route`) with the cap the table-toggle getter reports. No copy of the rules in the client (`docs/adr/0007`).
