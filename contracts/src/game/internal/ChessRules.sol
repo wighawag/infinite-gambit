@@ -494,25 +494,40 @@ library ChessRules {
     ///         (`docs/adr/0002-order-free-lazy-resolution.md`).
     /// @param standing what stood there at the start of the cycle
     /// @param departed whether that piece moved away in the cycle
-    /// @param arrivals how many pieces arrived in the cycle
-    /// @param arriver the piece that arrived, meaningful when `arrivals` is 1
+    /// @param arrivals how many pieces arrived in the cycle, a king included
+    /// @param king the king that arrived; kind `None` if none did. At most one
+    ///        can: no two kings can reach one square in one cycle
+    ///        (`docs/adr/0003-collision-table-king-survives-a-crowd.md`)
+    /// @param arriver the first piece other than a king that arrived,
+    ///        meaningful when it is the only one
     /// @dev FROM COUNTS AND IDENTITIES ALONE, so it cannot depend on the order
-    ///      the reveals landed in. One arrival takes the square, whatever
-    ///      stood there (a capture, or a plain move onto an empty square). Two
-    ///      or more arrivals all fail, and the square is left as if none had
-    ///      come: empty if its piece moved away, still held if it stayed. A
-    ///      piece never bounces back to where it came from. King squares
-    ///      behave like any other until the king's rows of the collision table
-    ///      are a rule (`work/tasks/backlog/chess-king-capture-merge.md`).
+    ///      the reveals landed in. THE COLLISION TABLE
+    ///      (`docs/adr/0003-collision-table-king-survives-a-crowd.md`), its
+    ///      king rows first:
+    ///
+    ///      - a moving king and 2+ other pieces: the king lands, capturing a
+    ///        piece that stayed, and the others die;
+    ///      - a moving king and exactly 1 other piece: both die, and the square
+    ///        is left as if none had come (see {kingCapture} for the merge);
+    ///      - one arrival takes the square, whatever stood there (a capture, or
+    ///        a plain move onto an empty square);
+    ///      - two or more arrivals without a king all fail, and the square is
+    ///        left as if none had come: empty if its piece moved away, still
+    ///        held if it stayed.
+    ///
+    ///      A piece never bounces back to where it came from.
     function settle(
         T.Piece memory standing,
         bool departed,
         uint256 arrivals,
+        T.Piece memory king,
         T.Piece memory arriver
     ) internal pure returns (T.Piece memory) {
-        if (arrivals == 1) {
-            arriver.position = standing.position;
-            return arriver;
+        bool kingCame = king.kind != T.PieceKind.None;
+        if (arrivals == 1 || (kingCame && arrivals > 2)) {
+            T.Piece memory lands = kingCame ? king : arriver;
+            lands.position = standing.position;
+            return lands;
         }
         if (departed) {
             T.Piece memory empty;
@@ -527,12 +542,15 @@ library ChessRules {
     ///         there in a collision.
     /// @param standing what stood there at the start of the cycle
     /// @param departed whether that piece moved away in the cycle
-    /// @param arrivals how many pieces arrived in the cycle
-    /// @return captured the piece that stayed and was taken by a lone arrival;
-    ///         kind `None` (at the square) if nothing was captured. A piece
-    ///         that moved away is never captured on its old square.
+    /// @param arrivals how many pieces arrived in the cycle, a king included
+    /// @param kingCame whether one of them was a king
+    /// @return captured the piece that stayed and was taken, by a lone arrival
+    ///         or by a king arriving with two or more others; kind `None` (at
+    ///         the square) if nothing was captured. A piece that moved away is
+    ///         never captured on its old square.
     /// @return died how many of the arriving pieces died there: all of them
-    ///         when two or more arrived, none otherwise
+    ///         when two or more arrived, but the king's two or more companions
+    ///         only, when it survives them
     /// @dev The SAME TABLE as {settle}, read for what it destroyed rather than
     ///      what it left, so the client can show a cycle's captures and
     ///      collisions without a copy of the rule
@@ -541,16 +559,53 @@ library ChessRules {
     function outcome(
         T.Piece memory standing,
         bool departed,
-        uint256 arrivals
+        uint256 arrivals,
+        bool kingCame
     ) internal pure returns (T.Piece memory captured, uint256 died) {
         captured.position = standing.position;
-        if (arrivals == 1) {
+        bool kingWins = kingCame && arrivals > 2;
+        if (arrivals == 1 || kingWins) {
             if (!departed && standing.kind != T.PieceKind.None) {
                 captured = standing;
             }
+            if (kingWins) died = arrivals - 1;
         } else if (arrivals > 1) {
             died = arrivals;
         }
+    }
+
+    /// @notice Whose king one cycle's facts on a square took, and into whose
+    ///         army that king's army merges: zero for both if none was taken.
+    /// @dev The SAME TABLE as {settle} again, read for the one capture that
+    ///      moves an army (`docs/adr/0001-one-move-per-army-merge-on-capture.md`):
+    ///
+    ///      - a king that stayed, taken by a lone arrival, merges into the
+    ///        arriver's army;
+    ///      - a king that stayed, taken by a moving king that arrived with two
+    ///        or more others, merges into the moving king's army;
+    ///      - a moving king that arrived with exactly one other piece merges
+    ///        into that piece's army, whatever stayed there.
+    ///
+    ///      At most one king is taken on a square in a cycle, by exactly one
+    ///      captor: that is what the king rows of the table are for. `army` on
+    ///      the pieces given is the army each one played for at the START of
+    ///      the cycle: a captor taken in the same cycle is followed later, when
+    ///      the chain is resolved.
+    function kingCapture(
+        T.Piece memory standing,
+        bool departed,
+        uint256 arrivals,
+        T.Piece memory king,
+        T.Piece memory arriver
+    ) internal pure returns (uint256 victim, uint256 captor) {
+        bool kingCame = king.kind != T.PieceKind.None;
+        if (kingCame && arrivals == 2) return (king.army, arriver.army);
+        if (departed || standing.kind != T.PieceKind.King) return (0, 0);
+        if (arrivals == 1) {
+            return (standing.army, kingCame ? king.army : arriver.army);
+        }
+        if (kingCame && arrivals > 2) return (standing.army, king.army);
+        return (0, 0);
     }
 
     /// @dev The unit step a pawn facing `forward` advances by.

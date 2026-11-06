@@ -111,44 +111,4 @@ contract GameGetters is IGameGetters, UsingGameInternal {
             spawnPoints[i] = ChessRules.spawnPointAt(open[i], SPAWN_SPACING);
         }
     }
-
-    /// @inheritdoc IGameGetters
-    function getArmy(uint256 army) external view returns (ArmyView memory) {
-        (uint64 cycleNumber, ) = _cycleNumber();
-        return _armyView(army, cycleNumber);
-    }
-
-    /// @inheritdoc IGameGetters
-    function getArmies(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (ArmyView[] memory armies, uint256 total) {
-        (uint64 cycleNumber, ) = _cycleNumber();
-        total = _armyIds.length;
-        uint256 end =
-            offset >= total
-                ? offset
-                : (limit > total - offset ? total : offset + limit);
-        armies = new ArmyView[](end - offset);
-        for (uint256 i = offset; i < end; i++) {
-            armies[i - offset] = _armyView(_armyIds[i], cycleNumber);
-        }
-    }
-
-    /// @inheritdoc IGameGetters
-    function getArmiesOf(
-        address owner
-    ) external view returns (ArmyView[] memory armies) {
-        (uint64 cycleNumber, ) = _cycleNumber();
-        uint256 count = _armyCountOf[owner];
-        armies = new ArmyView[](count);
-        for (uint256 i = 0; i < count; i++) {
-            armies[i] = _armyView(_armyIdOf(owner, i + 1), cycleNumber);
-        }
-    }
-
-    /// @inheritdoc IGameGetters
-    function getNextArmy(address owner) external view returns (uint256 army) {
-        return _armyIdOf(owner, _armyCountOf[owner] + 1);
-    }
 }

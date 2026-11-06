@@ -197,7 +197,13 @@ interface IGameGetters is UsingGameTypes {
         external
         view
         returns (uint64[] memory spawnPoints, uint64 cycleNumber);
+}
 
+/// @dev THE ARMY REGISTRY, resolved through every capture: who plays each
+///      army, and what it holds. Its own route because resolving a stake walks
+///      the captures (`docs/adr/0001-one-move-per-army-merge-on-capture.md`),
+///      and that does not fit beside the board reads.
+interface IGameRegistry is UsingGameTypes {
     /// @notice One army, resolved.
     function getArmy(uint256 army) external view returns (ArmyView memory);
 
@@ -249,6 +255,7 @@ interface IGame is
     IGameCommit,
     IGameReveal,
     IGameGetters,
+    IGameRegistry,
     IGameSimulation,
     IDelegation
 {}

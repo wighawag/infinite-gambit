@@ -116,9 +116,14 @@ export const CYCLE_POLICY = {
  * with headroom, and why `GasBudget.test.ts` pins both. A turn of several chunks
  * is bounded per transaction by this, and as a whole by `expectedActionsPerTurn`
  * below.
+ *
+ * The reveal's worst case is a move whose two resolved pieces (the mover and
+ * its destination) each sit behind the longest chain of merges a read follows
+ * (`MAX_CHAIN` in `UsingGameBoard.sol`, `chess-king-capture-merge`): about
+ * 690,000, priced per merge in `GasBudget.test.ts`.
  */
 const COMMIT_GAS = 430_000n;
-const REVEAL_GAS = 600_000n;
+const REVEAL_GAS = 800_000n;
 
 /**
  * How many actions a player is EXPECTED to submit in one turn.

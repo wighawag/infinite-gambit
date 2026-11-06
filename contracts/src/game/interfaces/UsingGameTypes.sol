@@ -127,14 +127,19 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         Unrevealed,
         /// @notice its deployment was cancelled in its commit phase, and its
         ///         stake went back to its owner's account reserve
-        Cancelled
+        Cancelled,
+        /// @notice its king was taken: its pieces and its stake are now those
+        ///         of the army in `mergedInto`, which its owner plays
+        ///         (`docs/adr/0001-one-move-per-army-merge-on-capture.md`)
+        Captured
     }
 
     /// @notice One entry of the army registry, resolved.
     struct ArmyView {
         uint256 id;
         /// @notice the account that owns it, and the only one that may act for
-        ///         it (directly or through a delegate)
+        ///         it (directly or through a delegate); for a `Captured` army,
+        ///         the owner of the army it merged into
         address owner;
         ArmyStatus status;
         /// @notice the cycle its deployment was committed in
@@ -143,8 +148,13 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         uint64 spawnPoint;
         /// @notice where its king stands; meaningful while `Deployed`
         uint64 king;
-        /// @notice what it holds: its own reserve
+        /// @notice what it holds: its own reserve, plus those of every army
+        ///         that merged into it; zero once `Captured`, because its stake is
+        ///         then part of the stake of the army in `mergedInto`
         uint256 stake;
+        /// @notice the army it plays for: itself, or once `Captured`, the army
+        ///         its pieces and stake merged into, at the end of the chain
+        uint256 mergedInto;
     }
 
     // ------------------------------------------------------------------------

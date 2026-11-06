@@ -172,15 +172,17 @@ export async function revealTurn(
 		secret: `0x${string}`;
 		actionsPerReveal: number;
 	},
-): Promise<void> {
+): Promise<{gasUsed: bigint | string} | undefined> {
 	const {env, Game} = fixtures;
 	const {chunks} = commitmentChain(
 		options.moves,
 		options.secret,
 		options.actionsPerReveal,
 	);
+	// The receipt of the last chunk, for a suite that measures it.
+	let receipt: {gasUsed: bigint | string} | undefined;
 	for (const chunk of chunks) {
-		await env.execute(Game, {
+		receipt = await env.execute(Game, {
 			account: options.account,
 			functionName: 'reveal',
 			args: [
@@ -192,6 +194,7 @@ export async function revealTurn(
 			],
 		});
 	}
+	return receipt;
 }
 
 /**
@@ -306,6 +309,7 @@ export async function deployGameWith(
 
 	const routes = [
 		{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
+		{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 		{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 		{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 		{name: 'Simulation', artifact: artifacts.GameSimulation, args: [config]},

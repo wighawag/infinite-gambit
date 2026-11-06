@@ -62,6 +62,10 @@ export default deployScript(
 
 		const routes = [
 			{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
+			// The army registry, resolved through every capture. Its own route
+			// because walking the captures for a stake does not fit beside the
+			// board reads under the deployed-size limit.
+			{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 			{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 			{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 			// The game's rule, runnable without a chain: the client reads THIS

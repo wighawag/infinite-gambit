@@ -15,6 +15,7 @@ import {
 	type Move,
 } from './utils/index.js';
 import {parseEther, zeroAddress} from 'viem';
+import {movesWorld, move} from './utils/moves-world.js';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -86,6 +87,16 @@ const GENEROSITY_CEILING = 3n;
  * anything.
  */
 const MINIMUM_HEADROOM_PERCENT = 10n;
+
+/**
+ * How many merges `UsingGameBoard._armyOf` follows at most for one piece
+ * (`MAX_CHAIN` there). A reveal resolves the army of two pieces, the mover and
+ * its destination, so this bounds the merges one reveal walks.
+ */
+const MAX_CHAIN = 8n;
+
+/** The worst reveals of the first case, for the capture-chain case to build on. */
+const measured: {king?: bigint; slider?: bigint} = {};
 
 describe('the declared gas budget', function () {
 	it('covers the worst commit and the worst reveal these contracts can produce', async function () {
@@ -177,6 +188,8 @@ describe('the declared gas budget', function () {
 			from: squareAt(-2, -16),
 			to: squareAt(-9, -16),
 		});
+		measured.king = kingRevealUsed;
+		measured.slider = sliderRevealUsed;
 		const revealUsed = [
 			deploymentRevealUsed,
 			kingRevealUsed,
@@ -227,6 +240,90 @@ describe('the declared gas budget', function () {
 
 		console.log(
 			`gas budget: commit ${commitUsed}/${declaredCommit}, reveal ${revealUsed}/${declaredReveal}`,
+		);
+	});
+
+	it('covers the worst reveal with a long capture chain behind both pieces it resolves', async function () {
+		// THE CHAINS ARE PRICED PER MERGE, then multiplied by the bound: building
+		// two chains of MAX_CHAIN merges each on a board would take hundreds of
+		// cycles, and every merge followed costs the same reads (the army's
+		// record, and the square its king was taken on, whose facts were never
+		// folded: the dearer of the two ways a merge is kept).
+		assert.ok(measured.king && measured.slider, 'runs after the first case');
+		const world = movesWorld({
+			deployAll,
+			loadFixture: networkHelpers.loadFixture,
+		});
+		const declaredReveal = BigInt(
+			(await networkHelpers.loadFixture(deployAll)).linkedData.revealGas,
+		);
+		type W = Awaited<ReturnType<typeof world>>;
+		async function revealGas(
+			w: W,
+			owner: `0x${string}`,
+			army: bigint,
+			m: Move,
+		) {
+			await w.commit(owner, army, [m]);
+			await w.toRevealPhase();
+			const receipt = await w.reveal(owner, army, [m]);
+			await w.toNextCycle();
+			return BigInt(receipt!.gasUsed);
+		}
+		// The chain of `KingCapture.test.ts`: dave takes bob's king while carol
+		// takes dave's, so a piece that was bob's is carol's two merges on.
+		async function chain() {
+			const w = await world();
+			const [, b, c, d] = await w.deploy([
+				[w.alice, [0, 0]],
+				[w.bob, [1, 0]],
+				[w.carol, [0, 1]],
+				[w.dave, [1, 1]],
+			]);
+			await w.play([{owner: w.dave, army: d, moves: [move([7, 5], [8, 4])]}]);
+			await w.play([{owner: w.dave, army: d, moves: [move([8, 4], [8, 3])]}]);
+			await w.play([{owner: w.dave, army: d, moves: [move([4, 6], [3, 7])]}]);
+			await w.play([
+				{owner: w.dave, army: d, moves: [move([8, 3], [6, 1])]},
+				{owner: w.carol, army: c, moves: [move([2, 6], [3, 7])]},
+			]);
+			return {w, b, c, d};
+		}
+		// One pawn step each: carol's own pawn, then one that was bob's.
+		let s = await chain();
+		const noMerge = await revealGas(
+			s.w,
+			s.w.carol,
+			s.c,
+			move([-2, 7], [-2, 8]),
+		);
+		s = await chain();
+		const twoMerges = await revealGas(
+			s.w,
+			s.w.carol,
+			s.c,
+			move([7, 0], [8, 0]),
+		);
+		const perMerge = (twoMerges - noMerge) / 2n;
+
+		// A king meeting exactly one piece notes the capture it may make, for
+		// the captor's stake (`UsingGameBoard._noteCandidate`): one entry pushed
+		// onto a fresh list, two storage slots written from zero. Priced as
+		// that, since the king case above never meets anybody.
+		const note = 2n * 22_100n + 1_000n;
+
+		// A slider resolves two chained pieces; a king resolves only its
+		// destination, since a king's own army never merged.
+		const slider = measured.slider! + 2n * MAX_CHAIN * perMerge;
+		const king = measured.king! + note + MAX_CHAIN * perMerge;
+		const worst = slider > king ? slider : king;
+		console.log(
+			`gas budget: per merge followed ${perMerge}, noting a capture ${note}; worst chained reveals: slider ${slider}, king ${king}, declared ${declaredReveal}`,
+		);
+		assert.ok(
+			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`a reveal resolving two chains of ${MAX_CHAIN} merges costs about ${worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
+				`Raise it in contracts/rocketh/config.ts, or lower MAX_CHAIN: a reveal that runs out of gas is a missed reveal.`,
 		);
 	});
 
