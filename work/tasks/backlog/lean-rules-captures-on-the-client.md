@@ -8,6 +8,8 @@ covers: [5, 9, 24]
 
 ## What to build
 
+> FORWARD-POINTER (conductor, 2026-11-06, after PR #21): `lean-rules-captures-without-merges-and-stones` already did part of this task's words and ADR work. `CONTEXT.md` already has no Merge, Rock or Capture loop entries and has Stone and Promotion. ADRs 0001, 0003, 0004, 0009, 0010, 0011 and 0012 already carry their "Amended by" / "Superseded by" lines. VERIFY those against the list below and finish what is left (notably ADR-0013 and ADR-0014 are still `status: proposed`: flip them to `accepted`), rather than redoing them. On the client that task changed only decoding: `ArmyView.mergedInto` is now `capturedBy`, `PIECE_KIND.Stone = 7`, and `render/style.ts` has a placeholder stone glyph to replace. Its done record says `getOutcomes` reports the moving-king row as `died=1` with what stood there as `captured`, and that a stone made shows only in what stands on the square now: refine the client display from that, but do not change the contract.
+
 The client and the words for the captures that `lean-rules-captures-without-merges-and-stones` put in the contract (no merges, promotion to queen, a captured army vanishing, stones). That task changed on the client only what the ABI forced; this one makes the game show and play the new captures.
 
 - **The board draws stones**, distinctly from pieces and from the old rocks (a stone is a piece of its own kind, labelled with the army it was, and holds that army's stake: say so on hover or in the square's detail if the board shows one), and draws NO rocks. A captured army's pieces are gone from the board the cycle after the capture, as the contract reads them.
