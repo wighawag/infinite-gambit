@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" style="color: #f6efe4">
+  <rect width="256" height="256" rx="46" fill="#2a1d14"/>
+  <g transform="translate(128 128) scale(0.82) translate(-128 -128)">
+  <g fill="#f5b83d">
+    <path d="M128 6 L152 46 L128 60 L104 46 Z"/>
+    <path d="M104 52 L128 66 L152 52 L128 86 Z"/>
+  </g>
+  <g fill="currentColor">
+    <path d="M74 96 L100 120 L128 92 L156 120 L182 96 L170 152 L86 152 Z"/>
+    <rect x="92" y="158" width="72" height="14" rx="4"/>
+    <path d="M106 178 L150 178 Q152 204 170 222 L86 222 Q104 204 106 178 Z"/>
+    <rect x="62" y="228" width="132" height="20" rx="6"/>
+  </g>
+  </g>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" style="color: #1b1410">
+  <g fill="#ffd166">
+    <path d="M128 8 L156 54 L128 70 L100 54 Z"/>
+    <path d="M100 60 L128 76 L156 60 L128 98 Z"/>
+  </g>
+  <g fill="currentColor">
+    <path d="M78 110 Q128 100 178 110 L156 156 L100 156 Z"/>
+    <rect x="94" y="162" width="68" height="14" rx="4"/>
+    <path d="M106 182 L150 182 Q152 206 170 222 L86 222 Q104 206 106 182 Z"/>
+    <rect x="62" y="228" width="132" height="20" rx="6"/>
+  </g>
+</svg>

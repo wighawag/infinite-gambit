@@ -1,0 +1,4 @@
+# Its own workspace root on purpose: the spike is NOT a member of the repo's
+# workspace, so installing it never touches the root lockfile or the app.
+packages:
+  - "."

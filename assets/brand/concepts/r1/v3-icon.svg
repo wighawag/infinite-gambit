@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" style="color: #1b1410">
+  <path fill="#ffd166" fill-rule="evenodd" d="M128 4 L180 36 L180 116 L128 148 L76 116 L76 36 Z
+     M128 22 L154 66 L128 82 L102 66 Z
+     M102 74 L128 90 L154 74 L128 112 Z"/>
+  <g fill="currentColor">
+    <rect x="90" y="156" width="76" height="16" rx="4"/>
+    <path d="M106 178 L150 178 Q152 204 172 222 L84 222 Q104 204 106 178 Z"/>
+    <rect x="60" y="228" width="136" height="20" rx="6"/>
+  </g>
+</svg>

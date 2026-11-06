@@ -1,0 +1,19 @@
+{
+	"name": "spike-pixi-wood-board",
+	"private": true,
+	"version": "0.0.0",
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"description": "Spike: the Devcon wooden board (procedural wood, marquetry inlay, turned pieces) on pixi.js, shaped to be lifted into the game's pixi host.",
+	"scripts": {
+		"sync": "sh scripts/sync-pieces.sh",
+		"dev": "vite",
+		"build": "tsc --noEmit && vite build",
+		"preview": "vite preview"
+	},
+	"devDependencies": {
+		"pixi.js": "^8.19.0",
+		"typescript": "^5.9.3",
+		"vite": "^8.2.1"
+	}
+}

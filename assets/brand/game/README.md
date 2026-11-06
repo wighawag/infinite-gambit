@@ -1,0 +1,53 @@
+# A visual proposal for the board
+
+**Status: proposal only.** Nothing in `web/` is changed by this folder. It shows what the game could look like, and how each change maps onto the current renderer, so it can be picked up as tasks.
+
+![mock](scene.png)
+
+The mock is built from the real piece set below (`./build.sh` regenerates it). It shows your army in boxwood (bottom left), two other armies in sheesham (blue, top right, and pink, bottom right), a planned queen move, two attacked squares, and the Ethereum inlay at the centre of the world.
+
+![pieces](pieces.png)
+
+## Where it comes from
+
+The Devcon swag board (photographed at the event):
+
+- **Woods.** Maple light squares and reddish rosewood dark squares, in a darker rosewood frame with a thin maple stripe. The pieces are turned Staunton shapes in pale boxwood against dark sheesham.
+- **Unicorn knights**, with a carved mane. The king has a pointed, faceted finial: the prism.
+- **The inlay is the Ethereum logo as just four triangles**, one in each of the four centre squares (a diamond split down the middle, over a chevron split the same way), in **inverted marquetry**: maple where it crosses a rosewood square, rosewood where it crosses a maple one. On the real board it's upright from each player's seat (they sit on either side). A screen has one viewpoint, so the game draws it upright.
+
+The mock uses colours sampled from those photos. The pieces share the logo's construction (one base, stem and collar for the whole set, only the top changes), so the game and the brand read as one thing.
+
+## Today
+
+`web/src/lib/chess/render/board.ts` draws a dark board (light squares are 5% white over the background), and `render/style.ts` draws each piece as a Unicode chess glyph (`\u265A` and friends) tinted by an army colour from a hash of the army id, with your army in `#ffd166`. That's clear and cheap, but glyphs depend on the device's fonts, they look different on every OS, and they carry no identity.
+
+## Proposed changes, in order of value per hour
+
+1. **The piece set** (about 2 hours). Turned Staunton shapes like the Devcon set: a domed foot, a bead ring, a concave stem and a collar shared by every piece, and only the top changes (the king's finial is the prism, the knight is the unicorn). Replace `glyphOf` with the paths in `pieces.py` (also exported as `pieces/*.svg` and the `pieces.svg` sprite). Each piece is a list of parts with a role (`wood`, `band`, `prism`), so the renderer fills `wood` with the wood's left-to-right gradient (it's what makes the pieces look turned), `band` with the army colour and `prism` with the crystal. Canvas 2D takes SVG path strings directly through `new Path2D(d)`, so there's no image loading. Draw each piece in its wood (see 4) with a dark outline (stroke first, then fill), and cache one bitmap per (kind, colour, zoom bucket) in an `OffscreenCanvas` so a crowded viewport costs one `drawImage` per piece. Keep the glyph as the fallback below `MIN_GLYPH_SCALE`, where a dot is enough anyway.
+2. **A wooden board** (about 1 hour). Maple `#e2cba0` and rosewood `#7a4a2c` squares instead of the 5% white grid, with a faint grain pattern (`createPattern` from a small noise tile) and a vignette at the screen edges. Highlights stay as they are, but the planned-move green and the collision red need checking for contrast on maple.
+3. **The Ethereum inlay at the centre of the world** (about 30 minutes). Squares are centred on integer coordinates, so the four squares (-1,-1), (0,-1), (-1,0) and (0,0) meet at the point (-0.5,-0.5). Draw the four triangles there (`INLAY` in `pieces.py`, in square units relative to the corner), each filled with the opposite wood to the square it sits in. That's the inverted marquetry of the Devcon board, and needs no clipping because each triangle lies inside one square. On an infinite board it gives everyone a landmark, and the minimap can show it too.
+4. **Boxwood for you, sheesham for everyone else, the army colour painted on** (30 minutes). The question a player asks most is "is that mine?", and two woods answer it at a glance, exactly as on the real board. *Which* army a piece belongs to shows in three places, from the piece outwards:
+   - a painted **collar band** (the `band` part of the collar),
+   - the **felt pad** under the foot, as on real pieces (also a `band` part),
+   - a soft **glow** of the army colour on the square under the piece, which keeps armies apart when zoomed out, where the band and the felt are only a few pixels tall.
+
+   A floating coloured disc under the piece (the first version of this mock) was tried and dropped: it read as a separate object rather than as part of the piece.
+5. **Kings that show their stake** (1 to 2 hours). The prism is crystal white on every king. Scale its size, or add a glow, with the stake the king holds (`_stakeOf`, which grows with every merge). A rich empire is then visible at a glance as a target. That's gameplay information, not decoration.
+6. **States that read as states** (1 to 2 hours).
+   - *Committed*: a small wax seal with a `#` on the king of an army that has committed this cycle. It shows that a move exists without showing what it is.
+   - *Frozen*: desaturate the whole army and tint it ice blue.
+   - *Exit squares*: gold-inlaid squares, the one other gold thing on the board, because they're where the stake leaves.
+   - *Spawn points*: keep the ring, drawn as a marquetry border rather than a plain outline.
+7. **Resolution animation** (half a day, later). All moves of a cycle slide at the same time (it's the core idea, so show it). Collisions get a short burst on the square, and on a king capture the absorbed army's colour ripples into the captor's.
+
+Items 1 to 4 are presentation only: no rule of the game is touched (ADR 0007 keeps the rules in the contract, and `render/` already "decides nothing"). Items 5 and 6 read state the view already has or can get from existing getters.
+
+## Accessibility
+
+Keep shape as the primary cue and colour as the second one: every kind has a distinct silhouette, and the collar band, felt pad and outline keep two similar hues apart. For colour-blind players, consider a pattern or a letter on the base as an option.
+
+## Files
+
+- `pieces.py`: the source of truth for the piece paths. It writes `pieces/*.svg`, `pieces.svg`, `set.svg` (the set in both woods) and `scene.svg`.
+- `build.sh`: regenerates everything and renders `scene.png` and `pieces.png` (rsvg, because Inkscape drops the scene's shadowed groups).
