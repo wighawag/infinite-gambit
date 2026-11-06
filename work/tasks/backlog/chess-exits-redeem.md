@@ -4,7 +4,7 @@ slug: chess-exits-redeem
 spec: infinite-chess
 blockedBy: [chess-capture-loops]
 covers: [32, 33, 34, 35]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -92,3 +92,9 @@ keep. The human chose a variant of (C), call it C-prime (2026-11-06). It REPLACE
 - STAKE: unchanged from the previous answer: move a captured army's reserve up into its captor's when the capture is folded (`_foldCapture`); the exit pays the WHOLE merged stake to `_ownerOf(army)`, debiting every reserve it pays (no double claim), in its own transaction (not the reveal budget), with a permissionless incremental `collect` if a tree is too big for one transaction; never a truncated payout; test a tree deeper than MAX_CHAIN. Collecting is never a precondition for exiting.
 - Record this in a new ADR (next free number) amending 0009, and update story 34's meaning in CONTEXT.md if it names it ("own pieces removed, merged pieces left as rocks"); add "rock" to CONTEXT.md's "This game" words.
 Everything else in the task stands. Work in small steps (one decision, then act and run a test): earlier builds died on the 16,384-token output limit.
+
+## Applied answers 2026-11-06
+
+### q1: 'task:chess-exits-redeem' was bounced — how should we proceed?
+
+keep. Retry: the previous attempt died on the 16,384-token output limit (one reply spent everything on reasoning) and nothing was saved. The design is decided above (C-prime). Start by writing the ADR file (short), then build in small slices, each ending in a written file and a test run: (1) StakeSale redeem + only-the-sale-mints + guarded setters + test helpers; (2) the deployment-reveal route split; (3) reserve move-up in _foldCapture; (4) exit resolution with rocks; (5) the payout and collect; (6) client. Never reason about more than one slice in a single reply.
