@@ -1,21 +1,9 @@
 ---
 title: 'Lean rules: no merges, promotion to queen, stones, square armies, and a cheap move'
 slug: lean-rules
-needsAnswers: true
 ---
 
 > Launch snapshot: records intent at creation, NOT maintained. Current truth: `docs/adr/` (decisions) + the code; remaining work: `work/tasks/ready/` tasks. (The technical-detail sections below are trimmed by `to-task` once the work is tasked; they move into tasks/ADRs and this spec settles to its durable framing: Problem / Solution / User Stories / Out of Scope.)
-
-<!-- open-questions -->
-<!--
-  TRANSIENT BLOCK, stripped by the apply rung on full resolution.
--->
-
-## Open questions
-
-1. **May a king step next to a stone?** The rule "a king may not move next to another army's king" could treat a stone as a king or not. Suggested default: a stone is not a king, so a king may stand next to it.
-
-<!-- /open-questions -->
 
 ## Problem Statement
 
@@ -29,7 +17,7 @@ And the board does not look like chess. Armies are 6 by 4, face away from the or
 
 - **No merges.** Capturing a king kills its army: every one of its pieces disappears from the board, lazily (the same way an exited army's pieces already do), and its whole stake goes to the army that took it. The piece that took the king is PROMOTED to a queen (a king that takes a king stays a king). Stakes still snowball: whoever takes that captor later gets both stakes.
 - **A moving king that meets exactly one other piece dies, and that piece lands as a queen** and takes the king's stake, capturing whatever stood on the square as a lone arrival would. This changes one row of the collision table (ADR-0003), where today both die.
-- **Stones.** When a king is taken by a piece whose own army loses its king in the same cycle (taken, or leaving through an exit that cycle), the capturing piece disappears with its army, and the taken king becomes a STONE on its square. A stone holds that army's whole stake, never moves, blocks like any piece, and whoever captures it (a lone arrival, a king included) takes its stake, without promotion. When a moving king lands on a square where a king or a stone stands and exactly one other piece also arrives, that piece takes BOTH: it lands as a queen and both stakes go to its army (each becomes a stone instead if its own king falls that cycle). A stone is stored as a piece of its own kind, still labelled with the army it was (so it is never mistaken for a vanished army's piece), and attacks nothing. The greedy bot values a stone like a king, above any material, since it carries a whole stake. With one move per army, "leaving through an exit that cycle" can only happen one way: a king that lands alone on an exit square where an enemy king (or a stone) stood takes it and exits in the same move, so what it took stays a stone on the exit square, and a stone on an exit can only be taken by a piece other than a lone king. This replaces capture loops and their rotation of owners, and it bounds a capture to one army per cycle: a stake never moves through more than one capture in a cycle.
+- **Stones.** When a king is taken by a piece whose own army loses its king in the same cycle (taken, or leaving through an exit that cycle), the capturing piece disappears with its army, and the taken king becomes a STONE on its square. A stone holds that army's whole stake, never moves, blocks like any piece, and whoever captures it (a lone arrival, a king included) takes its stake, without promotion. When a moving king lands on a square where a king or a stone stands and exactly one other piece also arrives, that piece takes BOTH: it lands as a queen and both stakes go to its army (each becomes a stone instead if its own king falls that cycle). A stone is stored as a piece of its own kind, still labelled with the army it was (so it is never mistaken for a vanished army's piece), and attacks nothing. A stone is not a king: a king may step next to it. The greedy bot values a stone like a king, above any material, since it carries a whole stake. With one move per army, "leaving through an exit that cycle" can only happen one way: a king that lands alone on an exit square where an enemy king (or a stone) stood takes it and exits in the same move, so what it took stays a stone on the exit square, and a stone on an exit can only be taken by a piece other than a lone king. This replaces capture loops and their rotation of owners, and it bounds a capture to one army per cycle: a stake never moves through more than one capture in a cycle.
 - **Pawns step and capture in every direction.** A pawn moves one square orthogonally in any of the four directions and captures on any of the four diagonals. There is no double step and no promotion. Pieces no longer have a facing.
 - **A square army.** An army is 5 by 5 without its corners: 12 pawns around a 3 by 3 core with the king in the centre, one core square left EMPTY:
 
@@ -91,7 +79,7 @@ And the board does not look like chess. Armies are 6 by 4, face away from the or
 
 ### Autonomy notes
 
-`needsAnswers: true` until the open question above is answered (the others, two victims on one square and how the bot values a stone, were answered on 2026-11-06, as were two earlier ones, a moving king meeting one piece and a captor whose king exits the same cycle, were answered on 2026-11-06 and are folded into the Solution). Keep the spec in `work/specs/proposed/` until `gas-profile-of-a-plain-move` is in `work/tasks/done/`: `taskedAfter` only takes spec slugs, so that ordering is enforced by staying staged, not by a flag. The spec is not `humanOnly`. Its tasks change the contracts' storage layout and rules, which is free only because nothing is deployed yet (`git ls-files contracts/deployments` listed nothing on 2026-11-06): check that again at tasking time.
+No open questions: every question raised while drafting and reviewing (a moving king meeting one piece, a captor whose king exits the same cycle, two victims on one square, a king next to a stone, how the bot values a stone) was answered by the maintainer on 2026-11-06 and is folded into the Solution. Keep the spec in `work/specs/proposed/` until `gas-profile-of-a-plain-move` is in `work/tasks/done/`: `taskedAfter` only takes spec slugs, so that ordering is enforced by staying staged, not by a flag. The spec is not `humanOnly`. Its tasks change the contracts' storage layout and rules, which is free only because nothing is deployed yet (`git ls-files contracts/deployments` listed nothing on 2026-11-06): check that again at tasking time.
 
 ## Implementation Decisions
 
