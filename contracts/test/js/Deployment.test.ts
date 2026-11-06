@@ -122,7 +122,7 @@ async function world() {
 			return (await f.env.read(f.Game, {
 				functionName: 'getArmies',
 				args: [BigInt(offset), BigInt(limit)],
-			})) as [ArmyView[], bigint];
+			})) as unknown as [ArmyView[], bigint];
 		},
 		async pieces(minX: number, minY: number, maxX: number, maxY: number) {
 			const [pieces] = (await f.env.read(f.Game, {
@@ -653,7 +653,7 @@ describe('Deploying an army', function () {
 		const ofAlice = (await w.env.read(w.Game, {
 			functionName: 'getArmiesOf',
 			args: [w.alice],
-		})) as ArmyView[];
+		})) as unknown as ArmyView[];
 		expect(ofAlice).toEqual([all[0]]);
 	});
 
