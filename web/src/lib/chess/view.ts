@@ -15,11 +15,26 @@ import type {BoardState, Piece} from './board';
 import {positionOf, type Position} from './squares';
 import {describeSpawnPoints, type SpawnPointView} from './spawn-points';
 import type {SquareOutcome} from './outcomes';
+import {ARMY_STATUS, type ArmyView} from './armies';
+import {STAKE} from './stake';
 
 export type PieceView = Piece & {position2d: Position};
 
 /** A square the last closed cycle changed by a capture or a collision. */
 export type OutcomeView = SquareOutcome & {position2d: Position};
+
+/**
+ * A king on the board, labelled with what its army holds: the registry's
+ * stake, as the contract resolves it (story 46).
+ */
+export type KingView = {
+	army: bigint;
+	position2d: Position;
+	stake: bigint;
+	stakeLabel: string;
+	/** Its army is frozen (`docs/adr/0005-missed-reveal-freezes-the-army.md`). */
+	frozen: boolean;
+};
 
 export type BoardView = {
 	pieces: Map<bigint, PieceView>;
@@ -50,6 +65,19 @@ export type BoardView = {
 	outcomes: readonly OutcomeView[];
 	/** The cycle {@link outcomes} happened in; -1 before any was read. */
 	outcomesCycle: number;
+	/** Every king standing on the board, with its army's stake. */
+	kings?: readonly KingView[];
+	/**
+	 * The armies the registry says are frozen, a missed reveal not yet settled
+	 * included: their pieces are drawn greyed out, apart from rocks.
+	 */
+	frozen?: ReadonlySet<bigint>;
+	/**
+	 * Where an enemy piece may move this cycle, by the contract's rule run in
+	 * the sandbox (`./attacked.ts`). Empty until it answers, and while the
+	 * army this client plays is not on the board.
+	 */
+	attacked?: readonly Position[];
 };
 
 export type LocalPlan = {
@@ -68,12 +96,52 @@ export type LocalPlan = {
 	selected?: bigint;
 	/** Its legal destinations, once the sandbox has answered. */
 	destinations?: readonly bigint[];
+	/** Where an enemy piece may move this cycle, once the sandbox has answered. */
+	attacked?: readonly bigint[];
 };
 
 const withPosition = (piece: Piece): PieceView => ({
 	...piece,
 	position2d: positionOf(piece.position),
 });
+
+/** Statuses of an army whose king stands on the board. */
+const KING_ON_THE_BOARD: ReadonlySet<number> = new Set([
+	ARMY_STATUS.Deployed,
+	ARMY_STATUS.Frozen,
+]);
+
+/**
+ * Every king on the board, at the square the registry has it on and with the
+ * stake the registry says its army holds (merged stakes included, as far as
+ * the registry counts them). Nothing is worked out here: both are the
+ * contract's answers.
+ */
+export function kingsOf(armies: readonly ArmyView[]): KingView[] {
+	return armies
+		.filter((army) => KING_ON_THE_BOARD.has(army.status))
+		.map((army) => {
+			const frozen = army.status === ARMY_STATUS.Frozen;
+			return {
+				army: army.id,
+				position2d: positionOf(army.king),
+				stake: army.stake,
+				stakeLabel: frozen
+					? `${STAKE.amount(army.stake)} (frozen)`
+					: STAKE.amount(army.stake),
+				frozen,
+			};
+		});
+}
+
+/** The armies the registry says are frozen. */
+export function frozenArmiesOf(armies: readonly ArmyView[]): Set<bigint> {
+	return new Set(
+		armies
+			.filter((army) => army.status === ARMY_STATUS.Frozen)
+			.map((army) => army.id),
+	);
+}
 
 /**
  * Combine the confirmed board with local intent. Copied rather than annotated,
@@ -114,6 +182,9 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 			position2d: positionOf(outcome.position),
 		})),
 		outcomesCycle: onchain.outcomes.cycleNumber,
+		kings: kingsOf(onchain.armies),
+		frozen: frozenArmiesOf(onchain.armies),
+		attacked: (local.attacked ?? []).map(positionOf),
 		...(local.move
 			? {
 					plannedMove: {

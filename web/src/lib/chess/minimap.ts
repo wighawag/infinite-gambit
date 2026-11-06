@@ -19,6 +19,7 @@ import type {OnchainStateValue} from '$lib/game/core/seams';
 import {ARMY_STATUS, type ArmyView} from './armies';
 import {positionOf, type Position} from './squares';
 import {armyColour, YOUR_COLOUR} from './render/style';
+import {exitsIn} from './exits';
 
 /** A rectangle of the board, in squares: top-left corner and extent. */
 export type Rect = {x: number; y: number; width: number; height: number};
@@ -36,9 +37,22 @@ export type MinimapModel = {
 		you: boolean;
 		colour: string;
 	}[];
+	/**
+	 * The exits on the map, where a king may leave with its stake: none
+	 * without a spawn grid (a table), or when they would be too dense to tell
+	 * apart ({@link MAX_MINIMAP_EXITS}).
+	 */
+	exits: readonly Position[];
 	/** What the camera sees. */
 	view: Rect;
 };
+
+/**
+ * Past this many exits on the map they are not drawn: the map is zoomed out
+ * so far that they would merge into a texture, and drawing them costs a node
+ * each.
+ */
+export const MAX_MINIMAP_EXITS = 1024;
 
 /**
  * How much board to leave around everything marked, in squares: an army's
@@ -68,6 +82,8 @@ export function minimapOf(params: {
 	armies: readonly ArmyView[];
 	you: bigint | undefined;
 	camera: Camera;
+	/** The spawn grid's spacing, which places the exits; none when absent. */
+	spawnSpacing?: number;
 }): MinimapModel {
 	const {camera, you} = params;
 	const open = params.spawnPoints.map((point) => ({
@@ -96,12 +112,30 @@ export function minimapOf(params: {
 		height: camera.height,
 	};
 	const spawnPoints = [...open, ...taken];
+	const bounds = squareAround([...spawnPoints, ...armies], view);
 	return {
-		bounds: squareAround([...spawnPoints, ...armies], view),
+		bounds,
 		spawnPoints,
 		armies,
+		exits: exitsOn(bounds, params.spawnSpacing),
 		view,
 	};
+}
+
+/** The exits within `bounds`, unless there are too many to draw. */
+function exitsOn(bounds: Rect, spacing: number | undefined): Position[] {
+	if (!spacing) return [];
+	const across = (bounds.width / spacing + 1) * (bounds.height / spacing + 1);
+	if (across > MAX_MINIMAP_EXITS) return [];
+	return exitsIn(
+		{
+			minX: Math.ceil(bounds.x),
+			minY: Math.ceil(bounds.y),
+			maxX: Math.floor(bounds.x + bounds.width),
+			maxY: Math.floor(bounds.y + bounds.height),
+		},
+		spacing,
+	);
 }
 
 /** The smallest square holding every point and the view, with a margin. */
@@ -152,6 +186,8 @@ export function createMinimap(params: {
 	camera: CameraWatcher;
 	/** Where the camera goes: the follower, so the army is let go of. */
 	lookAt(position: Position): void;
+	/** The spawn grid's spacing, which places the exits; none at a table. */
+	spawnSpacing?: number;
 }): MinimapStore {
 	const model = derived(
 		[params.board, params.you, params.camera],
@@ -162,6 +198,7 @@ export function createMinimap(params: {
 						armies: $board.armies,
 						you: $you,
 						camera: $camera,
+						spawnSpacing: params.spawnSpacing,
 					})
 				: undefined,
 	);

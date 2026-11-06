@@ -21,6 +21,18 @@ export function glyphOf(kind: PieceKind): string {
 /** A ROCK: a piece nobody can play again (army zero on the board read). */
 export const ROCK_COLOUR = '#7a7f8c';
 
+/**
+ * A FROZEN army's pieces: its own hue, drained of colour, so it stays told
+ * apart from the other frozen armies and from the flat grey of a rock.
+ */
+export function frozenColour(army: bigint): string {
+	const hue = Number((army ^ (army >> 160n)) % 300n) + 60;
+	return `hsl(${hue % 360}, 12%, 58%)`;
+}
+
+/** The ring a frozen army's pieces are drawn with, which a rock has not. */
+export const FROZEN_RING = '#cfe8ff';
+
 /** The colour of the army this client plays. */
 export const YOUR_COLOUR = '#ffd166';
 

@@ -57,6 +57,17 @@ export type HudModel = {
 	progress: number;
 	cycleNumber: number;
 	/**
+	 * The countdown to the end of the CONTRACT's current phase (story 47):
+	 * when commitments close, then when reveals must have landed. Read from
+	 * the cycle tracker, which reads the chain's clock and, under an early
+	 * advance, the chain's own phase boundaries. Absent without a clock.
+	 */
+	countdown?: {
+		label: string;
+		/** Whole seconds to the end of the phase. */
+		secondsLeft: number;
+	};
+	/**
 	 * Clicking now plans for the NEXT cycle, because this one has closed. Worth
 	 * saying: the moves still appear on the board, and without this the player
 	 * would reasonably think they were part of the cycle being resolved.
@@ -677,6 +688,42 @@ export function describeRevealDeadline(params: {
 	};
 }
 
+/** Seconds as a countdown reads them: `42s`, `3:07`, `1:02:09`. */
+export function formatCountdown(seconds: number): string {
+	const whole = Math.max(0, Math.ceil(seconds));
+	if (whole < 60) return `${whole}s`;
+	const h = Math.floor(whole / 3600);
+	const m = Math.floor((whole % 3600) / 60);
+	const s = String(whole % 60).padStart(2, '0');
+	return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+/**
+ * The countdown to the end of the contract's current phase (story 47), or
+ * nothing for a cycle without a clock, which waits for every army.
+ *
+ * THE CONTRACT'S PHASES, not the dial's. The dial counts the whole wait
+ * (this browser's commit margin and the reveal phase) as one span; this says
+ * the two deadlines a player acts on: when the commit phase closes, and when
+ * a reveal must have landed. Under early advance a phase can end SOONER, once
+ * every army has acted, and the label says so rather than promise a time.
+ */
+export function describeCountdown(cycle: CycleInfo): HudModel['countdown'] {
+	if (cycle.type !== 'timed' && cycle.type !== 'hybrid') return undefined;
+	const left = cycle.isCommitPhase
+		? cycle.timeLeftForCommitEnd
+		: cycle.timeLeftForRevealEnd;
+	const secondsLeft = Math.max(0, Math.ceil(left));
+	const sooner =
+		cycle.type === 'hybrid' ? ', sooner once every army has acted' : '';
+	return {
+		label: cycle.isCommitPhase
+			? `Commitments close in ${formatCountdown(secondsLeft)}${sooner}`
+			: `Reveals must land within ${formatCountdown(secondsLeft)}${sooner}`,
+		secondsLeft,
+	};
+}
+
 /** For a game that is not a table, which has no claim to read. */
 const NO_TABLE_CLAIM: Readable<TableClaim | undefined> = readable(undefined);
 
@@ -1064,6 +1111,7 @@ export function createHud(context: Context): Readable<HudModel> {
 				progress:
 					duration > 0 ? Math.min(1, Math.max(0, 1 - timeLeft / duration)) : 0,
 				cycleNumber: $cycle.currentCycleNumber,
+				countdown: describeCountdown($cycle as CycleInfo),
 				// Outside the play window the current cycle is closed, so a click now
 				// is a plan for the next one. The submission stamps it that way. Not worth
 				// saying to someone who cannot play at all yet.

@@ -54,6 +54,17 @@
 						stroke-width={mark / 3}
 					/>
 				{/each}
+				{#each $minimap.exits as exit (`${exit.x},${exit.y}`)}
+					<rect
+						x={exit.x - mark / 2}
+						y={exit.y - mark / 2}
+						width={mark}
+						height={mark}
+						transform="rotate(45 {exit.x} {exit.y})"
+						fill="rgba(6, 214, 160, 0.7)"
+						data-testid="minimap-exit"
+					/>
+				{/each}
 				<rect
 					x={$minimap.view.x}
 					y={$minimap.view.y}

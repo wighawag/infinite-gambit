@@ -91,6 +91,7 @@ import {
 import {squareAt} from './squares';
 import {mergeBoardView, type BoardView} from './view';
 import {createDeploymentPreview, withPreview} from './preview';
+import {createAttackedSquares, withAttacked} from './attacked';
 import {createBytecodeSandbox} from '$lib/game/simulation';
 import {createGameRenderer, type GameSurface} from './render';
 import {createExitPayout, type ExitPayoutStore} from './exits';
@@ -512,7 +513,16 @@ export function createGameContext(core: CoreServices): GameContext {
 				legalMoves,
 			});
 			const preview = createDeploymentPreview({plan: planning.plan, simulate});
-			return {...planning, plan: withPreview(planning.plan, preview)};
+			// Where the enemy may move this cycle, by the same rule (story 21).
+			const attacked = createAttackedSquares({
+				board: onchainState,
+				you: activeIdentity,
+				legalMoves,
+			});
+			return {
+				...planning,
+				plan: withAttacked(withPreview(planning.plan, preview), attacked),
+			};
 		},
 		hold: holdResolvingCycle,
 		holdPlan: holdPlanUntilBoardReleases,
@@ -582,6 +592,8 @@ export function createGameContext(core: CoreServices): GameContext {
 		you: activeIdentity,
 		camera: crg.render.camera,
 		lookAt: follow.lookAt,
+		// A table has no exits (`chess-tables`).
+		spawnSpacing: core.table ? undefined : config.spawnSpacing,
 	});
 
 	return {
