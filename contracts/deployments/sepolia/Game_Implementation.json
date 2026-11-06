@@ -1,0 +1,3376 @@
+{
+  "address": "0xB40b50e890FE6876fb01342Ca6b207284dc3731B",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "AlreadyPaid",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "bond",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "required",
+          "type": "uint256"
+        }
+      ],
+      "name": "BondTooLow",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "CanStillReveal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CommitmentHashNotMatching",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "CommitmentStillOpen",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "GameAlreadyStarted",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "lastCycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "GameEnded",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "seats",
+          "type": "uint8"
+        }
+      ],
+      "name": "GameFull",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "GameNotStarted",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "from",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "to",
+          "type": "uint64"
+        }
+      ],
+      "name": "IllegalMove",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "InCommitmentPhase",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "InRevealPhase",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidActionsPerReveal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidCreator",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "currentCycleNumber",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "commitmentCycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "InvalidCycle",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidCycleConfiguration",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint16",
+          "name": "cycles",
+          "type": "uint16"
+        }
+      ],
+      "name": "InvalidCycles",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDeployment",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "length",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "required",
+          "type": "uint256"
+        }
+      ],
+      "name": "InvalidFurtherActions",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        }
+      ],
+      "name": "InvalidPlayer",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "seats",
+          "type": "uint8"
+        }
+      ],
+      "name": "InvalidSeats",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidSpawnGrid",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "MemberHasActed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NextPhaseNotAllowed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoCommitmentToCancel",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoOneToWaitFor",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoRoster",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "position",
+          "type": "uint64"
+        }
+      ],
+      "name": "NotASpawnPoint",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "NotArmyOwner",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "seated",
+          "type": "uint256"
+        }
+      ],
+      "name": "NotEnoughMembers",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "NotExited",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        }
+      ],
+      "name": "NotInGame",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "NothingToClaim",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NothingToReveal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OneMovePerCycle",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PreviousCommitmentNotRevealed",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "current",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "required",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReserveTooLow",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "RosterAlreadyOpened",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "position",
+          "type": "uint64"
+        }
+      ],
+      "name": "SpawnPointNotOpen",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "committed",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "waitedFor",
+          "type": "uint64"
+        }
+      ],
+      "name": "StillWaitingToCommit",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "revealed",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "committed",
+          "type": "uint64"
+        }
+      ],
+      "name": "StillWaitingToReveal",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TableNotOver",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "length",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "allowed",
+          "type": "uint256"
+        }
+      ],
+      "name": "TooManyActions",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "gameOptions",
+          "type": "bytes32"
+        }
+      ],
+      "name": "UnreadableGameOptions",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "stake",
+          "type": "uint256"
+        }
+      ],
+      "name": "WrongStake",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "stake",
+          "type": "uint256"
+        }
+      ],
+      "name": "ArmyCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "ArmyFrozen",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "CommitmentCancelled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes24",
+          "name": "commitmentHash",
+          "type": "bytes24"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "bond",
+          "type": "uint256"
+        }
+      ],
+      "name": "CommitmentMade",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes24",
+          "name": "commitmentHash",
+          "type": "bytes24"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes24",
+          "name": "furtherActions",
+          "type": "bytes24"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "cost",
+          "type": "uint256"
+        }
+      ],
+      "name": "CommitmentRevealed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes24",
+          "name": "commitmentHash",
+          "type": "bytes24"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes24",
+          "name": "furtherActions",
+          "type": "bytes24"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "forfeited",
+          "type": "uint256"
+        }
+      ],
+      "name": "CommitmentVoid",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "commiting",
+          "type": "bool"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "pushedBy",
+          "type": "address"
+        }
+      ],
+      "name": "CycleAdvanced",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "DeploymentRefunded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "spawnPoint",
+          "type": "uint64"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "DeploymentRevealed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ExitPaid",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "members",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "lastCycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "GameStarted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "MemberForfeited",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountAdded",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReserveDeposited",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountRemoved",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReserveWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "seats",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint16",
+          "name": "cycles",
+          "type": "uint16"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "gameOptions",
+          "type": "bytes32"
+        }
+      ],
+      "name": "RosterOpened",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "seated",
+          "type": "uint256"
+        }
+      ],
+      "name": "SeatReleased",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "seated",
+          "type": "uint256"
+        }
+      ],
+      "name": "SeatTaken",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "StakeBurned",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "TableLeft",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "TablePaid",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint64",
+          "name": "spawnPoint",
+          "type": "uint64"
+        }
+      ],
+      "name": "TableSeatTaken",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "winner",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "pot",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "material",
+          "type": "uint256"
+        }
+      ],
+      "name": "TableSettled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "waitedFor",
+          "type": "bool"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint64",
+          "name": "waitedForCount",
+          "type": "uint64"
+        }
+      ],
+      "name": "WaitedForChanged",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "getAttendance",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "waitedFor",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "committed",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "revealed",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingCommitRevealTypes.Attendance",
+          "name": "attendance",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        }
+      ],
+      "name": "getCommitment",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes24",
+              "name": "hash",
+              "type": "bytes24"
+            },
+            {
+              "internalType": "uint64",
+              "name": "cycleNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "bond",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct UsingCommitRevealTypes.Commitment",
+          "name": "commitment",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getConfig",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "startTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "commitPhaseDuration",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "revealPhaseDuration",
+              "type": "uint256"
+            },
+            {
+              "internalType": "contract ITime",
+              "name": "time",
+              "type": "address"
+            },
+            {
+              "internalType": "contract IERC20",
+              "name": "tokens",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stake",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint32",
+              "name": "spawnSpacing",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "openSpawnPoints",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "actionsPerReveal",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum UsingCommitRevealTypes.CyclePolicy",
+              "name": "cyclePolicy",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Config",
+          "name": "config",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getCycle",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "cycleNumber",
+              "type": "uint64"
+            },
+            {
+              "internalType": "bool",
+              "name": "commiting",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint64",
+              "name": "phaseStart",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "phaseEnd",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingCommitRevealTypes.Cycle",
+          "name": "cycle",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getCycleNumber",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bool",
+          "name": "commiting",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getMaxPieceMoves",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getOpenSpawnPoints",
+      "outputs": [
+        {
+          "internalType": "uint64[]",
+          "name": "spawnPoints",
+          "type": "uint64[]"
+        },
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "int32",
+          "name": "minX",
+          "type": "int32"
+        },
+        {
+          "internalType": "int32",
+          "name": "minY",
+          "type": "int32"
+        },
+        {
+          "internalType": "int32",
+          "name": "maxX",
+          "type": "int32"
+        },
+        {
+          "internalType": "int32",
+          "name": "maxY",
+          "type": "int32"
+        }
+      ],
+      "name": "getOutcomes",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "position",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint32",
+              "name": "died",
+              "type": "uint32"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint64",
+                  "name": "position",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "army",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "enum UsingGameTypes.PieceKind",
+                  "name": "kind",
+                  "type": "uint8"
+                }
+              ],
+              "internalType": "struct UsingGameTypes.Piece",
+              "name": "captured",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint64",
+                  "name": "position",
+                  "type": "uint64"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "army",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "enum UsingGameTypes.PieceKind",
+                  "name": "kind",
+                  "type": "uint8"
+                }
+              ],
+              "internalType": "struct UsingGameTypes.Piece",
+              "name": "piece",
+              "type": "tuple"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.SquareOutcome[]",
+          "name": "outcomes",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "int32",
+          "name": "minX",
+          "type": "int32"
+        },
+        {
+          "internalType": "int32",
+          "name": "minY",
+          "type": "int32"
+        },
+        {
+          "internalType": "int32",
+          "name": "maxX",
+          "type": "int32"
+        },
+        {
+          "internalType": "int32",
+          "name": "maxY",
+          "type": "int32"
+        }
+      ],
+      "name": "getPieces",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "position",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "army",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum UsingGameTypes.PieceKind",
+              "name": "kind",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Piece[]",
+          "name": "pieces",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        }
+      ],
+      "name": "getReserve",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "offset",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "limit",
+          "type": "uint256"
+        }
+      ],
+      "name": "getArmies",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "enum UsingGameTypes.ArmyStatus",
+              "name": "status",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deployedIn",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "spawnPoint",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "king",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stake",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "capturedBy",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.ArmyView[]",
+          "name": "armies",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "total",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "name": "getArmiesOf",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "enum UsingGameTypes.ArmyStatus",
+              "name": "status",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deployedIn",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "spawnPoint",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "king",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stake",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "capturedBy",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.ArmyView[]",
+          "name": "armies",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "getArmy",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "internalType": "enum UsingGameTypes.ArmyStatus",
+              "name": "status",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint64",
+              "name": "deployedIn",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "spawnPoint",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "king",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "stake",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "capturedBy",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.ArmyView",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        }
+      ],
+      "name": "getNextArmy",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "isFrozen",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        }
+      ],
+      "name": "NotDelegate",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "from",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "to",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Move[]",
+          "name": "moves",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "secret",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes24",
+          "name": "furtherActions",
+          "type": "bytes24"
+        }
+      ],
+      "name": "acknowledgeMissedReveal",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "advanceCycle",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "cycleNumber",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bool",
+          "name": "commiting",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        }
+      ],
+      "name": "cancelCommitment",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        }
+      ],
+      "name": "forfeitMissedReveal",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes24",
+          "name": "commitmentHash",
+          "type": "bytes24"
+        },
+        {
+          "internalType": "uint256",
+          "name": "bond",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address payable",
+          "name": "payee",
+          "type": "address"
+        }
+      ],
+      "name": "makeCommitment",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "settleDeployment",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "refunded",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawFromReserve",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "addToReserve",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "claim",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "paid",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTableOutcome",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "over",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "settled",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "tallied",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "winner",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "pot",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalMaterial",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.TableOutcome",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTableShare",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "share",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "paid",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "leaveTable",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "maxSteps",
+          "type": "uint256"
+        }
+      ],
+      "name": "tally",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "done",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "from",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "to",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Move[]",
+          "name": "moves",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "secret",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes24",
+          "name": "furtherActions",
+          "type": "bytes24"
+        },
+        {
+          "internalType": "address payable",
+          "name": "payee",
+          "type": "address"
+        }
+      ],
+      "name": "reveal",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "player",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "from",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "to",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Move[]",
+          "name": "moves",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "secret",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes24",
+          "name": "furtherActions",
+          "type": "bytes24"
+        },
+        {
+          "internalType": "address payable",
+          "name": "payee",
+          "type": "address"
+        }
+      ],
+      "name": "revealDeployment",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxArmies",
+          "type": "uint256"
+        }
+      ],
+      "name": "collect",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "done",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "exit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "paid",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "isExited",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "position",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "army",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum UsingGameTypes.PieceKind",
+              "name": "kind",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Piece[]",
+          "name": "board",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "from",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "to",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Move[]",
+          "name": "moves",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxPieceMoves",
+          "type": "uint256"
+        }
+      ],
+      "name": "isLegalWholeMove",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "legal",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "position",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "army",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum UsingGameTypes.PieceKind",
+              "name": "kind",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Piece[]",
+          "name": "board",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint64",
+          "name": "from",
+          "type": "uint64"
+        }
+      ],
+      "name": "legalMoves",
+      "outputs": [
+        {
+          "internalType": "uint64[]",
+          "name": "destinations",
+          "type": "uint64[]"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "position",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "army",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum UsingGameTypes.PieceKind",
+              "name": "kind",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Piece[]",
+          "name": "board",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint64",
+          "name": "from",
+          "type": "uint64"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "from",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "to",
+              "type": "uint64"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Move[]",
+          "name": "others",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "maxPieceMoves",
+          "type": "uint256"
+        }
+      ],
+      "name": "legalMovesAlongside",
+      "outputs": [
+        {
+          "internalType": "uint64[]",
+          "name": "destinations",
+          "type": "uint64[]"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum UsingGameTypes.PieceKind",
+          "name": "kind",
+          "type": "uint8"
+        }
+      ],
+      "name": "materialOf",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "spawnPoint",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint256",
+          "name": "army",
+          "type": "uint256"
+        }
+      ],
+      "name": "previewDeployment",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "position",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint256",
+              "name": "army",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum UsingGameTypes.PieceKind",
+              "name": "kind",
+              "type": "uint8"
+            }
+          ],
+          "internalType": "struct UsingGameTypes.Piece[]",
+          "name": "pieces",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        }
+      ],
+      "name": "DelegationWithdrawn",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidDelegate",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidSignature",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "MalformedSignature",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "SignatureExpired",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "payee",
+          "type": "address"
+        }
+      ],
+      "name": "TransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "UnrecoverableSignature",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ValueWithNoPayee",
+      "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "allowed",
+          "type": "bool"
+        }
+      ],
+      "name": "DelegationChanged",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "delegationDigest",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "name": "delegationMessage",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        }
+      ],
+      "name": "delegationStatus",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "allowed",
+          "type": "bool"
+        },
+        {
+          "internalType": "bool",
+          "name": "withdrawn",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        },
+        {
+          "internalType": "address payable",
+          "name": "payee",
+          "type": "address"
+        }
+      ],
+      "name": "registerDelegate",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deadline",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "signature",
+          "type": "bytes"
+        }
+      ],
+      "name": "registerDelegateViaSignature",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "delegate",
+          "type": "address"
+        }
+      ],
+      "name": "revokeDelegate",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "contractName": "Router10X60",
+  "sourceName": "src/vendor/router/Router10X60.sol",
+  "bytecode": "0x61034060405234801561001157600080fd5b5060405161102238038061102283398101604081905261003091610667565b602081015151815151600a81111561008f5760405162461bcd60e51b815260206004820152601b60248201527f4d41585f494d504c454d454e544154494f4e535f52454143484544000000000060448201526064015b60405180910390fd5b603c8211156100d35760405162461bcd60e51b815260206004820152601060248201526f13505617d4d251d4d7d4915050d2115160821b6044820152606401610086565b600083600001516000815181106100ec576100ec610772565b60200260200101519050600080600080600080600080600060018b111561012d578c518051600190811061012257610122610772565b602002602001015198505b60028b1115610156578c518051600290811061014b5761014b610772565b602002602001015197505b60038b111561017f578c518051600390811061017457610174610772565b602002602001015196505b60048b11156101a8578c518051600490811061019d5761019d610772565b602002602001015195505b60058b11156101d1578c51805160059081106101c6576101c6610772565b602002602001015194505b60068b11156101fa578c51805160069081106101ef576101ef610772565b602002602001015193505b60078b1115610223578c518051600790811061021857610218610772565b602002602001015192505b60088b111561024c578c518051600890811061024157610241610772565b602002602001015191505b60098b1115610275578c518051600990811061026a5761026a610772565b602002602001015190505b6001600160a01b03998a1660805297891660a05295881660c05293871660e05291861661010052851661012052841661014052831661016052821661018052166101a052600080808080808080808080805b8d8110156104e35760008f6020015182815181106102e7576102e7610772565b602090810291909101015160d881901c915060e01c80841061033a5760405162461bcd60e51b815260206004820152600c60248201526b2727aa2fa4a72fa7a92222a960a11b6044820152606401610086565b8063ffffffff16935060068310156103635761035783602861079e565b82901b8e179d506104d9565b600c83101561038e576103776006846107bb565b61038290602861079e565b82901b8d179c506104d9565b60128310156103b9576103a2600c846107bb565b6103ad90602861079e565b82901b8c179b506104d9565b60188310156103e4576103cd6012846107bb565b6103d890602861079e565b82901b8b179a506104d9565b601e83101561040f576103f86018846107bb565b61040390602861079e565b82901b8a1799506104d9565b602483101561043a57610423601e846107bb565b61042e90602861079e565b82901b891798506104d9565b602a8310156104655761044e6024846107bb565b61045990602861079e565b82901b881797506104d9565b603083101561049057610479602a846107bb565b61048490602861079e565b82901b871796506104d9565b60368310156104bb576104a46030846107bb565b6104af90602861079e565b82901b861795506104d9565b6104c66036846107bb565b6104d190602861079e565b82901b851794505b50506001016102c7565b50506101e09990995261020097909752610220959095526102409390935261026091909152610280526102a0526102c0526102e052610300525061032052604001516001600160a01b03166101c0526107ce565b634e487b7160e01b600052604160045260246000fd5b604051606081016001600160401b038111828210171561056f5761056f610537565b60405290565b604051601f8201601f191681016001600160401b038111828210171561059d5761059d610537565b604052919050565b60006001600160401b038211156105be576105be610537565b5060051b60200190565b80516001600160a01b03811681146105df57600080fd5b919050565b600082601f8301126105f557600080fd5b8151610608610603826105a5565b610575565b8082825260208201915060208360051b86010192508583111561062a57600080fd5b602085015b8381101561065d5780516001600160d81b03198116811461064f57600080fd5b83526020928301920161062f565b5095945050505050565b60006020828403121561067957600080fd5b81516001600160401b0381111561068f57600080fd5b8201606081850312156106a157600080fd5b6106a961054d565b81516001600160401b038111156106bf57600080fd5b8201601f810186136106d057600080fd5b80516106de610603826105a5565b8082825260208201915060208360051b85010192508883111561070057600080fd5b6020840193505b8284101561072957610718846105c8565b825260209384019390910190610707565b845250505060208201516001600160401b0381111561074757600080fd5b610753868285016105e4565b602083015250610765604083016105c8565b6040820152949350505050565b634e487b7160e01b600052603260045260246000fd5b634e487b7160e01b600052601160045260246000fd5b80820281158282048414176107b5576107b5610788565b92915050565b818103818111156107b5576107b5610788565b60805160a05160c05160e05161010051610120516101405161016051610180516101a0516101c0516101e05161020051610220516102405161026051610280516102a0516102c0516102e05161030051610320516107586108ca600039600060150152600061033c015260006102f5015260006102a50152600061025501526000610205015260006101b501526000610165015260006101150152600060c5015260006075015260006105b0015260006105890152600061055a0152600061052b015260006104fc015260006104cd0152600061049e0152600061046f0152600061044001526000610411015260006103e201526107586000f3fe60806040526000803560e01c90808061003960017f00000000000000000000000000000000000000000000000000000000000000006106a4565b90505b8082116103d5576000600261005183856106bd565b61005b91906106d0565b9050600060068210156100a45761007382602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b600c8210156100f4576100b86006836106a4565b6100c390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b601282101561014457610108600c836106a4565b61011390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b6018821015610194576101586012836106a4565b61016390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b601e8210156101e4576101a86018836106a4565b6101b390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b6024821015610234576101f8601e836106a4565b61020390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b602a821015610284576102486024836106a4565b61025390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b60308210156102d457610298602a836106a4565b6102a390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b6036821015610324576102e86030836106a4565b6102f390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b61032f6036836106a4565b61033a90602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff1690505b63ffffffff600882901c811690871681111561038f576103886001846106a4565b93506103cd565b8663ffffffff168163ffffffff1610156103b5576103ae8360016106bd565b94506103cd565b6103c360ff831660016106bd565b95505050506103d5565b50505061003c565b60008360010361040657507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360020361043557507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360030361046457507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360040361049357507f00000000000000000000000000000000000000000000000000000000000000006105d0565b836005036104c257507f00000000000000000000000000000000000000000000000000000000000000006105d0565b836006036104f157507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360070361052057507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360080361054f57507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360090361057e57507f00000000000000000000000000000000000000000000000000000000000000006105d0565b83600a036105ad57507f00000000000000000000000000000000000000000000000000000000000000006105d0565b507f00000000000000000000000000000000000000000000000000000000000000005b73ffffffffffffffffffffffffffffffffffffffff8116610651576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600e60248201527f554e4b4e4f574e5f4d4554484f44000000000000000000000000000000000000604482015260640160405180910390fd5b3660008037600080366000845af43d6000803e808015610670573d6000f35b3d6000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b818103818111156106b7576106b7610675565b92915050565b808201808211156106b7576106b7610675565b600082610706577f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b500490565b80820281158282048414176106b7576106b761067556fea2646970667358221220d36a98e491e75823dfb6c5a248468261441ed0f5df1199acaf788daf67c99efc64736f6c634300081c0033",
+  "deployedBytecode": "0x60806040526000803560e01c90808061003960017f00000000000000000000000000000000000000000000000000000000000000006106a4565b90505b8082116103d5576000600261005183856106bd565b61005b91906106d0565b9050600060068210156100a45761007382602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b600c8210156100f4576100b86006836106a4565b6100c390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b601282101561014457610108600c836106a4565b61011390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b6018821015610194576101586012836106a4565b61016390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b601e8210156101e4576101a86018836106a4565b6101b390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b6024821015610234576101f8601e836106a4565b61020390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b602a821015610284576102486024836106a4565b61025390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b60308210156102d457610298602a836106a4565b6102a390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b6036821015610324576102e86030836106a4565b6102f390602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff169050610367565b61032f6036836106a4565b61033a90602861070b565b7f0000000000000000000000000000000000000000000000000000000000000000901c64ffffffffff1690505b63ffffffff600882901c811690871681111561038f576103886001846106a4565b93506103cd565b8663ffffffff168163ffffffff1610156103b5576103ae8360016106bd565b94506103cd565b6103c360ff831660016106bd565b95505050506103d5565b50505061003c565b60008360010361040657507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360020361043557507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360030361046457507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360040361049357507f00000000000000000000000000000000000000000000000000000000000000006105d0565b836005036104c257507f00000000000000000000000000000000000000000000000000000000000000006105d0565b836006036104f157507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360070361052057507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360080361054f57507f00000000000000000000000000000000000000000000000000000000000000006105d0565b8360090361057e57507f00000000000000000000000000000000000000000000000000000000000000006105d0565b83600a036105ad57507f00000000000000000000000000000000000000000000000000000000000000006105d0565b507f00000000000000000000000000000000000000000000000000000000000000005b73ffffffffffffffffffffffffffffffffffffffff8116610651576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600e60248201527f554e4b4e4f574e5f4d4554484f44000000000000000000000000000000000000604482015260640160405180910390fd5b3660008037600080366000845af43d6000803e808015610670573d6000f35b3d6000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b818103818111156106b7576106b7610675565b92915050565b808201808211156106b7576106b7610675565b600082610706577f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b500490565b80820281158282048414176106b7576106b761067556fea2646970667358221220d36a98e491e75823dfb6c5a248468261441ed0f5df1199acaf788daf67c99efc64736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "immutableReferences": {
+    "4": [
+      {
+        "length": 32,
+        "start": 994
+      }
+    ],
+    "6": [
+      {
+        "length": 32,
+        "start": 1041
+      }
+    ],
+    "8": [
+      {
+        "length": 32,
+        "start": 1088
+      }
+    ],
+    "10": [
+      {
+        "length": 32,
+        "start": 1135
+      }
+    ],
+    "12": [
+      {
+        "length": 32,
+        "start": 1182
+      }
+    ],
+    "14": [
+      {
+        "length": 32,
+        "start": 1229
+      }
+    ],
+    "16": [
+      {
+        "length": 32,
+        "start": 1276
+      }
+    ],
+    "18": [
+      {
+        "length": 32,
+        "start": 1323
+      }
+    ],
+    "20": [
+      {
+        "length": 32,
+        "start": 1370
+      }
+    ],
+    "22": [
+      {
+        "length": 32,
+        "start": 1417
+      }
+    ],
+    "24": [
+      {
+        "length": 32,
+        "start": 1456
+      }
+    ],
+    "26": [
+      {
+        "length": 32,
+        "start": 117
+      }
+    ],
+    "28": [
+      {
+        "length": 32,
+        "start": 197
+      }
+    ],
+    "30": [
+      {
+        "length": 32,
+        "start": 277
+      }
+    ],
+    "32": [
+      {
+        "length": 32,
+        "start": 357
+      }
+    ],
+    "34": [
+      {
+        "length": 32,
+        "start": 437
+      }
+    ],
+    "36": [
+      {
+        "length": 32,
+        "start": 517
+      }
+    ],
+    "38": [
+      {
+        "length": 32,
+        "start": 597
+      }
+    ],
+    "40": [
+      {
+        "length": 32,
+        "start": 677
+      }
+    ],
+    "42": [
+      {
+        "length": 32,
+        "start": 757
+      }
+    ],
+    "44": [
+      {
+        "length": 32,
+        "start": 828
+      }
+    ],
+    "46": [
+      {
+        "length": 32,
+        "start": 21
+      }
+    ]
+  },
+  "inputSourceName": "project/src/vendor/router/Router10X60.sol",
+  "devdoc": {
+    "kind": "dev",
+    "version": 1,
+    "methods": {
+      "getMaxPieceMoves()": {
+        "details": "What the reveal caps a move at. The client passes it to the      simulation routes ({IGameSimulation-isLegalWholeMove},      {IGameSimulation-legalMovesAlongside}), which read nothing."
+      },
+      "getOutcomes(int32,int32,int32,int32)": {
+        "details": "Read from the same accumulated facts as {getPieces}, which a      square keeps until a reveal of a later cycle touches it. So the      answer is complete during the next commit phase, and during its      reveal phase it can only LOSE squares, never report a wrong one: a      reader that wants the whole picture keeps the union of what it read      for the same `cycleNumber`.",
+        "returns": {
+          "cycleNumber": "the cycle they happened in: the one before the         current cycle",
+          "outcomes": "one entry per such square"
+        }
+      },
+      "getPieces(int32,int32,int32,int32)": {
+        "details": "The client reads the board through this and nothing else, and only      the area in view: there is no indexer for state      (`docs/adr/0007-rules-live-only-in-the-contract.md`). What is stored      is the cycle's accumulated facts, so the board is worked out here,      lazily (`docs/adr/0002-order-free-lazy-resolution.md`)."
+      },
+      "getArmiesOf(address)": {
+        "details": "Every army is played by the account that created it."
+      },
+      "isFrozen(uint256)": {
+        "details": "A DEFINITION, NOT JUST A FLAG: an army landed on the board whose      missed reveal has been settled, OR which holds an unrevealed      commitment from a cycle that is over, so it is frozen from the      moment its reveal window closes, before anybody settles it. A      deployment never revealed is not frozen: it has no army to freeze,      and its stake is burned instead."
+      },
+      "acknowledgeMissedReveal(uint256,(uint64,uint64)[],bytes32,bytes24)": {
+        "details": "Anyone may call it. A missed DEPLOYMENT forfeits the whole stake,      which is burned; a missed pass forfeits nothing here      (`docs/adr/0005-missed-reveal-freezes-the-army.md` is what a missed      move costs, and it is not this route's)."
+      },
+      "advanceCycle()": {
+        "details": "Its own entry point, deliberately: a reveal never advances      anything, whoever sends it and whenever it lands."
+      },
+      "cancelCommitment(uint256)": {
+        "details": "Cancelling a DEPLOYMENT is free: the army's whole stake goes back      to its owner's account reserve, and the cycle stops waiting for      the army, which never exists on the board."
+      },
+      "makeCommitment(uint256,bytes24,uint256,address)": {
+        "details": "A COMMITMENT FOR AN ARMY THAT DOES NOT EXIST YET IS ITS DEPLOYMENT,      and it creates it: `player` must be the owner's next army id      ({IGameGetters-getNextArmy}), the stake moves from the owner's      account reserve into the new army's reserve, and the army becomes a      waited-for member, committed in this same cycle. Its reveal names      the spawn point.",
+        "params": {
+          "player": "The army the commitment is FOR (zero for the caller's own        account, which only a table seats). Must be one the caller may act        for: its owner, or a delegate of its owner."
+        }
+      },
+      "settleDeployment(uint256)": {
+        "details": "A deployment fails when another reveals the same spawn point in      its cycle, or its footprint is not clear (a piece on it at the start      of the cycle, or one arriving on it during it). Nothing runs when a      cycle ends, so the refund waits for this call; the owner's next      deployment and withdrawal make it for their most recent army.",
+        "returns": {
+          "refunded": "What moved; zero (and nothing happens) if the army's         deployment did not fail, or its refund is already written."
+        }
+      },
+      "withdrawFromReserve(uint256)": {
+        "details": "Deliberately NOT delegable: a delegate may spend the reserve on      playing and may never withdraw it. And it only ever reaches an      account's reserve, because an army id is never an address: an      army's reserve IS its stake and leaves only through the game.      Settles the caller's most recent deployment first      ({settleDeployment}), so a failed one's refund can be withdrawn."
+      },
+      "addToReserve(uint256,uint256)": {
+        "details": "Takes `player` rather than crediting msg.sender, so that the stake      can be paid from the wallet holding the funds. Anyone may top up      anyone; only the owner can withdraw.      AN ACCOUNT RESERVE NEVER MAKES ITS ACCOUNT A MEMBER: only armies are      waited for (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).      Refuses an army id with {InvalidPlayer}, so nobody can pre-fund a      future army or slip extra stake into an existing one.      AT A TABLE THE SEAT IS THE ARMY. Each purchase of exactly one stake      creates a new army owned by `player`'s account, funded with it, on      the table's next spawn point: that purchase IS the deployment      (`UsingGameTable-_joinTable`). Any other amount reverts      {WrongStake}; a started table {GameAlreadyStarted}; a full one      {GameFull}."
+      },
+      "claim(uint256)": {
+        "details": "The table is over once one king stands (it takes every stake) or      once its last cycle is over (every standing army takes a share in      proportion to its material: pawn 1, knight 3, bishop 3, rook 5,      queen 9; evenly between the standing kings if none has any).      Reverts {TableNotOver} before, {NothingToClaim} for an army owed      nothing, {AlreadyPaid} the second time."
+      },
+      "leaveTable(uint256)": {
+        "details": "The owner only, never a delegate, like {IGameCommit-withdrawFromReserve}.      The one exception to \"an army's reserve is never withdrawn\"      (`docs/adr/0006-stake-erc20-reserve-exit-only.md`): before the      start nothing has been played. Reverts {GameAlreadyStarted} after."
+      },
+      "tally(uint256)": {
+        "details": "Only needed when the count is too big for one {claim}, which runs      whatever is left of it first."
+      },
+      "reveal(uint256,(uint64,uint64)[],bytes32,bytes24,address)": {
+        "details": "Takes `player` rather than using msg.sender so that anyone can      reveal for them. A CALLER RESUMES FROM THE CHAIN, NOT FROM MEMORY:      see the base.      An army whose deployment is not revealed yet reveals that      deployment, which this forwards to      {IGameDeploymentReveal-revealDeployment}. Any other submission      is a pass (no move) or exactly ONE move of one of the army's      pieces, legal on the board as it stood at the START of the cycle      ({IGameSimulation-legalMoves}); anything else reverts      {OneMovePerCycle} or {IllegalMove}."
+      },
+      "revealDeployment(uint256,(uint64,uint64)[],bytes32,bytes24,address)": {
+        "details": "{IGameReveal-reveal} for the one submission that is a deployment,      on a route of its own for size alone. Reverts {InvalidDeployment}      for an army that is not deploying."
+      },
+      "collect(uint256,uint256)": {
+        "details": "Permissionless and incremental, for a tree too big for one      transaction; never needed to have exited, only to be paid in one go."
+      },
+      "exit(uint256)": {
+        "details": "Anyone may call it, once the cycle in which its king landed alone      on an exit has closed: the army left the board then, and this only      PAYS. Its reserve and that of every army whose stake it took      (down the tree of captures, a stone's excepted) are debited and      the sum is redeemed at `StakeSale`'s fixed price for its owner.      Reverts {NotExited} before, and {AlreadyPaid} once paid. A tree too      big for one transaction is first {collect}ed."
+      },
+      "isLegalWholeMove((uint64,uint256,uint8)[],uint256,(uint64,uint64)[],uint256)": {
+        "details": "THE REVEAL'S JUDGMENT OF A MOVE ({UsingGameInternal-_reveal} and      {UsingGameBoard-_judgeMove}), on `board` rather than storage: the      cap and the refusals ({ChessRules-vacatedBy}), then every      piece-move by one of `army`'s pieces and legal on the start-of-cycle      contents with the move's vacated squares masked      ({ChessRules-vacate}).",
+        "params": {
+          "maxPieceMoves": "the move's cap: 3, or 1 at a table that turns        three piece-moves off. A PARAMETER because this reads nothing,        so it cannot read a table's options."
+        }
+      },
+      "legalMoves((uint64,uint256,uint8)[],uint64)": {
+        "details": "Reads nothing: the client runs it in its sandbox to highlight a      selected piece's legal destinations, so the highlight is the rule      and not a copy of it. It only judges what `board` holds, so pass it      every piece within reach (8 squares around `from` is enough: the      slider range is 7 and a king looks one square past its      destination)."
+      },
+      "legalMovesAlongside((uint64,uint256,uint8)[],uint64,(uint64,uint64)[],uint256)": {
+        "details": "{isLegalWholeMove} of `others` plus this piece's piece-move, with      what does not depend on the destination judged once: the cap (room      for one more, {ChessRules-vacatedBy} at one less), the squares      vacated (`others`' origins and `from`), and `others` themselves.      Then per destination, the refusals ({ChessRules-joins}: a piece      already in `others` is offered nothing) and the piece-move's own      legality."
+      },
+      "materialOf(uint8)": {
+        "details": "Reads nothing: the offline world's machine seats run it in their      sandbox to rank what they can capture, so their scoring is the      contract's table and not a copy of it."
+      },
+      "previewDeployment(uint64,uint256)": {
+        "details": "`view` and not `pure` only because it reads {SPAWN_SPACING}, an      immutable, which lives in this contract's code: run from the      deployed bytes, it is the deployment's grid."
+      }
+    },
+    "events": {
+      "CommitmentRevealed(uint256,uint64,bytes24,bytes24,uint256)": {
+        "params": {
+          "commitmentHash": "The head this reveal opened, which for the second        and later chunks of a turn is not the hash that was committed.",
+          "cost": "What the game's resolution reported this chunk cost, taken        from the bond and from the reserve.",
+          "furtherActions": "The new head, or zero when this completed the turn."
+        }
+      },
+      "CommitmentVoid(uint256,uint64,bytes24,bytes24,uint256)": {
+        "details": "ONE EVENT FOR BOTH ROUTES, shaped like {CommitmentRevealed} because      a settlement shown the chunks walks the chain exactly as a reveal      does. A settlement WITHOUT them closes the commitment in one call      and reports a zero `furtherActions`.",
+        "params": {
+          "commitmentHash": "The head this settlement opened or closed.",
+          "cycleNumber": "The cycle in progress when it was settled.",
+          "forfeited": "How much the game's {UsingCommitReveal-_forfeit} took,        in the units of the bond. A game whose stake is not a bond (an        avatar in custody) reports zero here and says what it took in an        event of its own.",
+          "furtherActions": "The new head, or zero when the commitment is now        closed and any surplus of its bond is reserve again."
+        }
+      },
+      "CycleAdvanced(uint64,bool,address)": {
+        "details": "A clock-driven turnover emits nothing, because nothing happened on      chain: that is the difference this event exists to make visible."
+      },
+      "GameStarted(address,uint256,uint64)": {
+        "details": "Followed by {CycleAdvanced} in the same transaction: starting      re-anchors the clock, so the first cycle runs its full length.",
+        "params": {
+          "lastCycleNumber": "The last cycle it plays: after it, the game has        ended."
+        }
+      },
+      "RosterOpened(address,uint8,uint16,bytes32)": {
+        "params": {
+          "gameOptions": "What the game's own rules read at this table,        opaque to the base (see {UsingCommitReveal-_gameOptions})."
+        }
+      },
+      "SeatReleased(uint256,uint256)": {
+        "params": {
+          "seated": "How many seats are taken now."
+        }
+      },
+      "SeatTaken(uint256,uint256)": {
+        "params": {
+          "seated": "How many seats are taken now."
+        }
+      },
+      "WaitedForChanged(uint256,bool,uint64)": {
+        "params": {
+          "waitedFor": "Whether it now waits for them.",
+          "waitedForCount": "How many members it waits for in total, which is        the denominator unanimity is measured against."
+        }
+      },
+      "DelegationChanged(address,address,bool)": {
+        "params": {
+          "allowed": "true when it may now act for `owner`, false when its        authorisation was withdrawn",
+          "delegate": "the address whose standing changed",
+          "owner": "the account being represented"
+        }
+      }
+    },
+    "errors": {
+      "InvalidActionsPerReveal()": [
+        {
+          "details": "Same class as a zero phase duration and refused in the same place:      it is a deployment mistake whose cost is the first player's stake      rather than a revert anybody sees."
+        }
+      ],
+      "InvalidCycleConfiguration()": [
+        {
+          "details": "Both phases must be non-zero on a timed policy, and both must be      zero on a manual one. See {UsingCommitReveal} for why a zero phase      is not a configuration but a hole: it makes a commitment either      impossible to make or impossible to open."
+        }
+      ],
+      "InvalidFurtherActions(uint256,uint256)": [
+        {
+          "details": "LOAD-BEARING RATHER THAN TIDY. Without it a player dribbles one      action per transaction and spreads a turn across an unbounded number      of reveals, which is a denial of service on the reveal phase and on      everyone else's reads of the board. A chunk that promises a      successor must therefore be exactly full; only the LAST one may be      short."
+        }
+      ],
+      "InvalidPlayer(uint256)": [
+        {
+          "details": "What makes an identity invalid is the GAME's, and it is decided in      one place: {UsingCommitReveal-_playerOf}. In the base's default,      an address identity, it means an id that is not an account, and in      a token game it means a token nobody has put at stake."
+        }
+      ],
+      "NextPhaseNotAllowed()": [
+        {
+          "details": "A purely timed cycle needs no transaction at all - it simply is      what the clock says - so there is nothing for a caller to do here      and pretending otherwise would let one look like it had."
+        }
+      ],
+      "NoOneToWaitFor()": [
+        {
+          "details": "Early advance needs a closed set of members. \"Everyone has      committed\" is not a question that can be answered under open      entry, and answering it against an empty set would let one caller      spin the cycle forward on their own."
+        }
+      ],
+      "NotInGame(uint256)": [
+        {
+          "details": "What entering MEANS is the game's: a funded reserve here, custody of      a token elsewhere. What the cycle needs is only that the set of      players who may commit is the same set unanimity is measured      against - see {UsingCommitReveal-_makeCommitment}."
+        }
+      ],
+      "TooManyActions(uint256,uint256)": [
+        {
+          "details": "The chunk is what makes a reveal's worst case CALCULABLE, on every      chain and whatever a game puts at stake, which is what lets a client      pass a real gas limit instead of a guess. A final chunk allowed to      be any length would give that back: the bound would hold for every      reveal except the last one of every turn."
+        }
+      ]
+    }
+  },
+  "evm": {
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "376000",
+        "executionCost": "infinite",
+        "totalCost": "infinite"
+      },
+      "external": {
+        "": "infinite"
+      }
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.28+commit.7893614a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"components\":[{\"internalType\":\"address[]\",\"name\":\"implementations\",\"type\":\"address[]\"},{\"internalType\":\"bytes5[]\",\"name\":\"sigMap\",\"type\":\"bytes5[]\"},{\"internalType\":\"address\",\"name\":\"fallbackImplementation\",\"type\":\"address\"}],\"internalType\":\"struct Router10X60.Routes\",\"name\":\"routes\",\"type\":\"tuple\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"stateMutability\":\"payable\",\"type\":\"fallback\"}],\"devdoc\":{\"author\":\"Ronan Sandford\",\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"routes\":\"define the routing   each selector is represented by a bytes5, where the upper most bytes4 is the selector and   the lowest bytes represent the index of the implementations  implementations' addresses are given in an array\"}}},\"title\":\"Router for at max 10 Implementations and 60 function selectors\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"constructor\":{\"notice\":\"This Router implementation only support at max 10 implementations and 60 function selectors\"}},\"notice\":\"Create an immutable route and delegate function call to their respective implementations\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"project/src/vendor/router/Router10X60.sol\":\"Router10X60\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[]},\"sources\":{\"project/src/vendor/router/Router10X60.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// VENDORED, TEMPORARY. Copied from `solidity-proxy@0.5.2`\\n// (`solc_0_8/router/Router10X60.sol`, by Ronan Sandford, MIT), with a\\n// two-line fix and nothing else.\\n//\\n// THE BUG: the constructor packs entries 48 to 53 of the sig map with\\n// `tmp_sigs_07 = tmp_sigs_08 | ...` and entries 54 and up with\\n// `tmp_sigs_07 = tmp_sigs_09 | ...`, where it means `tmp_sigs_08 = ...` and\\n// `tmp_sigs_09 = ...`. So a router with more than 48 selectors overwrites\\n// positions 42 to 47 and never fills `sigs_08`/`sigs_09`: some routed calls\\n// revert `UNKNOWN_METHOD`, and nothing says so at deploy time. The lobby\\n// implementation carries more than 48 selectors.\\n//\\n// DELETE THIS COPY once `solidity-proxy` is fixed and republished: bump the\\n// package, then drop the `routerContract` option in `deploy/010_deploy_game.ts`,\\n// `deploy/030_deploy_lobby.ts` and the test fixtures (`test/js/utils/`), and\\n// this file's optimizer override in `hardhat.config.ts`.\\n// `test/js/RouterSelectors.test.ts` pins the fix either way.\\n// Kept verbatim otherwise (prettier skips it, contracts/.prettierignore),\\n// so `diff` against the package shows exactly the fix.\\n// See work/notes/observations/router-loses-selectors-past-48.md.\\npragma solidity ^0.8.0;\\n\\n/// @title Router for at max 10 Implementations and 60 function selectors\\n/// @author Ronan Sandford\\n/// @notice Create an immutable route and delegate function call to their respective implementations\\ncontract Router10X60 {\\n\\taddress internal immutable implementation_00;\\n\\taddress internal immutable implementation_01;\\n\\taddress internal immutable implementation_02;\\n\\taddress internal immutable implementation_03;\\n\\taddress internal immutable implementation_04;\\n\\taddress internal immutable implementation_05;\\n\\taddress internal immutable implementation_06;\\n\\taddress internal immutable implementation_07;\\n\\taddress internal immutable implementation_08;\\n\\taddress internal immutable implementation_09;\\n\\n\\taddress internal immutable fallback_implementation;\\n\\n\\tuint256 internal immutable sigs_00;\\n\\tuint256 internal immutable sigs_01;\\n\\tuint256 internal immutable sigs_02;\\n\\tuint256 internal immutable sigs_03;\\n\\tuint256 internal immutable sigs_04;\\n\\tuint256 internal immutable sigs_05;\\n\\tuint256 internal immutable sigs_06;\\n\\tuint256 internal immutable sigs_07;\\n\\tuint256 internal immutable sigs_08;\\n\\tuint256 internal immutable sigs_09;\\n\\n\\tuint256 internal immutable sigs_count;\\n\\n\\t// This is the interface for routes specification\\n\\tstruct Routes {\\n\\t\\taddress[] implementations;\\n\\t\\t/// The sigmap is represented as an array of entry\\n\\t\\t// each entry is 5 bytes\\n\\t\\t/// the upmost bytes are the bytes4 function selector\\n\\t\\t// the lowest byte represent the index in the implementation's address array provided aling\\n\\t\\t// This measn there is at max 256 implementation possible\\n\\t\\t// The entry needs to be ordered so binary search can be executed on them\\n\\t\\tbytes5[] sigMap;\\n\\t\\taddress fallbackImplementation;\\n\\t}\\n\\n\\t/// @notice This Router implementation only support at max 10 implementations and 60 function selectors\\n\\t/// @param routes define the routing \\n\\t///  each selector is represented by a bytes5, where the upper most bytes4 is the selector and \\n\\t///  the lowest bytes represent the index of the implementations\\n\\t///  implementations' addresses are given in an array\\n\\tconstructor(Routes memory routes) {\\n\\t\\tuint256 numSigs = routes.sigMap.length;\\n\\t\\tuint256 numImpl = routes.implementations.length;\\n\\t\\trequire(numImpl <= 10, 'MAX_IMPLEMENTATIONS_REACHED');\\n\\t\\trequire(numSigs <= 60, 'MAX_SIGS_REACHED');\\n\\n\\t\\t{\\n\\t\\t\\taddress tmp_implementation_00 = routes.implementations[0];\\n\\t\\t\\taddress tmp_implementation_01;\\n\\t\\t\\taddress tmp_implementation_02;\\n\\t\\t\\taddress tmp_implementation_03;\\n\\t\\t\\taddress tmp_implementation_04;\\n\\t\\t\\taddress tmp_implementation_05;\\n\\t\\t\\taddress tmp_implementation_06;\\n\\t\\t\\taddress tmp_implementation_07;\\n\\t\\t\\taddress tmp_implementation_08;\\n\\t\\t\\taddress tmp_implementation_09;\\n\\t\\t\\tif (numImpl > 1) {\\n\\t\\t\\t\\ttmp_implementation_01 = routes.implementations[1];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 2) {\\n\\t\\t\\t\\ttmp_implementation_02 = routes.implementations[2];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 3) {\\n\\t\\t\\t\\ttmp_implementation_03 = routes.implementations[3];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 4) {\\n\\t\\t\\t\\ttmp_implementation_04 = routes.implementations[4];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 5) {\\n\\t\\t\\t\\ttmp_implementation_05 = routes.implementations[5];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 6) {\\n\\t\\t\\t\\ttmp_implementation_06 = routes.implementations[6];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 7) {\\n\\t\\t\\t\\ttmp_implementation_07 = routes.implementations[7];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 8) {\\n\\t\\t\\t\\ttmp_implementation_08 = routes.implementations[8];\\n\\t\\t\\t}\\n\\t\\t\\tif (numImpl > 9) {\\n\\t\\t\\t\\ttmp_implementation_09 = routes.implementations[9];\\n\\t\\t\\t}\\n\\n\\t\\t\\timplementation_00 = tmp_implementation_00;\\n\\t\\t\\timplementation_01 = tmp_implementation_01;\\n\\t\\t\\timplementation_02 = tmp_implementation_02;\\n\\t\\t\\timplementation_03 = tmp_implementation_03;\\n\\t\\t\\timplementation_04 = tmp_implementation_04;\\n\\t\\t\\timplementation_05 = tmp_implementation_05;\\n\\t\\t\\timplementation_06 = tmp_implementation_06;\\n\\t\\t\\timplementation_07 = tmp_implementation_07;\\n\\t\\t\\timplementation_08 = tmp_implementation_08;\\n\\t\\t\\timplementation_09 = tmp_implementation_09;\\n\\t\\t}\\n\\n\\t\\t{\\n\\t\\t\\tuint256 tmp_sigs_00;\\n\\t\\t\\tuint256 tmp_sigs_01;\\n\\t\\t\\tuint256 tmp_sigs_02;\\n\\t\\t\\tuint256 tmp_sigs_03;\\n\\t\\t\\tuint256 tmp_sigs_04;\\n\\t\\t\\tuint256 tmp_sigs_05;\\n\\t\\t\\tuint256 tmp_sigs_06;\\n\\t\\t\\tuint256 tmp_sigs_07;\\n\\t\\t\\tuint256 tmp_sigs_08;\\n\\t\\t\\tuint256 tmp_sigs_09;\\n\\t\\t\\t\\n\\t\\t\\tuint256 lastSig;\\n\\t\\t\\tfor (uint256 i = 0; i < numSigs; i++) {\\n\\t\\t\\t\\tuint256 pair = uint256(uint40(routes.sigMap[i]));\\n\\t\\t\\t\\tuint32 sig = uint32(pair >> 8);\\n\\t\\t\\t\\trequire(lastSig < sig, \\\"NOT_IN_ORDER\\\");\\n\\t\\t\\t\\tlastSig = sig;\\n\\t\\t\\t\\tif (i < 6) {\\n\\t\\t\\t\\t\\ttmp_sigs_00 = tmp_sigs_00 | (pair << (i * 40));\\n\\t\\t\\t\\t} else if (i < 12) {\\n\\t\\t\\t\\t\\ttmp_sigs_01 = tmp_sigs_01 | (pair << ((i - 6) * 40));\\n\\t\\t\\t\\t} else if (i < 18) {\\n\\t\\t\\t\\t\\ttmp_sigs_02 = tmp_sigs_02 | (pair << ((i - 12) * 40));\\n\\t\\t\\t\\t} else if (i < 24) {\\n\\t\\t\\t\\t\\ttmp_sigs_03 = tmp_sigs_03 | (pair << ((i - 18) * 40));\\n\\t\\t\\t\\t} else if (i < 30) {\\n\\t\\t\\t\\t\\ttmp_sigs_04 = tmp_sigs_04 | (pair << ((i - 24) * 40));\\n\\t\\t\\t\\t} else if (i < 36) {\\n\\t\\t\\t\\t\\ttmp_sigs_05 = tmp_sigs_05 | (pair << ((i - 30) * 40));\\n\\t\\t\\t\\t} else if (i < 42) {\\n\\t\\t\\t\\t\\ttmp_sigs_06 = tmp_sigs_06 | (pair << ((i - 36) * 40));\\n\\t\\t\\t\\t} else if (i < 48) {\\n\\t\\t\\t\\t\\ttmp_sigs_07 = tmp_sigs_07 | (pair << ((i - 42) * 40));\\n\\t\\t\\t\\t} else if (i < 54) {\\n\\t\\t\\t\\t\\ttmp_sigs_08 = tmp_sigs_08 | (pair << ((i - 48) * 40));\\n\\t\\t\\t\\t} else {\\n\\t\\t\\t\\t\\ttmp_sigs_09 = tmp_sigs_09 | (pair << ((i - 54) * 40));\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t\\tsigs_00 = tmp_sigs_00;\\n\\t\\t\\tsigs_01 = tmp_sigs_01;\\n\\t\\t\\tsigs_02 = tmp_sigs_02;\\n\\t\\t\\tsigs_03 = tmp_sigs_03;\\n\\t\\t\\tsigs_04 = tmp_sigs_04;\\n\\t\\t\\tsigs_05 = tmp_sigs_05;\\n\\t\\t\\tsigs_06 = tmp_sigs_06;\\n\\t\\t\\tsigs_07 = tmp_sigs_07;\\n\\t\\t\\tsigs_08 = tmp_sigs_08;\\n\\t\\t\\tsigs_09 = tmp_sigs_09;\\n\\n\\t\\t\\tsigs_count = numSigs;\\n\\t\\t}\\n\\n\\t\\tfallback_implementation = routes.fallbackImplementation;\\n\\t}\\n\\n\\tfallback() external payable {\\n\\t\\tuint32 sig = uint32(msg.sig);\\n\\t\\tuint256 implementationIndex;\\n\\t\\tuint256 left = 0;\\n    \\tuint256 right = sigs_count - 1;\\n\\t\\twhile (left <= right) {\\n\\t\\t\\tuint256 i = (left + right) / 2;\\n\\t\\t\\tuint40 pair;\\n\\t\\t\\tif (i < 6) {\\n\\t\\t\\t\\tpair = uint40((sigs_00 >> (i * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t} else if (i < 12) {\\n\\t\\t\\t\\tpair = uint40((sigs_01 >> ((i - 6) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t} else if (i < 18) {\\n\\t\\t\\t\\tpair = uint40((sigs_02 >> ((i - 12) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t} else if (i < 24) {\\n\\t\\t\\t\\tpair = uint40((sigs_03 >> ((i - 18) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t} else if (i < 30) {\\n\\t\\t\\t\\tpair = uint40((sigs_04 >> ((i - 24) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t} else if (i < 36) {\\n\\t\\t\\t\\tpair = uint40((sigs_05 >> ((i - 30) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t} else if (i < 42) {\\n\\t\\t\\t\\tpair = uint40((sigs_06 >> ((i - 36) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t}  else if (i < 48) {\\n\\t\\t\\t\\tpair = uint40((sigs_07 >> ((i - 42) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t}  else if (i < 54) {\\n\\t\\t\\t\\tpair = uint40((sigs_08 >> ((i - 48) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t}  else {\\n\\t\\t\\t\\tpair = uint40((sigs_09 >> ((i - 54) * 40)) & 0xFFFFFFFFFF);\\n\\t\\t\\t}\\n\\t\\t\\tuint32 value = uint32(pair >> 8);\\n\\t\\t\\tif (value > sig) {\\n\\t\\t\\t\\tright = i -1;\\n\\t\\t\\t} else if (value < sig) {\\n\\t\\t\\t\\tleft = i + 1;\\n\\t\\t\\t} else {\\n\\t\\t\\t\\timplementationIndex = uint256(pair & 0xFF) + 1;\\n\\t\\t\\t\\tbreak;\\n\\t\\t\\t}\\n\\t\\t}\\n\\n\\t\\taddress implementation;\\n\\t\\tif (implementationIndex == 1) {\\n\\t\\t\\timplementation = implementation_00;\\n\\t\\t} else if (implementationIndex == 2) {\\n\\t\\t\\timplementation = implementation_01;\\n\\t\\t} else if (implementationIndex == 3) {\\n\\t\\t\\timplementation = implementation_02;\\n\\t\\t} else if (implementationIndex == 4) {\\n\\t\\t\\timplementation = implementation_03;\\n\\t\\t} else if (implementationIndex == 5) {\\n\\t\\t\\timplementation = implementation_04;\\n\\t\\t} else if (implementationIndex == 6) {\\n\\t\\t\\timplementation = implementation_05;\\n\\t\\t} else if (implementationIndex == 7) {\\n\\t\\t\\timplementation = implementation_06;\\n\\t\\t} else if (implementationIndex == 8) {\\n\\t\\t\\timplementation = implementation_07;\\n\\t\\t} else if (implementationIndex == 9) {\\n\\t\\t\\timplementation = implementation_08;\\n\\t\\t} else if (implementationIndex == 10) {\\n\\t\\t\\timplementation = implementation_09;\\n\\t\\t} else {\\n\\t\\t\\timplementation = fallback_implementation;\\n\\t\\t}\\n\\n\\t\\trequire(implementation != address(0), 'UNKNOWN_METHOD');\\n\\n\\t\\t// taken from https://github.com/OpenZeppelin/openzeppelin-contracts/blob/8cab922347e79732f6a532a75da5081ba7447a71/contracts/proxy/Proxy.sol#L22-L45\\n\\t\\tassembly {\\n\\t\\t\\t// Copy msg.data. We take full control of memory in this inline assembly\\n\\t\\t\\t// block because it will not return to Solidity code. We overwrite the\\n\\t\\t\\t// Solidity scratch pad at memory position 0.\\n\\t\\t\\tcalldatacopy(0, 0, calldatasize())\\n\\n\\t\\t\\t// Call the implementation.\\n\\t\\t\\t// out and outsize are 0 because we don't know the size yet.\\n\\t\\t\\tlet result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)\\n\\n\\t\\t\\t// Copy the returned data.\\n\\t\\t\\treturndatacopy(0, 0, returndatasize())\\n\\n\\t\\t\\tswitch result\\n\\t\\t\\t// delegatecall returns 0 on error.\\n\\t\\t\\tcase 0 {\\n\\t\\t\\t\\trevert(0, returndatasize())\\n\\t\\t\\t}\\n\\t\\t\\tdefault {\\n\\t\\t\\t\\treturn(0, returndatasize())\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n}\\n\",\"keccak256\":\"0x099991662c74c9eb88ebb95d1e070ebb43fd8b27c5bfbd0020982f4584a75ac5\",\"license\":\"MIT\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  },
+  "userdoc": {
+    "kind": "user",
+    "version": 1,
+    "methods": {
+      "getAttendance()": {
+        "notice": "Who the cycle is waiting for, and how many have acted."
+      },
+      "getCycle()": {
+        "notice": "Where the cycle is, and until when. THE ONE A CLIENT SHOULD READ."
+      },
+      "getMaxPieceMoves()": {
+        "notice": "How many piece-moves a move holds at most here: 3, or 1 at a         table whose creator turned three piece-moves off (one bit of         its `gameOptions`, `docs/adr/0016`). 3 in both worlds."
+      },
+      "getOpenSpawnPoints()": {
+        "notice": "The spawn points a deployment committed now may reveal: the         free ones nearest the origin, in spiral order, as they stood at         the start of the current cycle."
+      },
+      "getOutcomes(int32,int32,int32,int32)": {
+        "notice": "WHAT THE LAST CLOSED CYCLE DID inside a rectangle of the board,         bounds inclusive: every square where a piece was captured or         pieces died in a collision, in no meaningful order."
+      },
+      "getPieces(int32,int32,int32,int32)": {
+        "notice": "Every piece on the squares from (`minX`,`minY`) to         (`maxX`,`maxY`) inclusive, RESOLVED, plus the cycle the answer         is for."
+      },
+      "getArmies(uint256,uint256)": {
+        "notice": "THE ARMY REGISTRY, a page at a time, resolved: every army ever         created, in the order they were."
+      },
+      "getArmiesOf(address)": {
+        "notice": "Every army `owner` has created, resolved."
+      },
+      "getArmy(uint256)": {
+        "notice": "One army, resolved."
+      },
+      "getNextArmy(address)": {
+        "notice": "The id `owner`'s next deployment creates."
+      },
+      "isFrozen(uint256)": {
+        "notice": "Whether `army` is FROZEN by a missed reveal: it never moves         again and its king cannot exit, but it can still be captured         (`docs/adr/0005-missed-reveal-freezes-the-army.md`)."
+      },
+      "acknowledgeMissedReveal(uint256,(uint64,uint64)[],bytes32,bytes24)": {
+        "notice": "Settle one chunk of a missed reveal by showing it."
+      },
+      "advanceCycle()": {
+        "notice": "Move the cycle on, if the rules already permit it. See the base."
+      },
+      "cancelCommitment(uint256)": {
+        "notice": "Withdraw a commitment before the reveal phase begins."
+      },
+      "forfeitMissedReveal(uint256)": {
+        "notice": "Settle a missed reveal WITHOUT its chunks, forfeiting the whole         bond still earmarked for it (for a missed deployment, the whole         stake, burned). Only the owner or their delegate."
+      },
+      "makeCommitment(uint256,bytes24,uint256,address)": {
+        "notice": "Commit to this cycle's submission for `player`."
+      },
+      "settleDeployment(uint256)": {
+        "notice": "Write the refund of `army`'s failed deployment: its stake goes         back to its owner's ACCOUNT reserve, and it is no longer waited         for. Anyone may call it, once the deployment's cycle is over."
+      },
+      "withdrawFromReserve(uint256)": {
+        "notice": "Take tokens back out of the CALLER'S ACCOUNT reserve."
+      },
+      "addToReserve(uint256,uint256)": {
+        "notice": "Credit an ACCOUNT's reserve: stake bought, not yet deployed;         AT A TABLE, buy a seat: a new army for that account."
+      },
+      "claim(uint256)": {
+        "notice": "Pay `army`'s share of the table's stakes, in ETH, to its         current owner, through the token's minter (`StakeSale.redeem`).         Anyone may call it, once per army."
+      },
+      "getTableOutcome()": {
+        "notice": "The table's outcome as it stands: whether it is over, the last         king standing (zero if none), and once settled, every stake on         it and the material counted at the cap."
+      },
+      "getTableShare(uint256)": {
+        "notice": "What {claim} pays `army` once the outcome is written (by the         first claim), zero before or if it is owed nothing; and whether         it was paid."
+      },
+      "leaveTable(uint256)": {
+        "notice": "Leave the table before it starts: `army`'s whole stake back         to its owner, in tokens, its seat freed and the army removed."
+      },
+      "tally(uint256)": {
+        "notice": "Count up to `maxSteps` steps of the material on the board at         the cap, and say whether the count is complete. Anyone may call         it, once the table's last cycle is over."
+      },
+      "reveal(uint256,(uint64,uint64)[],bytes32,bytes24,address)": {
+        "notice": "Reveal one chunk of what an army committed to, and apply it."
+      },
+      "revealDeployment(uint256,(uint64,uint64)[],bytes32,bytes24,address)": {
+        "notice": "Reveal an army's deployment, committed this cycle: exactly one         move, from and to the spawn point, which must have been open at         the START of the cycle."
+      },
+      "collect(uint256,uint256)": {
+        "notice": "Collect up to `maxArmies` armies of an exited army's tree of         captured stakes towards its payout, and say whether the whole tree is collected."
+      },
+      "exit(uint256)": {
+        "notice": "Pay an exited army's whole stake, in ETH, to its owner."
+      },
+      "isExited(uint256)": {
+        "notice": "Whether `army` has left the board through an exit, as of now."
+      },
+      "isLegalWholeMove((uint64,uint256,uint8)[],uint256,(uint64,uint64)[],uint256)": {
+        "notice": "Whether `moves` is a legal move for `army`, by the rule the         reveal applies, judged against `board` (the board as it stood         at the start of the cycle, as {IGameGetters-getPieces} returns         it): at most `maxPieceMoves` piece-moves, none moving one piece         twice, no two to one square, and each by one of `army`'s pieces         and legal with the move's own vacated squares counted as empty         (`docs/adr/0016`). An empty move, a pass, is legal. The order         `moves` lists them in changes nothing."
+      },
+      "legalMoves((uint64,uint256,uint8)[],uint64)": {
+        "notice": "Every square the piece on `from` may move to, by the rule the         reveal applies, judged against `board`: the board as it stood at         the start of the cycle, as {IGameGetters-getPieces} returns it.         Empty if `board` has nothing on `from`."
+      },
+      "legalMovesAlongside((uint64,uint256,uint8)[],uint64,(uint64,uint64)[],uint256)": {
+        "notice": "Every square the piece on `from` may move to as one more         piece-move of a move that already holds `others`: exactly the         `to` for which {isLegalWholeMove} accepts `others` plus         `from` to `to`, for the army of the piece on `from`. So it         counts the squares `others` vacate as empty, offers nothing if         the move is full or `others` is not legal, and never a square         one of `others` goes to. Empty if `board` has nothing on         `from`; {legalMoves} when `others` is empty (at any cap of one or         more)."
+      },
+      "materialOf(uint8)": {
+        "notice": "What a piece of `kind` is worth in material: pawn 1, knight 3,         bishop 3, rook 5, queen 9, and nothing for a king or an empty         square. The figure a table's payout splits its stakes by."
+      },
+      "previewDeployment(uint64,uint256)": {
+        "notice": "The pieces an army deployed at `spawnPoint` stands on, by the         rule the board is resolved with, and with nothing read or         written."
+      },
+      "delegationDigest(address,uint256)": {
+        "notice": "the EIP-191 digest of {delegationMessage}."
+      },
+      "delegationMessage(address,uint256)": {
+        "notice": "the exact text an owner signs to authorise `delegate` here."
+      },
+      "delegationStatus(address,address)": {
+        "notice": "whether `delegate` may act for `owner` here, and whether `owner` withdrew it. The one read an app needs: `allowed` answers \"can my signer act\", and `withdrawn` answers \"can a signature fix that, or does it take a transaction from the owner\"."
+      },
+      "registerDelegate(address,address)": {
+        "notice": "authorise `delegate` to act for you here, and optionally fund it. The funding is why `payee` is here rather than left to a separate transfer: a newly authorised address may hold nothing, and an address that cannot pay for gas cannot do the thing it was just authorised to do. Doing both at once removes the state in between. `payee` is free rather than forced to `delegate` because this is your own money and you may reasonably direct it elsewhere. The signature variant does force it: there the money comes from a third party, who has no business choosing a destination you never named. No deadline here, and none is missing: a deadline bounds how long a pre-signed credential may be presented, and you are present."
+      },
+      "registerDelegateViaSignature(address,address,uint256,bytes)": {
+        "notice": "authorise `delegate` to act for `owner` here, proven by `owner`'s signature, and fund that delegate with whatever value is sent. Anyone may submit this and the submitter pays, which is the point: an owner that can sign but cannot send can still delegate. `deadline` is in calldata because only whoever produced the signature knows it; the contract and the chain are NOT, because they are the bounds this design rests on. See {Delegation-registerViaSignature}."
+      },
+      "revokeDelegate(address)": {
+        "notice": "withdraw your authorisation of `delegate`; no signature can put that one back. DO NOT DROP THIS ONE if you override the set. An authorisation that cannot be withdrawn is the failure this whole mechanism has to avoid."
+      }
+    },
+    "events": {
+      "ArmyCreated(uint256,address,uint64,uint256)": {
+        "notice": "A deployment was committed, which created the army and moved the         stake from its owner's reserve into its own."
+      },
+      "ArmyFrozen(uint256)": {
+        "notice": "An army's missed reveal of a move was settled, which froze it         for good. It was frozen already from the close of that reveal         window (`IGameRegistry-isFrozen`); this is only the settling."
+      },
+      "CommitmentCancelled(uint256,uint64)": {
+        "notice": "A player withdrew their commitment before the reveal phase."
+      },
+      "CommitmentMade(uint256,uint64,bytes24,uint256)": {
+        "notice": "A player committed to a turn for this cycle."
+      },
+      "CommitmentRevealed(uint256,uint64,bytes24,bytes24,uint256)": {
+        "notice": "A player revealed a chunk of what they had committed to."
+      },
+      "CommitmentVoid(uint256,uint64,bytes24,bytes24,uint256)": {
+        "notice": "A missed reveal was settled, in whole or by one chunk."
+      },
+      "CycleAdvanced(uint64,bool,address)": {
+        "notice": "The cycle moved because somebody pushed it, rather than because         the clock said so."
+      },
+      "DeploymentRefunded(uint256,address,uint256)": {
+        "notice": "A deployment that failed (a shared spawn point, a blocked         footprint) or was cancelled had its stake moved back from the         army's reserve to its owner's account reserve."
+      },
+      "DeploymentRevealed(uint256,uint64,uint64)": {
+        "notice": "A deployment was revealed. Whether it lands is decided when the         cycle is over, by how many deployments revealed the same spawn         point, so this says nothing about the outcome."
+      },
+      "ExitPaid(uint256,address,uint256)": {
+        "notice": "An exited army's whole stake was paid, in ETH, to its owner."
+      },
+      "GameStarted(address,uint256,uint64)": {
+        "notice": "The creator started the game, which closes its roster."
+      },
+      "MemberForfeited(uint256,uint64)": {
+        "notice": "The creator forfeited a member who had not acted in the         current phase: the cycle stops waiting for them, for good."
+      },
+      "ReserveDeposited(uint256,uint256,uint256)": {
+        "notice": "A player topped up the reserve they are willing to risk."
+      },
+      "ReserveWithdrawn(uint256,uint256,uint256)": {
+        "notice": "A player took tokens back out of their reserve."
+      },
+      "RosterOpened(address,uint8,uint16,bytes32)": {
+        "notice": "A closed roster was opened: the game now has `seats` seats, a         creator who starts it, and plays `cycles` cycles from its start."
+      },
+      "SeatReleased(uint256,uint256)": {
+        "notice": "A member left their seat: by emptying their reserve, or by         being forfeited."
+      },
+      "SeatTaken(uint256,uint256)": {
+        "notice": "A member took a seat, by funding a reserve."
+      },
+      "StakeBurned(uint256,uint256)": {
+        "notice": "A deployment that was never revealed had its stake burned."
+      },
+      "TableLeft(uint256,address,uint256)": {
+        "notice": "A table's army left before it started, its stake returned."
+      },
+      "TablePaid(uint256,address,uint256)": {
+        "notice": "A table paid `army`'s share to `owner`."
+      },
+      "TableSeatTaken(uint256,uint64)": {
+        "notice": "A table's army took spawn point `spawnPoint`, bought in."
+      },
+      "TableSettled(uint256,uint256,uint256)": {
+        "notice": "A table's outcome is written: its winner (zero for a split by         material) and every stake on it."
+      },
+      "WaitedForChanged(uint256,bool,uint64)": {
+        "notice": "The cycle started, or stopped, waiting for this player."
+      },
+      "DelegationChanged(address,address,bool)": {
+        "notice": "emitted whenever a (owner, delegate) pair changes standing. THIS EVENT IS THE ENUMERATION API. There is no onchain list of an account's delegates - a linked set was costed and rejected, since few delegates are expected and signer management belongs to the application rather than to the library - so reconstructing the set means replaying these logs in order. Both addresses are indexed, which gives a per-account `eth_getLogs` query with no indexer; the flag is not, since nobody filters on it. One event rather than an authorise/revoke pair, because a replay wants both kinds in order and a single topic0 is one filter and one decode. The wart, and it belongs to the app rather than to this library: many public and wallet-supplied RPCs cap `eth_getLogs` ranges, so a fresh browser reconstructing from genesis needs a stored deployment block and paging."
+      }
+    },
+    "errors": {
+      "AlreadyPaid(uint256)": [
+        {
+          "notice": "The exited army's stake was already paid."
+        }
+      ],
+      "BondTooLow(uint256,uint256)": [
+        {
+          "notice": "the revealed chunk costs more than the bond still set aside"
+        }
+      ],
+      "CanStillReveal(uint64)": [
+        {
+          "notice": "the player can still reveal, so the commitment cannot be voided"
+        }
+      ],
+      "CommitmentHashNotMatching()": [
+        {
+          "notice": "the revealed chunk does not hash to the head of the chain"
+        }
+      ],
+      "CommitmentStillOpen(uint64)": [
+        {
+          "notice": "cannot stop being a member while a turn of yours is still open"
+        }
+      ],
+      "GameAlreadyStarted()": [
+        {
+          "notice": "the game has started, so its roster is closed"
+        }
+      ],
+      "GameEnded(uint64)": [
+        {
+          "notice": "this game has played its last cycle: no commitment, advance or         forfeit any more"
+        }
+      ],
+      "GameFull(uint8)": [
+        {
+          "notice": "every seat of this game is taken"
+        }
+      ],
+      "GameNotStarted()": [
+        {
+          "notice": "the game has not started yet"
+        }
+      ],
+      "IllegalMove(uint64,uint64)": [
+        {
+          "notice": "The move is not one this army may make on the board as it stood         at the start of the cycle."
+        }
+      ],
+      "InCommitmentPhase(uint64)": [
+        {
+          "notice": "trying to reveal while the commit phase is running"
+        }
+      ],
+      "InRevealPhase(uint64)": [
+        {
+          "notice": "trying to commit while the reveal phase is running"
+        }
+      ],
+      "InvalidActionsPerReveal()": [
+        {
+          "notice": "a chunk size of zero, which would make every turn unrevealable"
+        }
+      ],
+      "InvalidCreator()": [
+        {
+          "notice": "a roster needs a creator, who is the only one who can start it"
+        }
+      ],
+      "InvalidCycle(uint64,uint64)": [
+        {
+          "notice": "the commitment belongs to a different cycle"
+        }
+      ],
+      "InvalidCycleConfiguration()": [
+        {
+          "notice": "the phase durations do not describe a cycle this game can run"
+        }
+      ],
+      "InvalidCycles(uint16)": [
+        {
+          "notice": "a game for a fixed set of members plays at least one cycle"
+        }
+      ],
+      "InvalidDeployment()": [
+        {
+          "notice": "A deployment's reveal must hold exactly one `Move` whose `from`         and `to` are both the spawn point, in one chunk."
+        }
+      ],
+      "InvalidFurtherActions(uint256,uint256)": [
+        {
+          "notice": "a reveal that promises more actions did not carry a full chunk"
+        }
+      ],
+      "InvalidPlayer(uint256)": [
+        {
+          "notice": "this identity cannot play this game"
+        }
+      ],
+      "InvalidSeats(uint8)": [
+        {
+          "notice": "a roster must hold at least two members"
+        }
+      ],
+      "InvalidSpawnGrid()": [
+        {
+          "notice": "The deployment parameters cannot make a board: spawn points         closer than an army's footprint, or no spawn point ever open."
+        }
+      ],
+      "MemberHasActed(uint256,uint64)": [
+        {
+          "notice": "this member has acted in the current phase, so the creator         cannot forfeit them"
+        }
+      ],
+      "NextPhaseNotAllowed()": [
+        {
+          "notice": "this game's cycle is advanced by the clock and by nothing else"
+        }
+      ],
+      "NoCommitmentToCancel()": [
+        {
+          "notice": "there is no commitment to cancel"
+        }
+      ],
+      "NoOneToWaitFor()": [
+        {
+          "notice": "nobody is being waited for, so unanimity has no denominator"
+        }
+      ],
+      "NoRoster()": [
+        {
+          "notice": "this game has open entry, so it has no roster to act on"
+        }
+      ],
+      "NotASpawnPoint(uint64)": [
+        {
+          "notice": "The position is not on the spawn grid."
+        }
+      ],
+      "NotArmyOwner(uint256)": [
+        {
+          "notice": "Only the account that owns an army may take its stake back."
+        }
+      ],
+      "NotEnoughMembers(uint256)": [
+        {
+          "notice": "a game starts with at least two members seated"
+        }
+      ],
+      "NotExited(uint256)": [
+        {
+          "notice": "The army has not left the board through an exit (yet)."
+        }
+      ],
+      "NotInGame(uint256)": [
+        {
+          "notice": "this identity has not entered the game, so it cannot take a turn"
+        }
+      ],
+      "NothingToClaim(uint256)": [
+        {
+          "notice": "The army is owed nothing by the table's outcome."
+        }
+      ],
+      "NothingToReveal()": [
+        {
+          "notice": "there is no commitment to reveal or to void"
+        }
+      ],
+      "OneMovePerCycle()": [
+        {
+          "notice": "A submission after an army's deployment is ONE move, in one         chunk: a pass (nothing) or up to three piece-moves, each by a         different piece and none two to one square (`docs/adr/0016`)."
+        }
+      ],
+      "PreviousCommitmentNotRevealed()": [
+        {
+          "notice": "an earlier commitment was never revealed; resolve it first"
+        }
+      ],
+      "ReserveTooLow(uint256,uint256)": [
+        {
+          "notice": "the player's reserve cannot cover this"
+        }
+      ],
+      "RosterAlreadyOpened()": [
+        {
+          "notice": "this game's roster was already opened"
+        }
+      ],
+      "SpawnPointNotOpen(uint64)": [
+        {
+          "notice": "The spawn point was not open at the start of this cycle."
+        }
+      ],
+      "StillWaitingToCommit(uint64,uint64)": [
+        {
+          "notice": "some of the members the cycle waits for have not committed yet"
+        }
+      ],
+      "StillWaitingToReveal(uint64,uint64)": [
+        {
+          "notice": "some of this cycle's commitments have not been revealed yet"
+        }
+      ],
+      "TableNotOver()": [
+        {
+          "notice": "Neither one king stands nor is the table's last cycle over."
+        }
+      ],
+      "TooManyActions(uint256,uint256)": [
+        {
+          "notice": "this reveal carries more actions than one transaction may"
+        }
+      ],
+      "UnreadableGameOptions(bytes32)": [
+        {
+          "notice": "The table was created with `gameOptions` this game cannot read         (a bit set other than `ChessRules.ONE_PIECE_MOVE`), so nobody         may take a seat at it."
+        }
+      ],
+      "WrongStake(uint256,uint256)": [
+        {
+          "notice": "A table's seat is bought with exactly one stake."
+        }
+      ],
+      "NotDelegate(address,address)": [
+        {
+          "notice": "`sender` is not a delegate of `owner` at this contract"
+        }
+      ],
+      "DelegationWithdrawn(address,address)": [
+        {
+          "notice": "the owner withdrew its authorisation for `delegate`; only the owner itself can authorise that delegate again (see {revoke})"
+        }
+      ],
+      "InvalidDelegate()": [
+        {
+          "notice": "a delegate must be a real address; use {revoke} to withdraw one"
+        }
+      ],
+      "InvalidSignature()": [
+        {
+          "notice": "the signature was not produced by `owner`, or was produced for a different delegate, deadline, contract or chain"
+        }
+      ],
+      "MalformedSignature()": [
+        {
+          "notice": "the signature is not 65 bytes, or carries values no honest signer produces"
+        }
+      ],
+      "SignatureExpired(uint256)": [
+        {
+          "notice": "the signature named a deadline that has already passed"
+        }
+      ],
+      "TransferFailed(address)": [
+        {
+          "notice": "the recipient rejected the value, or ran out of gas taking it"
+        }
+      ],
+      "UnrecoverableSignature()": [
+        {
+          "notice": "the signature is well-formed but recovers to nobody"
+        }
+      ],
+      "ValueWithNoPayee(uint256)": [
+        {
+          "notice": "value was sent with nowhere to forward it to"
+        }
+      ]
+    },
+    "notice": "Who is allowed to play as whom. A player's moves are sent by a LOCAL SIGNER: a key this browser generated, which the player never sees, holds nothing, and can lose without losing anything. That is what makes a cycle playable, since a commit and a reveal every cycle through a wallet prompt is not a game. It is also the whole danger, and delegation is what makes it safe. The template used to make that key the PLAYER: the reserve was its reserve and the cells were its cells. Everything worked and the position was wrong. An identity that lives only in one browser's storage is one cleared site away from being gone, taking the staked reserve with it, and there is no recovery because there is nothing else that was ever the player. Worse, a key with no owner is a key with full authority: anything that got hold of it held the stake. So the identity is the ACCOUNT, and the signer merely acts for it. The account owns the reserve and the cells; the signer spends gas. Losing the browser costs a key, and the player authorises another one and carries on. This route holds nothing of its own. {Delegation} keeps its state in a namespaced (ERC-7201) region, so the record is shared by every route behind the proxy: {GameCommit} resolves a move against exactly what is registered here. Deployed as its own route rather than folded into {GameCommit} because a router maps one selector to one route, and a contract inheriting {UsingDelegation} brings all six of these with it. The library is not forked into this tree: it ships as source in the etherplay delegation package and is compiled into this route. That matters because a delegate authorised here may do anything at THIS game that its owner could do through {GameCommit-_accountFor} - the whole contract, not one action - and nothing anywhere else, since the address of this contract and the chain id are inside the message the owner signs. A shared registry deployment would put the REGISTRY's address in every signature instead, making one credential good at every game on it. BEHIND THE ROUTER, that address is the PROXY. The route runs under `delegatecall`, so `address(this)` in {Delegation} is the proxy a player's client talks to, which is also where the record lives and where the check happens. So a signature is bound to the Game as a whole rather than to the implementation of one of its routes, and re-deploying a route does not invalidate anything already signed. That is the behaviour a router-based adopter needs, and it is asserted rather than assumed: see the proxy tests in `test/js/Game.test.ts`. Deliberately does NOT declare `is IDelegation`, though {IGame} composes that interface for the ABI. Solidity makes a contract inheriting both an interface and an abstract implementation of it restate every function as an `override`, which is precisely the boilerplate {UsingDelegation} exists to spare an adopter. The agreement between the two is checked instead by `test/js/Game.test.ts`, at the level where it can actually break: whether each selector is ROUTED on the deployed proxy. A compiler check would have proved the interface matched while the route was still missing from the deploy script."
+  },
+  "argsData": "0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000bf5ae265a1363435f7cb28375ba670be1c25f5e9000000000000000000000000463ce8ff9cf8c7b67c45dbb9419fb1d6e139ad200000000000000000000000000a594abe8bf9da282e5af05684d329cae35e0ff600000000000000000000000011f3bdd9b7258cdec7ad9efc2007d309bb6a672f00000000000000000000000001b23af6be99821dea259f754baa2030b5b93d970000000000000000000000006eb7b238ec302268e9c553403489ab0e0afad371000000000000000000000000e52175f63ef61479c82d3932d7cc4639b49c08fe00000000000000000000000073466c8bf15d22065f9dfbf731ad28be650c9159000000000000000000000000b802d44e134efde17097b3c73e62a910ba9b9676000000000000000000000000000000000000000000000000000000000000002c034c9a0e0800000000000000000000000000000000000000000000000000000008ce2011030000000000000000000000000000000000000000000000000000000a8bcdb902000000000000000000000000000000000000000000000000000000154827c10300000000000000000000000000000000000000000000000000000017d2ddb70700000000000000000000000000000000000000000000000000000018277f07050000000000000000000000000000000000000000000000000000001d379d520000000000000000000000000000000000000000000000000000000022b01a4b0300000000000000000000000000000000000000000000000000000026630d33080000000000000000000000000000000000000000000000000000002b70f7c4070000000000000000000000000000000000000000000000000000002c747a04070000000000000000000000000000000000000000000000000000002e4fe8dc0200000000000000000000000000000000000000000000000000000032866e2f0000000000000000000000000000000000000000000000000000000037460c5700000000000000000000000000000000000000000000000000000000379607f5030000000000000000000000000000000000000000000000000000004870d406000000000000000000000000000000000000000000000000000000005bb8115008000000000000000000000000000000000000000000000000000000655bce220000000000000000000000000000000000000000000000000000000069bcdb7d000000000000000000000000000000000000000000000000000000007587083d0100000000000000000000000000000000000000000000000000000075a7b75c0300000000000000000000000000000000000000000000000000000077778db3000000000000000000000000000000000000000000000000000000007f8661a106000000000000000000000000000000000000000000000000000000840a1ff402000000000000000000000000000000000000000000000000000000857ba5ec0200000000000000000000000000000000000000000000000000000089ba6d0201000000000000000000000000000000000000000000000000000000958d1cfc07000000000000000000000000000000000000000000000000000000a089479901000000000000000000000000000000000000000000000000000000a160ba2300000000000000000000000000000000000000000000000000000000a1c2904802000000000000000000000000000000000000000000000000000000a452803c06000000000000000000000000000000000000000000000000000000a58343da01000000000000000000000000000000000000000000000000000000baf2330008000000000000000000000000000000000000000000000000000000bd49c3b500000000000000000000000000000000000000000000000000000000c2d599f604000000000000000000000000000000000000000000000000000000c3f909d400000000000000000000000000000000000000000000000000000000cd4f3c1b02000000000000000000000000000000000000000000000000000000cfa6f82706000000000000000000000000000000000000000000000000000000dd4b3ac507000000000000000000000000000000000000000000000000000000ddc4957401000000000000000000000000000000000000000000000000000000ed8b6b3103000000000000000000000000000000000000000000000000000000f77080b008000000000000000000000000000000000000000000000000000000f82190fa02000000000000000000000000000000000000000000000000000000fa352c0008000000000000000000000000000000000000000000000000000000",
+  "transaction": {
+    "hash": "0x34b28ef5a58b88c1ef334342c635132b815a11205bd2baaab003719175a86ce7",
+    "nonce": "0x356",
+    "origin": "0x61c461ecc993aadeb7e4b47e96d1b8cc37314b20"
+  },
+  "receipt": {
+    "blockHash": "0xcb081c05dfb3c40303857acce92958587924e64b90e39d4a6dff6a7869cabe78",
+    "blockNumber": "0xb85160",
+    "transactionIndex": "0x11"
+  }
+}
