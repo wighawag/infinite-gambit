@@ -4,7 +4,7 @@ slug: chess-capture-loops
 spec: infinite-chess
 blockedBy: [chess-king-capture-merge]
 covers: [31]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -52,3 +52,9 @@ git fetch <remote> && git switch -c work/chess-capture-loops <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-capture-loops.md work/tasks/done/chess-capture-loops.md
 ```
+
+## Applied answers 2026-11-06
+
+### q1: 'task:chess-capture-loops' was bounced — how should we proceed?
+
+keep. Retry the build. The previous attempt died on "Response was truncated: the model reached its output token limit": one reply spent all 16,384 output tokens on reasoning before acting (the miro MCP OAuth line is harness noise). Nothing was saved. Work in small steps: settle ONE question at a time and act on it (write a failing test, edit, run that test file) before reasoning about the next; never try to design the whole rotation in a single reply. Grow files with edits of at most about 300 lines each, and keep the final report short.
