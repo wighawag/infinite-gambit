@@ -2,7 +2,7 @@
 title: "The contract's outcomes say when a piece was promoted and when a stone was made, so the client stops inferring it"
 slug: outcomes-report-promotion-and-stones
 spec: lean-rules
-blockedBy: [lean-rules-stone-on-the-two-victim-square, three-piece-moves-on-the-client]
+blockedBy: [lean-rules-stone-on-the-two-victim-square, three-piece-moves-bot-and-words]
 covers: [1, 3, 8]
 ---
 
