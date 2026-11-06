@@ -22,12 +22,21 @@ import type {ViewStateStore} from '$lib/view';
 import {exitsIn} from '../../exits';
 import type {BoardView} from '../../view';
 import {WoodBoard} from './board';
+import {ARRIVE_MS, EffectLayer} from './effects';
 import {ExitLayer} from './exits';
 import {Overlays} from './overlays';
 import {FOOT} from './piece-art';
 import {PieceTextures} from './pieces';
 import {pieceMode, type PieceMode} from './squares';
 import {kingBadge} from '../eth-diamond';
+import type {Position} from '../../squares';
+import {
+	createTransitionTracker,
+	MOVE_MS,
+	noTransition,
+	type BoardFrame,
+	type Transition,
+} from './transitions';
 import {
 	cssColourToHex,
 	exitBlocks,
@@ -56,7 +65,17 @@ type PieceObject = {
 	/** The ETH diamond on a king or stone: click it for the stake. */
 	badge: Sprite;
 	look: PieceLook;
+	/** Sliding in from another square: a move (`./transitions.ts`). */
+	motion?: {from: Position; start?: number};
+	/** Rising into place after `delayMs`: a deployment. */
+	arrival?: {delayMs: number; start?: number};
 };
+
+const easeInOut = (t: number) =>
+	t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+
+/** How high a moving piece is lifted at the middle of its slide, in squares. */
+const HOP = 0.3;
 
 export function createChessPixiRenderer(params: {
 	viewState: ViewStateStore<BoardView>;
@@ -74,6 +93,10 @@ export function createChessPixiRenderer(params: {
 	let exits: ExitLayer | undefined;
 	let overlays: Overlays | undefined;
 	let textures: PieceTextures | undefined;
+	let effects: EffectLayer | undefined;
+	const tracker = createTransitionTracker({spawnSpacing: params.spawnSpacing});
+	/** What the change being reconciled animates, read by `add` and `update`. */
+	let pending: Transition = noTransition();
 	const pieces = new Container();
 	pieces.sortableChildren = true;
 	const labels = new Container();
@@ -88,33 +111,21 @@ export function createChessPixiRenderer(params: {
 
 	function apply(object: PieceObject, look: PieceLook): void {
 		object.look = look;
-		const {glow, sprite, dot} = object;
+		const {glow, pad, sprite, dot, glyph, badge} = object;
 		const tone = cssColourToHex(look.tone);
-		const px = look.x * c;
-		const py = look.y * c;
 
 		glow.tint = tone;
-		glow.alpha = look.glow * look.alpha;
 		glow.width = c * 0.95;
 		glow.height = c * 0.42;
-		glow.position.set(px, py + c * 0.34);
-		glow.zIndex = look.y * 3;
 
 		// The pad: solid, rimmed, in the army colour, so whose piece it is
 		// reads at a glance without the thin band on the wood.
-		const {pad} = object;
 		pad.tint = tone;
-		pad.alpha = look.alpha;
 		pad.width = c * 0.82;
 		pad.height = c * 0.34;
-		pad.position.set(px, py + c * 0.33);
-		pad.zIndex = look.y * 3 + 0.5;
 
 		sprite.texture = texture(look);
-		sprite.alpha = look.alpha;
 		sprite.width = sprite.height = c * 0.94;
-		sprite.position.set(px, py + c * 0.44);
-		sprite.zIndex = look.y * 3 + 1;
 		if (sprite.texture === Texture.EMPTY) {
 			// rasterising is async: set the texture when it lands, if this object
 			// still wants it
@@ -127,26 +138,102 @@ export function createChessPixiRenderer(params: {
 		}
 
 		dot.tint = tone;
-		dot.alpha = look.alpha;
 		dot.width = dot.height = c * 0.86;
-		dot.position.set(px, py);
-		dot.zIndex = look.y * 3;
 
-		const {glyph} = object;
 		glyph.texture = textures!.glyph(glyphOfLook(look));
-		glyph.alpha = look.alpha;
 		glyph.width = glyph.height = c * 0.7;
-		glyph.position.set(px, py);
-		glyph.zIndex = look.y * 3 + 0.5;
 
-		const {badge} = object;
-		const at = kingBadge({x: look.x, y: look.y});
-		badge.alpha = look.alpha;
+		const at = kingBadge({x: 0, y: 0});
 		// the texture's diamond is 0.44 of its side per unit
 		badge.width = badge.height = (at.unit / 0.44) * c;
-		badge.position.set(at.centre.x * c, at.centre.y * c);
-		badge.zIndex = look.y * 3 + 2;
+		if (object.motion) place(object, object.motion.from, 0, 1);
+		else if (object.arrival) place(object, look, 0, 0);
+		else place(object, look, 0, 1);
 		showMode(object);
+	}
+
+	/**
+	 * Put a piece at `at` (in squares, fractional while it moves), `lift`
+	 * squares above its pad and at `fade` of its opacity.
+	 */
+	function place(
+		object: PieceObject,
+		at: Position,
+		lift: number,
+		fade: number,
+	): void {
+		const {glow, pad, sprite, dot, glyph, badge, look} = object;
+		const px = at.x * c;
+		const py = at.y * c;
+		const alpha = look.alpha * fade;
+		const z = at.y * 3;
+		const up = lift * c;
+
+		glow.alpha = look.glow * alpha;
+		glow.position.set(px, py + c * 0.34);
+		glow.zIndex = z;
+
+		pad.alpha = alpha;
+		pad.position.set(px, py + c * 0.33);
+		pad.zIndex = z + 0.5;
+
+		sprite.alpha = alpha;
+		sprite.position.set(px, py + c * 0.44 - up);
+		sprite.zIndex = z + 1;
+
+		dot.alpha = alpha;
+		dot.position.set(px, py - up);
+		dot.zIndex = z;
+
+		glyph.alpha = alpha;
+		glyph.position.set(px, py - up);
+		glyph.zIndex = z + 0.5;
+
+		const badgeAt = kingBadge(at);
+		badge.alpha = alpha;
+		badge.position.set(badgeAt.centre.x * c, badgeAt.centre.y * c - up);
+		badge.zIndex = z + 2;
+	}
+
+	/** Advance a piece's slide or rise, if it has one. */
+	function animate(object: PieceObject, nowMs: number): void {
+		const {motion, arrival, look} = object;
+		if (motion) {
+			motion.start ??= nowMs;
+			const t = (nowMs - motion.start) / MOVE_MS;
+			if (t >= 1) {
+				object.motion = undefined;
+				place(object, look, 0, 1);
+				return;
+			}
+			const m = easeInOut(Math.max(0, t));
+			const at = {
+				x: motion.from.x + (look.x - motion.from.x) * m,
+				y: motion.from.y + (look.y - motion.from.y) * m,
+			};
+			place(object, at, Math.sin(Math.PI * m) * HOP, 1);
+		} else if (arrival) {
+			arrival.start ??= nowMs + arrival.delayMs;
+			const t = (nowMs - arrival.start) / ARRIVE_MS;
+			if (t >= 1) {
+				object.arrival = undefined;
+				place(object, look, 0, 1);
+				return;
+			}
+			const q = Math.max(0, t);
+			place(object, look, (1 - easeInOut(q)) * 0.6, q);
+		}
+	}
+
+	/** Take what the change being reconciled says about this piece. */
+	function takeAnimation(object: PieceObject, key: string): void {
+		const from = pending.moves.get(key);
+		if (from) {
+			object.motion = {from};
+			object.arrival = undefined;
+		}
+		const delayMs = pending.arrivals.get(key);
+		if (delayMs !== undefined) object.arrival = {delayMs};
 	}
 
 	function showMode(object: PieceObject): void {
@@ -206,7 +293,7 @@ export function createChessPixiRenderer(params: {
 		viewState: params.viewState,
 		entities: (view) => pieceLooks(view),
 		changed: looksDiffer,
-		add: ({entity}) => {
+		add: ({key, entity}) => {
 			const object: PieceObject = {
 				glow: new Sprite(textures!.glow),
 				pad: new Sprite(textures!.dot),
@@ -216,6 +303,7 @@ export function createChessPixiRenderer(params: {
 				badge: new Sprite(textures!.badge),
 				look: entity,
 			};
+			takeAnimation(object, key);
 			object.badge.anchor.set(0.5);
 			object.glow.anchor.set(0.5);
 			object.pad.anchor.set(0.5);
@@ -234,7 +322,10 @@ export function createChessPixiRenderer(params: {
 			apply(object, entity);
 			return object;
 		},
-		update: ({object, entity}) => apply(object, entity),
+		update: ({key, object, entity}) => {
+			takeAnimation(object, key);
+			apply(object, entity);
+		},
 		remove: ({object}) => {
 			object.glow.destroy();
 			object.pad.destroy();
@@ -249,6 +340,7 @@ export function createChessPixiRenderer(params: {
 			exits = new ExitLayer(board, cellSize);
 			overlays = new Overlays(cellSize, params.spawnFrameHalf);
 			textures = new PieceTextures();
+			effects = new EffectLayer(pieces, textures, cellSize);
 			surface.addChild(
 				board.container,
 				exits.under,
@@ -256,10 +348,16 @@ export function createChessPixiRenderer(params: {
 				overlays.under,
 				pieces,
 				overlays.over,
+				effects.over,
 				labels,
 			);
 			unsubscribe = params.viewState.subscribe((view) => {
+				// before the reconciler's own subscription (it subscribes after
+				// `onStarted`), so `add` and `update` read this change's animations
 				if (view.step === 'Unloaded') {
+					tracker.reset();
+					effects?.clear();
+					pending = noTransition();
 					overlays?.set({
 						spawns: [],
 						destinations: [],
@@ -270,6 +368,8 @@ export function createChessPixiRenderer(params: {
 					latestLabels = [];
 					return;
 				}
+				pending = tracker.step(view as BoardFrame, performance.now());
+				effects?.play(pending, mode);
 				overlays?.set(overlayModel(view));
 				latestLabels = labelsOf(view);
 			});
@@ -280,16 +380,23 @@ export function createChessPixiRenderer(params: {
 			unsubscribe = undefined;
 			labelPool = [];
 			latestLabels = [];
-			board = exits = overlays = textures = undefined;
+			effects?.clear();
+			tracker.reset();
+			pending = noTransition();
+			board = exits = overlays = textures = effects = undefined;
 		},
 
 		tick({frame, objects}) {
 			tickBoard(frame);
 			const now = pieceMode(frame.transform.scale);
-			if (now !== mode) {
-				mode = now;
-				for (const object of objects) showMode(object);
+			// an iterator: walk it once
+			const changedMode = now !== mode;
+			mode = now;
+			for (const object of objects) {
+				if (changedMode) showMode(object);
+				animate(object, frame.timeMs);
 			}
+			effects?.tick(frame.timeMs, frame.transform.scale);
 		},
 	});
 

@@ -98,6 +98,12 @@ export type BoardView = {
 	 */
 	frozen?: ReadonlySet<bigint>;
 	/**
+	 * The armies the registry says left through an exit: what tells an army
+	 * that left the board with its stake from one that was captured, for the
+	 * wooden board's animations.
+	 */
+	exited?: ReadonlySet<bigint>;
+	/**
 	 * Where an enemy piece may move this cycle, by the contract's rule run in
 	 * the sandbox (`./attacked.ts`). Empty until it answers, and while the
 	 * army this client plays is not on the board.
@@ -194,6 +200,15 @@ export function frozenArmiesOf(armies: readonly ArmyView[]): Set<bigint> {
 	);
 }
 
+/** The armies the registry says left through an exit. */
+export function exitedArmiesOf(armies: readonly ArmyView[]): Set<bigint> {
+	return new Set(
+		armies
+			.filter((army) => army.status === ARMY_STATUS.Exited)
+			.map((army) => army.id),
+	);
+}
+
 /**
  * Combine the confirmed board with local intent. Copied rather than annotated,
  * so a re-derive never leaves a planned mark behind on the onchain store.
@@ -239,6 +254,7 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 		kings: kingsOf(onchain.armies),
 		stones: stonesOf(onchain.pieces, onchain.armies),
 		frozen: frozenArmiesOf(onchain.armies),
+		exited: exitedArmiesOf(onchain.armies),
 		attacked: (local.attacked ?? []).map(positionOf),
 		...(local.moves && local.moves.length > 0
 			? {
