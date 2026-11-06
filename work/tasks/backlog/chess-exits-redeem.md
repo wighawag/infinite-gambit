@@ -4,7 +4,7 @@ slug: chess-exits-redeem
 spec: infinite-chess
 blockedBy: [chess-capture-loops]
 covers: [32, 33, 34, 35]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -69,3 +69,14 @@ git fetch <remote> && git switch -c work/chess-exits-redeem <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-exits-redeem.md work/tasks/done/chess-exits-redeem.md
 ```
+
+## Applied answers 2026-11-06
+
+### q1: 'task:chess-exits-redeem' was bounced — how should we proceed?
+
+keep. The human decided (2026-11-06). Build the task whole, with these decisions:
+(1) ROUTE SIZE: split deployment reveals off the Reveal route into their own route (own entry point behind the router). The ABI and the client change accordingly; nothing is deployed yet (`git ls-files contracts/deployments` is empty), so that is free. Keep RouteSizes.test.ts measuring the default profile the tests and the offline world use, and keep every route under 24,576 bytes.
+(2) GAS: write a new ADR (next free number, amending 0009) and build it: (a) an "exited" fact that a read can recognise WITHOUT walking the merge chain, so path squares, a king's neighbours and footprint squares can tell an exited empire's pieces are gone at bounded cost; and (b) when a capture is folded (a closed-cycle fact, in `_foldCapture`), move the captured army's reserve up into its captor's reserve, which keeps every tree sum unchanged and flattens trees over time. Price the worst reveal honestly in GasBudget.test.ts and raise revealGas only as far as that needs.
+(3) DEPTH: the exit must pay the WHOLE merged stake, never a truncated one: no reserve may stay stranded beyond MAX_CHAIN (test a tree deeper than MAX_CHAIN), and if a tree is too deep for one transaction, provide a permissionless incremental way to collect it first. Pay `_ownerOf(army)` (loops rotate owners, ADR 0010).
+(4) MINIMAP: out of scope here. Mark exits on the board only; the minimap markers become a follow-up after this task and chess-camera-minimap have both landed.
+Everything else in the task stands (only StakeSale mints, the sale keeps its ETH, redeem at the fixed price, guarded setters, deterministic deploys, test helpers buy through the sale, exit claimable once by anyone after the landing cycle closes). Work in small steps (one decision, then act and run a test), since earlier builds died on the 16,384-token output limit.
