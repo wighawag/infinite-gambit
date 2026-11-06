@@ -54,6 +54,18 @@ export function isFlat(scale: number): boolean {
 	return scale < FLAT_BELOW;
 }
 
+/**
+ * How an exit is drawn at a zoom. On the wood it glows and breathes. Once the
+ * board goes flat (`isFlat`) the pieces are discs and the squares a few pixels,
+ * and a glowing inlay became the brightest thing on screen: it drops its glow
+ * and breath and takes the board's tint, so it marks the exit without taking
+ * the eye.
+ */
+export function exitLook(scale: number): {glow: boolean; dimmed: boolean} {
+	const flat = isFlat(scale);
+	return {glow: !flat, dimmed: flat};
+}
+
 export function isLight(x: number, y: number): boolean {
 	return (((x + y) % 2) + 2) % 2 === 0;
 }

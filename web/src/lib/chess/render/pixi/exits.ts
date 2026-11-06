@@ -22,9 +22,9 @@
  * so this bakes on a 2d canvas instead: clip to each triangle, draw the wood.
  */
 import {CanvasSource, Container, Sprite, Texture} from 'pixi.js';
-import type {WoodBoard} from './board';
+import {BOARD_DIM, type WoodBoard} from './board';
 import {INLAY, type Quadrant} from './piece-art';
-import {cellHash, exitInlay, isLight, type ExitSpan} from './squares';
+import {cellHash, exitInlay, exitLook, isLight, type ExitSpan} from './squares';
 
 const QUADRANTS: Array<[Quadrant, number, number]> = [
 	['tl', -1, -1],
@@ -175,6 +175,10 @@ export class ExitLayer {
 		// fainter as the camera pulls back, so a field of exits never becomes a
 		// polka-dot pattern
 		const far = Math.min(1, scale / 40);
+		const look = exitLook(scale);
+		// Dimmed, the inlay is the board's colour and half seen: one quiet
+		// diamond, not a beacon.
+		const DIMMED_ALPHA = 0.5;
 		exits.forEach((exit, i) => {
 			let e = this.pool[i];
 			if (!e) {
@@ -199,13 +203,16 @@ export class ExitLayer {
 				topLeftLight,
 			);
 			for (const s of [e.inlay, e.breath]) {
-				s.visible = true;
 				s.width = s.height = span * cellSize;
 				s.position.set(px, py);
 			}
+			e.inlay.visible = true;
+			e.inlay.tint = look.dimmed ? BOARD_DIM : 0xffffff;
+			e.inlay.alpha = look.dimmed ? DIMMED_ALPHA : 1;
+			e.breath.visible = look.glow;
 			e.breath.alpha = 0.04 + 0.14 * breath;
 			const glowCells = Math.max(span * 1.7, 30 / scale);
-			e.glow.visible = true;
+			e.glow.visible = look.glow;
 			e.glow.width = e.glow.height = glowCells * cellSize;
 			e.glow.position.set(px, py);
 			e.glow.alpha = (0.25 + 0.25 * breath) * (0.45 + 0.55 * far);

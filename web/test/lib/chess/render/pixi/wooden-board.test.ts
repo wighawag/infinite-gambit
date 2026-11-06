@@ -8,6 +8,7 @@ import {
 	cellHash,
 	exitInlay,
 	flatChecker,
+	exitLook,
 	isFlat,
 	pieceMode,
 	isLight,
@@ -55,6 +56,14 @@ describe('low zoom', () => {
 		expect(TURNED_BELOW).toBeGreaterThanOrEqual(FLAT_BELOW);
 		// The glyphs reach as far down as the canvas board draws them.
 		expect(GLYPHS_BELOW).toBe(6);
+	});
+
+	it('quiets the exits to the board once the wood goes flat', () => {
+		// On the wood: the inlay glows and breathes, at full colour.
+		expect(exitLook(FLAT_BELOW)).toEqual({glow: true, dimmed: false});
+		// On the flat checker a glowing inlay took the board's focus: no glow,
+		// no breath, tinted like the board.
+		expect(exitLook(FLAT_BELOW - 0.1)).toEqual({glow: false, dimmed: true});
 	});
 
 	it('starts the checker on a light square covering the whole view', () => {

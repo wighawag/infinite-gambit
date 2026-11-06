@@ -38,7 +38,7 @@ const FRAMES = 24;
  * did not stand out. A tint on the board's container only: the exit inlays
  * (cut from the same wood) stay bright, since they are meant to be found.
  */
-const BOARD_DIM = 0xa8998a;
+export const BOARD_DIM = 0xa8998a;
 
 function framesOf(canvas: HTMLCanvasElement, seed: number): Texture[] {
 	const source = new CanvasSource({
