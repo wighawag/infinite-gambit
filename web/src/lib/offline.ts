@@ -35,6 +35,7 @@ import {
 import {pieceOf, type PieceKind} from '$lib/chess/board';
 import {armyViewOf} from '$lib/chess/armies';
 import {MOVE_STORAGE} from '$lib/chess/storage';
+import {readMaxPieceMoves} from '$lib/chess/piece-moves';
 import {
 	CHESS_LEVELS,
 	GREEDY_LEVEL,
@@ -664,14 +665,15 @@ export function playedSeatDecider(
 					[minX, minY, maxX, maxY],
 				)
 			)[0].map(pieceOf),
-		legalMoves: async (board, from) => [
-			...((await sandbox.call({
+		wholeMove: (functionName, args) =>
+			sandbox.call({
 				contract: 'rules',
 				abi: game.abi,
-				functionName: 'legalMoves',
-				args: [board, from],
-			})) as unknown as readonly bigint[]),
-		],
+				functionName,
+				args: args as never,
+			}) as Promise<unknown>,
+		maxPieceMoves: () =>
+			readMaxPieceMoves((functionName) => read<bigint>(functionName, [])),
 		materialOf: async (kind: PieceKind) =>
 			Number(
 				(await sandbox.call({

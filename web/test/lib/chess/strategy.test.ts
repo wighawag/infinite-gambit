@@ -24,9 +24,11 @@ import {
 } from '$lib/chess/strategy';
 
 /**
- * THE GREEDY SEAT'S CHOICE: the most valuable capture it can reach, else a
- * random legal move. Which moves are legal and what a piece is worth are the
- * Simulation route's own `legalMoves` and `materialOf`, run here from the
+ * THE GREEDY SEAT'S CHOICE: up to the cap of piece-moves by different pieces,
+ * each the most valuable capture it can still reach, else a random legal
+ * piece-move. Which piece-moves are legal and what a piece is worth are the
+ * Simulation route's own `legalMovesAlongside`, `isLegalWholeMove` and
+ * `materialOf`, run here from the
  * deployed bytecode of an offline world in a sandbox, exactly as the world's
  * seats run them; only the board is handed in.
  */
@@ -89,6 +91,14 @@ const legalMoves = async (board: readonly Piece[], from: bigint) => [
 	} as never)) as unknown as readonly bigint[]),
 ];
 
+const wholeMove = (functionName: string, args: readonly unknown[]) =>
+	sandbox.call({
+		contract: 'rules',
+		abi,
+		functionName,
+		args,
+	} as never) as Promise<unknown>;
+
 const materialOf = async (kind: PieceKind) =>
 	Number(
 		(await sandbox.call({
@@ -99,8 +109,8 @@ const materialOf = async (kind: PieceKind) =>
 		} as never)) as unknown as bigint,
 	);
 
-function strategyOn(board: readonly Piece[]) {
-	let legalMovesCalls = 0;
+function strategyOn(board: readonly Piece[], cap = 1) {
+	let alongsideCalls = 0;
 	const strategy = createChessStrategy({
 		readArmy: async (army): Promise<ArmyView> => ({
 			id: army,
@@ -113,10 +123,11 @@ function strategyOn(board: readonly Piece[]) {
 			capturedBy: 0n,
 		}),
 		readPieces: async () => board,
-		legalMoves: async (around, from) => {
-			legalMovesCalls++;
-			return legalMoves(around, from);
+		wholeMove: (functionName, args) => {
+			if (functionName === 'legalMovesAlongside') alongsideCalls++;
+			return wholeMove(functionName, args);
 		},
+		maxPieceMoves: async () => cap,
 		materialOf,
 	});
 	const decide = (cycleNumber = 1, level = GREEDY_LEVEL) =>
@@ -130,9 +141,9 @@ function strategyOn(board: readonly Piece[]) {
 				identity: OWN,
 				cycleNumber,
 			}),
-			budget: {actionsAtMost: 1},
+			budget: {actionsAtMost: 3},
 		});
-	return {decide, calls: () => legalMovesCalls};
+	return {decide, calls: () => alongsideCalls};
 }
 
 describe('captureValue and chooseGreedyMove', () => {
@@ -170,6 +181,69 @@ describe('captureValue and chooseGreedyMove', () => {
 });
 
 describe('the greedy strategy, scored by the deployed rules', () => {
+	it('makes three piece-moves by different pieces, capturing first and moving the others', async () => {
+		const board = [
+			piece(0, 0, PIECE_KIND.Rook, OWN),
+			piece(0, -2, PIECE_KIND.King, OWN),
+			piece(5, 5, PIECE_KIND.Knight, OWN),
+			piece(-6, 3, PIECE_KIND.Bishop, OWN),
+			piece(0, 4, PIECE_KIND.Queen, ENEMY),
+			piece(6, 7, PIECE_KIND.Pawn, OTHER),
+		];
+		const {decide} = strategyOn(board, 3);
+		const actions = await decide();
+		expect(actions).toHaveLength(3);
+		// The best capture first, then the next one, then a legal move.
+		expect(actions[0]).toEqual({from: squareAt(0, 0), to: squareAt(0, 4)});
+		expect(actions[1]).toEqual({from: squareAt(5, 5), to: squareAt(6, 7)});
+		const froms = actions.map((move) => move.from);
+		expect(new Set(froms).size).toBe(3);
+		const own = new Set(
+			board.filter((p) => p.army === OWN).map((p) => p.position),
+		);
+		for (const from of froms) expect(own.has(from)).toBe(true);
+		// The contract calls the whole move legal, as the reveal will.
+		expect(await wholeMove('isLegalWholeMove', [board, OWN, actions, 3n])).toBe(
+			true,
+		);
+	}, 60_000);
+
+	it('makes one piece-move at a table that turns three off', async () => {
+		const {decide} = strategyOn(
+			[
+				piece(0, 0, PIECE_KIND.Rook, OWN),
+				piece(5, 5, PIECE_KIND.Knight, OWN),
+				piece(0, 4, PIECE_KIND.Queen, ENEMY),
+				piece(6, 7, PIECE_KIND.Pawn, OTHER),
+			],
+			1,
+		);
+		expect(await decide()).toEqual([
+			{from: squareAt(0, 0), to: squareAt(0, 4)},
+		]);
+	}, 60_000);
+
+	it('lets the route judge a piece-move alongside the ones it picked: never two to one square', async () => {
+		// Two rooks on a file, an enemy queen beyond the front one. The front
+		// rook takes the queen; the back rook may then slide through the square
+		// the front one leaves, but never onto the queen's square as well.
+		const board = [
+			piece(0, 0, PIECE_KIND.Rook, OWN),
+			piece(0, 1, PIECE_KIND.Rook, OWN),
+			piece(0, 5, PIECE_KIND.Queen, ENEMY),
+		];
+		for (let cycle = 1; cycle <= 3; cycle++) {
+			const actions = await strategyOn(board, 3).decide(cycle);
+			expect(actions).toHaveLength(2);
+			expect(actions[0]).toEqual({from: squareAt(0, 1), to: squareAt(0, 5)});
+			expect(actions[1].from).toBe(squareAt(0, 0));
+			expect(actions[1].to).not.toBe(squareAt(0, 5));
+			expect(
+				await wholeMove('isLegalWholeMove', [board, OWN, actions, 3n]),
+			).toBe(true);
+		}
+	}, 60_000);
+
 	it('captures the most valuable piece it can reach', async () => {
 		const {decide} = strategyOn([
 			piece(0, 0, PIECE_KIND.Rook, OWN),

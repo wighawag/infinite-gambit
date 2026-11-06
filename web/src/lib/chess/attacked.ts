@@ -15,6 +15,15 @@
  * square is not marked (that pawn may not move there this cycle, whatever I
  * do), while its steps onto empty squares are.
  *
+ * IT UNDERSTATES, on purpose. An enemy move is up to three piece-moves, judged
+ * with that army's own movers counted as gone
+ * (`docs/adr/0016-an-army-moves-up-to-three-pieces-a-cycle-simultaneously.md`):
+ * a rook can slide through a square its own piece leaves in the same move, and
+ * reach squares beyond it. This overlay asks each enemy piece on its own, on
+ * the start-of-cycle board, so it does not mark those. Marking them would mean
+ * guessing which pieces the enemy moves, which nobody can see before the
+ * reveal; a marked square is dangerous, an unmarked one is not proven safe.
+ *
  * THE RULE IS THE CONTRACT'S. `legalMoves` is the Simulation route's own
  * bytecode run in the sandbox, as it is for the player's own destinations
  * (`./planning.ts`); this file only chooses whose pieces to ask about and
