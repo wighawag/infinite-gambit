@@ -2,7 +2,7 @@
 # Regenerates every derived brand asset from the authored sources.
 #   authored:  logo.svg, icon.svg, src/preview.src.svg, src/lockup.src.svg
 #   generated: preview.svg, preview.png, lockup.svg, logo-light.svg, lockup-light.svg,
-#              icon.png, icon-192.png, icon-512.png, favicon-32.png, and the copies in landing/brand + landing/fonts
+#              icon.png, icon-192.png, icon-512.png, favicon-32.png, and the copies in landing/brand + landing/fonts and web/
 # Needs inkscape and magick. On NixOS: nix shell nixpkgs#inkscape -c ./build.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -51,6 +51,15 @@ L=../../landing
 mkdir -p "$L/brand" "$L/fonts"
 cp logo-light.svg lockup-light.svg icon.svg favicon-32.png icon-192.png preview.png "$L/brand/"
 cp fonts/Cinzel-VariableFont_wght.ttf fonts/OFL.txt "$L/fonts/"
+
+# 7. The game's web app: the icon, social card and lockup it is configured with
+#    (web/src/web-config.json), the mark its home page shows, and the heading font
+#    (imported by the home page's CSS, so Vite fingerprints it and keeps the build
+#    portable to IPFS).
+W=../../web
+cp logo-light.svg lockup-light.svg icon.svg preview.png "$W/static/"
+mkdir -p "$W/src/lib/brand/fonts"
+cp fonts/Cinzel-VariableFont_wght.ttf fonts/OFL.txt "$W/src/lib/brand/fonts/"
 
 rm -rf "$FC"
 echo "ok"
