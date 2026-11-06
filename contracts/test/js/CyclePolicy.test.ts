@@ -35,7 +35,7 @@ const CHUNK = Number(DEFAULT_ACTIONS_PER_REVEAL);
 const PASS: Move[] = [];
 
 /** The first open spawn points, one per army a suite deploys. */
-const SPAWN_POINTS = [squareAt(0, 0), squareAt(16, 0), squareAt(16, 16)];
+const SPAWN_POINTS = [squareAt(0, 0), squareAt(9, 0), squareAt(9, 9)];
 
 const SECRET_A =
 	'0x0000000000000000000000000000000000000000000000000000000000000a11';

@@ -382,8 +382,6 @@ export function createGameContext(core: CoreServices): GameContext {
 			position: bigint;
 			army: bigint;
 			kind: number;
-			forward: number;
-			moved: boolean;
 		}[];
 	const legalMoves = async (pieces: readonly Piece[], from: bigint) => [
 		...((await sandbox.call({

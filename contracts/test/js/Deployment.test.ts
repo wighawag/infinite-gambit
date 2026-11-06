@@ -35,7 +35,7 @@ const SECRET_B =
 	'0x0000000000000000000000000000000000000000000000000000000000000b22';
 
 /** The deployment's spawn grid (`data.Game.spawnSpacing`). */
-const S = 16;
+const S = 9;
 const spawn = (i: number, j: number) => squareAt(i * S, j * S);
 
 const STATUS = {
@@ -46,14 +46,11 @@ const STATUS = {
 	Unrevealed: 4,
 } as const;
 const KIND = ['.', 'P', 'N', 'B', 'R', 'Q', 'K'] as const;
-const DIRECTION = {North: 0, East: 1, South: 2, West: 3} as const;
 
 type Piece = {
 	position: bigint;
 	army: bigint;
 	kind: number;
-	forward: number;
-	moved: boolean;
 };
 type ArmyView = {
 	id: bigint;
@@ -179,92 +176,41 @@ function picture(
 	return lines;
 }
 
-/** The four layouts, as the board shows them around a spawn point. */
-const FACING = {
-	// Rows of the horizontal form, top (highest y) first; x from sx-3 to sx+2.
-	North: {
-		rect: (sx: number, sy: number) => ({
-			minX: sx - 3,
-			maxX: sx + 2,
-			minY: sy - 2,
-			maxY: sy + 1,
-		}),
-		picture: ['. P P P P .', 'P K B N R P', 'P R N B Q P', '. P P P P .'],
-		king: (sx: number, sy: number) => ({x: sx - 2, y: sy}),
-	},
-	South: {
-		rect: (sx: number, sy: number) => ({
-			minX: sx - 3,
-			maxX: sx + 2,
-			minY: sy - 2,
-			maxY: sy + 1,
-		}),
-		picture: ['. P P P P .', 'P Q B N R P', 'P R N B K P', '. P P P P .'],
-		king: (sx: number, sy: number) => ({x: sx + 1, y: sy - 1}),
-	},
-	// The vertical form: x from sx-2 to sx+1, y from sy+2 (top) to sy-3.
-	East: {
-		rect: (sx: number, sy: number) => ({
-			minX: sx - 2,
-			maxX: sx + 1,
-			minY: sy - 3,
-			maxY: sy + 2,
-		}),
-		picture: ['. P P .', 'P R K P', 'P N B P', 'P B N P', 'P Q R P', '. P P .'],
-		king: (sx: number, sy: number) => ({x: sx, y: sy + 1}),
-	},
-	West: {
-		rect: (sx: number, sy: number) => ({
-			minX: sx - 2,
-			maxX: sx + 1,
-			minY: sy - 3,
-			maxY: sy + 2,
-		}),
-		picture: ['. P P .', 'P R Q P', 'P N B P', 'P B N P', 'P K R P', '. P P .'],
-		king: (sx: number, sy: number) => ({x: sx - 1, y: sy - 2}),
-	},
+/**
+ * THE LAYOUT, the same for every army (`docs/adr/0015`): a 5 by 5 square
+ * without its corners, centred on the spawn point, top row (highest y) first.
+ */
+const LAYOUT = {
+	rect: (sx: number, sy: number) => ({
+		minX: sx - 2,
+		maxX: sx + 2,
+		minY: sy - 2,
+		maxY: sy + 2,
+	}),
+	picture: ['. P P P .', 'P R N B P', 'P Q K . P', 'P B N R P', '. P P P .'],
+	king: (sx: number, sy: number) => ({x: sx, y: sy}),
 } as const;
 
-const STEP: Record<number, {x: number; y: number}> = {
-	[DIRECTION.North]: {x: 0, y: 1},
-	[DIRECTION.East]: {x: 1, y: 0},
-	[DIRECTION.South]: {x: 0, y: -1},
-	[DIRECTION.West]: {x: -1, y: 0},
-};
-
 /**
- * What every layout must satisfy, whatever its facing: twenty pieces in the
- * rectangle, the picture above, nothing moved, and every pawn advancing OUT of
- * the rectangle from its own side.
+ * What every layout must satisfy, wherever it spawned: twenty pieces in the
+ * square, the picture above, every one of the army's, and the king on the
+ * spawn point.
  */
 function expectLayout(
 	pieces: readonly Piece[],
-	facing: keyof typeof FACING,
 	spawnPoint: {x: number; y: number},
 	army: bigint,
 ) {
-	const form = FACING[facing];
-	const rect = form.rect(spawnPoint.x, spawnPoint.y);
+	const rect = LAYOUT.rect(spawnPoint.x, spawnPoint.y);
 	expect(pieces.length).toEqual(20);
-	expect(picture(pieces, rect)).toEqual([...form.picture]);
+	expect(picture(pieces, rect)).toEqual([...LAYOUT.picture]);
 	for (const piece of pieces) {
 		expect(piece.army).toEqual(army);
-		expect(piece.moved).toEqual(false);
 		if (KIND[piece.kind] === 'K') {
 			expect(xyOf(piece.position)).toEqual(
-				form.king(spawnPoint.x, spawnPoint.y),
+				LAYOUT.king(spawnPoint.x, spawnPoint.y),
 			);
 		}
-		if (KIND[piece.kind] !== 'P') continue;
-		const {x, y} = xyOf(piece.position);
-		const step = STEP[piece.forward];
-		const ahead = {x: x + step.x, y: y + step.y};
-		const inside =
-			ahead.x >= rect.minX &&
-			ahead.x <= rect.maxX &&
-			ahead.y >= rect.minY &&
-			ahead.y <= rect.maxY;
-		expect(inside).toEqual(false);
 	}
 }
 
@@ -420,7 +366,7 @@ describe('Deploying an army', function () {
 	it('keeps the spawn point hidden until the reveal, and places the army only once the cycle is over', async function () {
 		const w = await world();
 		const army = await w.deploy(w.alice, spawn(0, 0));
-		const rect = FACING.North.rect(0, 0);
+		const rect = LAYOUT.rect(0, 0);
 
 		let view = await w.army(army);
 		expect(view.status).toEqual(STATUS.Deploying);
@@ -444,26 +390,21 @@ describe('Deploying an army', function () {
 		await w.toNextCycle();
 		view = await w.army(army);
 		expect(view.status).toEqual(STATUS.Deployed);
-		expect(xyOf(view.king)).toEqual({x: -2, y: 0});
+		expect(xyOf(view.king)).toEqual({x: 0, y: 0});
 		expectLayout(
 			await w.pieces(rect.minX, rect.minY, rect.maxX, rect.maxY),
-			'North',
 			{x: 0, y: 0},
 			army,
 		);
 	});
 
-	it('lays an army out by where it spawned, on the board, in all four facings', async function () {
+	it('lays every army out the same, on its spawn point, with exactly 4 empty squares to its neighbours', async function () {
 		const w = await world();
 		const deployments = [
-			{owner: w.alice, at: {i: 1, j: 0}, facing: 'East'},
-			{owner: w.bob, at: {i: -1, j: 0}, facing: 'West'},
-			{owner: w.carol, at: {i: 0, j: -1}, facing: 'South'},
-			{
-				owner: w.unnamedAccounts[3] as `0x${string}`,
-				at: {i: 0, j: 1},
-				facing: 'North',
-			},
+			{owner: w.alice, at: {i: 1, j: 0}},
+			{owner: w.bob, at: {i: 0, j: 0}},
+			{owner: w.carol, at: {i: 0, j: -1}},
+			{owner: w.unnamedAccounts[3] as `0x${string}`, at: {i: 1, j: 1}},
 		] as const;
 		const armies: bigint[] = [];
 		for (const d of deployments) {
@@ -479,43 +420,50 @@ describe('Deploying an army', function () {
 		for (let k = 0; k < deployments.length; k++) {
 			const d = deployments[k];
 			const sp = {x: d.at.i * S, y: d.at.j * S};
-			const rect = FACING[d.facing].rect(sp.x, sp.y);
+			const rect = LAYOUT.rect(sp.x, sp.y);
 			expectLayout(
 				await w.pieces(rect.minX, rect.minY, rect.maxX, rect.maxY),
-				d.facing,
 				sp,
 				armies[k],
 			);
 		}
+
+		// Side by side (bob at (0,0), alice at (9,0)) and one above the other
+		// (bob above carol at (0,-9)): x 3..6 and y -3..-6 are empty, four
+		// squares on each axis, and the next column or row is an army's edge
+		// (three pawns each side).
+		expect(await w.pieces(3, -2, 6, 2)).toEqual([]);
+		expect((await w.pieces(2, -2, 7, 2)).length).toEqual(6);
+		expect(await w.pieces(-2, -6, 2, -3)).toEqual([]);
+		expect((await w.pieces(-2, -7, 2, -2)).length).toEqual(6);
 	});
 
-	it('orients a layout in every quadrant, by the rule the board uses', async function () {
+	it('lays the same layout in every quadrant, by the rule the board uses', async function () {
 		// The simulation route runs the same pure layout the board is resolved
-		// with, so every quadrant (and both diagonals' tie-break) is checked
-		// without deploying sixteen armies.
+		// with, so every quadrant is checked without deploying sixteen armies.
 		const w = await world();
-		const cases: [number, number, keyof typeof FACING][] = [
-			[0, 0, 'North'], // the origin: 0 counts as positive
-			[1, 2, 'North'], // first quadrant, |y| > |x|
-			[2, 1, 'East'],
-			[-1, 2, 'North'], // second quadrant
-			[-2, 1, 'West'],
-			[-1, -2, 'South'], // third quadrant
-			[-2, -1, 'West'],
-			[1, -2, 'South'], // fourth quadrant
-			[2, -1, 'East'],
-			[1, 1, 'North'], // |y| == |x| is horizontal
-			[-1, -1, 'South'],
-			[3, 0, 'East'], // on the axes
-			[0, -3, 'South'],
+		const cases: [number, number][] = [
+			[0, 0],
+			[1, 2],
+			[2, 1],
+			[-1, 2],
+			[-2, 1],
+			[-1, -2],
+			[-2, -1],
+			[1, -2],
+			[2, -1],
+			[1, 1],
+			[-1, -1],
+			[3, 0],
+			[0, -3],
 		];
 		const army = armyIdOf(w.alice, 1);
-		for (const [i, j, facing] of cases) {
+		for (const [i, j] of cases) {
 			const pieces = (await w.env.read(w.Game, {
 				functionName: 'previewDeployment',
 				args: [spawn(i, j), army],
 			})) as Piece[];
-			expectLayout(pieces, facing, {x: i * S, y: j * S}, army);
+			expectLayout(pieces, {x: i * S, y: j * S}, army);
 		}
 		await expect(
 			w.env.read(w.Game, {
@@ -529,13 +477,13 @@ describe('Deploying an army', function () {
 		const w = await world();
 		const first = [
 			{x: 0, y: 0},
-			{x: 16, y: 0},
-			{x: 16, y: 16},
-			{x: 0, y: 16},
-			{x: -16, y: 16},
-			{x: -16, y: 0},
-			{x: -16, y: -16},
-			{x: 0, y: -16},
+			{x: 9, y: 0},
+			{x: 9, y: 9},
+			{x: 0, y: 9},
+			{x: -9, y: 9},
+			{x: -9, y: 0},
+			{x: -9, y: -9},
+			{x: 0, y: -9},
 		];
 		expect(await w.open()).toEqual(first);
 
@@ -549,20 +497,20 @@ describe('Deploying an army', function () {
 
 		await w.toNextCycle();
 		expect(await w.open()).toEqual([
-			{x: 16, y: 0},
-			{x: 0, y: 16},
-			{x: -16, y: 16},
-			{x: -16, y: 0},
-			{x: -16, y: -16},
-			{x: 0, y: -16},
-			{x: 16, y: -16},
-			{x: 32, y: -16},
+			{x: 9, y: 0},
+			{x: 0, y: 9},
+			{x: -9, y: 9},
+			{x: -9, y: 0},
+			{x: -9, y: -9},
+			{x: 0, y: -9},
+			{x: 9, y: -9},
+			{x: 18, y: -9},
 		]);
 	});
 
 	it('checks a reveal against the open set as it stood at the START of the cycle', async function () {
 		const w = await world();
-		// Spiral index 8, (16,-16): not open in this cycle, and it WILL be open
+		// Spiral index 8, (9,-9): not open in this cycle, and it WILL be open
 		// in the next, once the deployment below has landed.
 		const a = await w.deploy(w.alice, spawn(0, 0));
 		const b = await w.deploy(w.bob, spawn(1, -1), SECRET_B);
@@ -585,7 +533,7 @@ describe('Deploying an army', function () {
 		const w = await world();
 		const army = armyIdOf(w.alice, 1);
 		const bad: [Move[], RegExp][] = [
-			[[{from: squareAt(0, 0), to: squareAt(16, 0)}], /InvalidDeployment/],
+			[[{from: squareAt(0, 0), to: squareAt(9, 0)}], /InvalidDeployment/],
 			[[], /InvalidDeployment/],
 			[deploymentAt(squareAt(1, 0)), /NotASpawnPoint/],
 		];
@@ -688,8 +636,8 @@ describe('Deploying an army', function () {
 			STATUS.Unrevealed,
 		]);
 		expect(all.map((a) => a.stake)).toEqual([w.stake, w.stake, w.stake]);
-		expect(xyOf(all[0].king)).toEqual(FACING.North.king(0, 0));
-		expect(xyOf(all[1].king)).toEqual(FACING.East.king(16, 0));
+		expect(xyOf(all[0].king)).toEqual(LAYOUT.king(0, 0));
+		expect(xyOf(all[1].king)).toEqual(LAYOUT.king(9, 0));
 		expect(all[1].spawnPoint).toEqual(spawn(1, 0));
 
 		const ofAlice = (await w.env.read(w.Game, {
@@ -720,7 +668,7 @@ describe('Deploying an army', function () {
 			for (const army of armies) {
 				expect((await w.army(army)).status).toEqual(STATUS.Failed);
 			}
-			const rect = FACING.North.rect(0, 0);
+			const rect = LAYOUT.rect(0, 0);
 			expect(
 				await w.pieces(rect.minX, rect.minY, rect.maxX, rect.maxY),
 			).toEqual([]);
@@ -805,8 +753,8 @@ describe('Deploying an army', function () {
 		// The middle of Alice's army only: x from -1 to 1, y from -1 to 0.
 		const middle = await w.pieces(-1, -1, 1, 0);
 		expect(picture(middle, {minX: -1, minY: -1, maxX: 1, maxY: 0})).toEqual([
+			'Q K .',
 			'B N R',
-			'N B Q',
 		]);
 		expect(middle.every((p) => p.army === a)).toEqual(true);
 		// An empty area is empty, however far out.

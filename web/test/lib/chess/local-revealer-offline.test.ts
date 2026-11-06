@@ -163,7 +163,7 @@ describe('the local revealer, for a chess turn', () => {
 		expect(await status()).toBe(ARMY_STATUS.Deployed);
 
 		// A move: the knight to the corner, revealed for the player too.
-		await commitOnly([{from: squareAt(0, 0), to: squareAt(2, 1)}], '32');
+		await commitOnly([{from: squareAt(0, 1), to: squareAt(2, 2)}], '32');
 		await advance();
 		await settle(revealer);
 		expect(revealer.sends()).toBe(2);
@@ -172,7 +172,7 @@ describe('the local revealer, for a chess turn', () => {
 		expect(await status()).toBe(ARMY_STATUS.Deployed);
 		const [pieces] = (await env.read(Game, {
 			functionName: 'getPieces',
-			args: [2, 1, 2, 1],
+			args: [2, 2, 2, 2],
 		})) as [{army: bigint}[], bigint];
 		expect(pieces.map((p) => p.army)).toEqual([army]);
 	}, 60_000);

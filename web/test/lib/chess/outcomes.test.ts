@@ -21,7 +21,7 @@ import {positionOf, squareAt, zonesInRect} from '$lib/chess/squares';
 
 const YOU = 7n << 160n;
 const THEM = 9n << 160n;
-const NONE = {position: 0n, army: 0n, kind: 0, forward: 0, moved: false};
+const NONE = {position: 0n, army: 0n, kind: 0};
 
 const raw = (
 	x: number,
@@ -32,7 +32,7 @@ const raw = (
 ) => {
 	const position = squareAt(x, y);
 	const at = (p?: {army: bigint; kind: number}) =>
-		p ? {position, army: p.army, kind: p.kind, forward: 0, moved: true} : NONE;
+		p ? {position, army: p.army, kind: p.kind} : NONE;
 	return {position, died, captured: at(captured), piece: at(piece)};
 };
 

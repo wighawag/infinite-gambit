@@ -290,7 +290,7 @@ export async function deployGameWith(
 		/** THE CHUNK. Deliberately overridable: see `deployedActionsPerReveal`. */
 		actionsPerReveal?: bigint;
 		/**
-		 * The spawn grid's spacing (16 by default, the world's). A suite about
+		 * The spawn grid's spacing (9 by default, the world's). A suite about
 		 * moves deploys at 6, the tightest grid, so armies meet in a cycle.
 		 */
 		spawnSpacing?: bigint;
@@ -311,7 +311,7 @@ export async function deployGameWith(
 		// line every branch has to rewrite.
 		tokens: fixtures.GameToken.address,
 		stake: DEFAULT_STAKE,
-		spawnSpacing: options.spawnSpacing ?? 16n,
+		spawnSpacing: options.spawnSpacing ?? 9n,
 		openSpawnPoints: options.openSpawnPoints ?? 8n,
 		actionsPerReveal: options.actionsPerReveal ?? DEFAULT_ACTIONS_PER_REVEAL,
 		cyclePolicy: BigInt(options.cyclePolicy),

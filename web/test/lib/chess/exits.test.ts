@@ -4,26 +4,69 @@ import {ARMY_STATUS, unpaidExit} from '$lib/chess/armies';
 import {describeExitPayout} from '$lib/chess/ui/hud';
 
 describe('exit squares', () => {
-	it('sit at the centre of every spawn-grid cell, negative coordinates too', () => {
-		expect(isExitSquare(3, 3, 6)).toBe(true);
-		expect(isExitSquare(-3, 9, 6)).toBe(true);
-		expect(isExitSquare(0, 0, 6)).toBe(false);
-		expect(isExitSquare(8, 8, 16)).toBe(true);
-		expect(isExitSquare(-8, 24, 16)).toBe(true);
-		expect(isExitSquare(8, 0, 16)).toBe(false);
+	it('are the 2 by 2 block at the centre of every spawn-grid cell, negative coordinates too', () => {
+		// At spacing 9, offsets 4 and 5 off a spawn point on both axes.
+		for (const [x, y] of [
+			[4, 4],
+			[5, 4],
+			[4, 5],
+			[5, 5],
+			[-4, -4],
+			[-5, -5],
+			[-4, 13],
+			[14, -5],
+		]) {
+			expect(isExitSquare(x, y, 9)).toBe(true);
+		}
+		for (const [x, y] of [
+			[0, 0],
+			[3, 4],
+			[6, 5],
+			[4, 0],
+			[2, 2],
+			[-3, -4],
+		]) {
+			expect(isExitSquare(x, y, 9)).toBe(false);
+		}
+		// The general rule, as the contract's test worlds use it: offsets
+		// floor(S/2) and floor(S/2) + 1.
+		expect(isExitSquare(3, 4, 6)).toBe(true);
+		expect(isExitSquare(-2, -3, 6)).toBe(true);
+		expect(isExitSquare(5, 3, 6)).toBe(false);
 	});
 
 	it('are listed in a viewport, inclusive on every side', () => {
-		expect(exitsIn({minX: -3, minY: -3, maxX: 3, maxY: 3}, 6)).toEqual([
-			{x: -3, y: -3},
-			{x: 3, y: -3},
-			{x: -3, y: 3},
-			{x: 3, y: 3},
+		expect(exitsIn({minX: -5, minY: -5, maxX: 5, maxY: 5}, 9)).toEqual([
+			{x: -5, y: -5},
+			{x: -4, y: -5},
+			{x: 4, y: -5},
+			{x: 5, y: -5},
+			{x: -5, y: -4},
+			{x: -4, y: -4},
+			{x: 4, y: -4},
+			{x: 5, y: -4},
+			{x: -5, y: 4},
+			{x: -4, y: 4},
+			{x: 4, y: 4},
+			{x: 5, y: 4},
+			{x: -5, y: 5},
+			{x: -4, y: 5},
+			{x: 4, y: 5},
+			{x: 5, y: 5},
 		]);
-		expect(exitsIn({minX: -2, minY: -2, maxX: 2, maxY: 2}, 6)).toEqual([]);
-		for (const exit of exitsIn({minX: -40, minY: -7, maxX: 33, maxY: 50}, 16)) {
-			expect(isExitSquare(exit.x, exit.y, 16)).toBe(true);
+		// Half a block: the viewport's edge cuts it.
+		expect(exitsIn({minX: 5, minY: 0, maxX: 8, maxY: 4}, 9)).toEqual([
+			{x: 5, y: 4},
+		]);
+		expect(exitsIn({minX: -3, minY: -3, maxX: 3, maxY: 3}, 9)).toEqual([]);
+		const listed = exitsIn({minX: -40, minY: -7, maxX: 33, maxY: 50}, 9);
+		for (const exit of listed) {
+			expect(isExitSquare(exit.x, exit.y, 9)).toBe(true);
 		}
+		let every = 0;
+		for (let y = -7; y <= 50; y++)
+			for (let x = -40; x <= 33; x++) if (isExitSquare(x, y, 9)) every++;
+		expect(listed.length).toBe(every);
 	});
 });
 

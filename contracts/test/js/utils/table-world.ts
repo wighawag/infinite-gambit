@@ -20,10 +20,10 @@ import {SECRET, describePiece, type Piece} from './moves-world.js';
  * 6, the move suites' grid, so a table's seats stand where
  * `utils/moves-world.ts`'s armies do and meet in a cycle:
  *
- *   seat 0 at (0,0) facing North, seat 1 at (6,0) facing East,
- *   seat 2 at (6,6) facing North, seat 3 at (0,6) facing North.
+ *   seat 0 at (0,0), seat 1 at (6,0), seat 2 at (6,6), seat 3 at (0,6),
+ *   each army the one layout centred on its spawn point.
  *
- * The spacing is the table's parameter; the deployed tables use 10.
+ * The spacing is the table's parameter; the deployed tables use 9.
  */
 
 const COMMIT_PHASE = 60n;

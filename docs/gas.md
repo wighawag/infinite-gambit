@@ -22,6 +22,8 @@ Storage is priced by EIP-2929/3529: a cold read 2,100 and a warm one 100; a writ
 
 ## The scene
 
+> The figures on this page were measured on the old board, the 6 by 4 army facing away from the origin, and the scene below is that board's. Since `lean-rules-square-army-on-a-9-grid` (`docs/adr/0015`) `GasProfile.test.ts` plays the same kinds of move on the 5 by 5 army: the pawn (0,2) to (0,3), then (0,3) to (0,4) after a knight has stood on (0,4); a bishop (1,1) to (8,8) and back; the king (0,0) into its empty core square (1,0) and back. Re-measuring this page is `lean-rules-one-slot-square-record-and-tight-gas-limits`'s.
+
 The first army of the shipped world, deployed on (0,0), facing North, alone, one move a cycle, nothing to settle:
 
 ```

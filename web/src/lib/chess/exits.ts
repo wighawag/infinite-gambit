@@ -8,33 +8,52 @@
  * Whether an army has exited is the contract's to say (the registry's
  * `Exited` status, resolved lazily from closed-cycle facts); nothing here works
  * it out. What is here is the exit squares' PLACE, a constant of the map like
- * the spawn grid itself: the centre of each spawn-grid cell, half the spacing
- * off a spawn point on both axes (`UsingGameBoard._isExit`).
+ * the spawn grid itself: the 2 by 2 block at the centre of each spawn-grid
+ * cell, the squares ⌊S/2⌋ and ⌊S/2⌋ + 1 off a spawn point on both axes for a
+ * spacing S (`UsingGameBoard._isExit`, `docs/adr/0015`). At S = 9 that is
+ * offsets 4 and 5, two squares diagonally off each army's corner.
  */
 import {get, writable, type Readable} from 'svelte/store';
 import type {CoreServices} from '$lib/context/core';
 import type {CommitRevealContract} from '$lib/game/core/commit-reveal/contract';
 
-/** Whether (x, y) is an exit on a grid of spawn points `spacing` apart. */
-export function isExitSquare(x: number, y: number, spacing: number): boolean {
-	const half = Math.trunc(spacing / 2);
-	return (x - half) % spacing === 0 && (y - half) % spacing === 0;
+/** `v` modulo `spacing`, never negative. */
+const mod = (v: number, spacing: number) => ((v % spacing) + spacing) % spacing;
+
+/** Whether coordinate `v` is in the exit band of its spawn-grid cell. */
+function inExitBand(v: number, spacing: number): boolean {
+	const offset = mod(v, spacing);
+	const half = Math.floor(spacing / 2);
+	return offset === half || offset === half + 1;
 }
 
-/** Every exit in the rectangle, inclusive on every side. */
+/** Whether (x, y) is an exit on a grid of spawn points `spacing` apart. */
+export function isExitSquare(x: number, y: number, spacing: number): boolean {
+	return inExitBand(x, spacing) && inExitBand(y, spacing);
+}
+
+/** The coordinates of the exit bands in [min, max], ascending. */
+function bandIn(min: number, max: number, spacing: number): number[] {
+	const half = Math.floor(spacing / 2);
+	const out: number[] = [];
+	const firstCell = Math.floor((min - half - 1) / spacing);
+	for (let cell = firstCell; cell * spacing + half <= max; cell++) {
+		for (const v of [cell * spacing + half, cell * spacing + half + 1]) {
+			if (v >= min && v <= max) out.push(v);
+		}
+	}
+	return out;
+}
+
+/** Every exit square in the rectangle, inclusive on every side. */
 export function exitsIn(
 	bounds: {minX: number; minY: number; maxX: number; maxY: number},
 	spacing: number,
 ): {x: number; y: number}[] {
-	const half = Math.trunc(spacing / 2);
-	const first = (min: number) =>
-		Math.ceil((min - half) / spacing) * spacing + half;
+	const xs = bandIn(bounds.minX, bounds.maxX, spacing);
+	const ys = bandIn(bounds.minY, bounds.maxY, spacing);
 	const exits: {x: number; y: number}[] = [];
-	for (let y = first(bounds.minY); y <= bounds.maxY; y += spacing) {
-		for (let x = first(bounds.minX); x <= bounds.maxX; x += spacing) {
-			exits.push({x, y});
-		}
-	}
+	for (const y of ys) for (const x of xs) exits.push({x, y});
 	return exits;
 }
 

@@ -97,8 +97,9 @@ export function resolveChessConfig(deployments: TypedDeployments): ChessConfig {
 		},
 		cellSize: 16,
 		camera: {
-			// Room for the open spawn points around the origin (two grid steps
-			// either way at the world's spacing) on the first frame.
+			// Room for the open spawn points around the origin and the armies
+			// beyond them (four grid steps either way at the world's spacing of
+			// 9) on the first frame.
 			initialVisible: {width: 72, height: 72},
 			limits: {minWidth: 12, minHeight: 12, maxWidth: 160, maxHeight: 160},
 		},

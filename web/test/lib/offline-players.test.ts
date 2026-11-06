@@ -528,15 +528,23 @@ describe('the other players in the offline world', () => {
 				await t.advance();
 			}
 
-			// Every seat's army stands, not frozen, and has moved pieces.
+			// Every seat's army stands, not frozen, and has moved pieces: some
+			// piece of it stands off the square its layout put it on.
 			for (const seat of played) {
 				const army = await t.armyOf(seat.identity);
 				expect(army.status).toBe(ARMY_STATUS.Deployed);
 				const [pieces] = await t.read<
-					readonly [readonly {army: bigint; moved: boolean}[], bigint]
+					readonly [readonly {army: bigint; position: bigint}[], bigint]
 				>('getPieces', [-64, -64, 64, 64]);
+				const laid = await t.read<readonly {position: bigint}[]>(
+					'previewDeployment',
+					[army.spawnPoint, seat.identity],
+				);
+				const layout = new Set(laid.map((p) => p.position));
 				expect(
-					pieces.filter((p) => p.army === seat.identity && p.moved).length,
+					pieces.filter(
+						(p) => p.army === seat.identity && !layout.has(p.position),
+					).length,
 				).toBeGreaterThan(0);
 			}
 		} finally {

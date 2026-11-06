@@ -169,7 +169,7 @@ This game's action: one chess move by one piece. An army submits at most one mov
 _Avoid_: turn, action (in game-facing text), order
 
 **Spawn point**:
-A point on a fixed grid where an army may be deployed. Only the few free spawn points nearest the origin are open, so the world stays dense as it grows.
+A point on a fixed grid where an army may be deployed, and where its king stands: spawn points are 9 apart on both axes on every grid (the online world, the offline world and tables), so two neighbouring armies, side by side or one above the other, have exactly 4 empty squares between them. Only the few free spawn points nearest the origin are open, so the world stays dense as it grows (`docs/adr/0015-a-square-army-with-pawns-that-move-every-way-on-a-9-grid.md`).
 _Avoid_: slot, start position, base
 
 **Deployment**:
@@ -177,7 +177,7 @@ Placing a new army, committed and revealed like a move so nobody knows which spa
 _Avoid_: spawn (as a noun for the act), join, enter
 
 **Footprint**:
-The twenty squares a deployment's layout puts a piece on (the 6 by 4 rectangle without its empty corners). It is clear when none is occupied at the start of the deployment's cycle and no piece arrives on one during it.
+The 21 squares of the 5 by 5 square centred on a spawn point, without its four corners: the twenty a deployment's layout puts a piece on (12 pawns around a 3 by 3 core, the king in its centre) and the one empty core square beside the king, so a deployed king always has its free square. Every army has this one layout; there is no facing. It is clear when none of the 21 is occupied at the start of the deployment's cycle and no piece arrives on one during it.
 _Avoid_: base, area, zone (a zone is the board read's 16 by 16 index)
 
 **Dead army**:
@@ -185,11 +185,11 @@ An army that can never act again, so no cycle waits for it: a deployment that fa
 _Avoid_: eliminated, gone, inactive
 
 **Exit**:
-A square where a king may leave the world with its stake, at the centre of each spawn-grid cell (half the spacing off a spawn point on both axes). It is the only way a stake leaves. A king that lands on one ALONE has left at the close of that cycle: its army's pieces leave the board with it, and `exit(army)`, which anyone may call afterwards, pays its whole stake in ETH to the army's owner, the stakes of the armies it took included but not a stone's (`docs/adr/0013`). A king that arrives with others follows the collision table. A table has no exits: there, a king on an exit square is only a king on a square.
+A square where a king may leave the world with its stake: one of the 2 by 2 block at the centre of each spawn-grid cell, where four armies meet diagonally (for a spacing S, the squares ⌊S/2⌋ and ⌊S/2⌋ + 1 off a spawn point on both axes: at 9, two squares diagonally off each army's corner). It is the only way a stake leaves. Two kings that land alone on two squares of one block both leave. A king that lands on one ALONE has left at the close of that cycle: its army's pieces leave the board with it, and `exit(army)`, which anyone may call afterwards, pays its whole stake in ETH to the army's owner, the stakes of the armies it took included but not a stone's (`docs/adr/0013`). A king that arrives with others follows the collision table. A table has no exits: there, a king on an exit square is only a king on a square.
 _Avoid_: withdraw, cash out, escape
 
 **Table seat**:
-At a table the seat IS the army: buying a seat creates a new army for the buyer, funded with one stake, on the table's next spawn point (a tighter grid, from a counter that only increases, so a seat that leaves leaves a gap and moves nobody). That purchase is the deployment; there is no deployment commit at a table. The armies stand inert and hidden until the creator starts the table. Before the start the owner may leave with the whole stake (`leaveTable`), the one time an army's stake is withdrawn directly.
+At a table the seat IS the army: buying a seat creates a new army for the buyer, funded with one stake, on the table's next spawn point (the same 9 grid as the world's, from a counter that only increases, so a seat that leaves leaves a gap and moves nobody). That purchase is the deployment; there is no deployment commit at a table. The armies stand inert and hidden until the creator starts the table. Before the start the owner may leave with the whole stake (`leaveTable`), the one time an army's stake is withdrawn directly.
 _Avoid_: player slot, seat account
 
 **Greedy level**:
@@ -221,7 +221,7 @@ What a missed reveal does to an army: it never moves again and its king cannot e
 _Avoid_: ban, lock, penalty
 
 **Attacked square**:
-A square a piece of another army may legally move onto this cycle, judged on the board the cycle started with: a piece standing there can be captured, and one arriving there collides. Because every army moves at once this is not chess's attacked square: an enemy pawn's diagonal onto an empty square is not attacked (that pawn may not move there this cycle), and its step forward is. A frozen army and a stone attack nothing, since neither moves again. The client works it out only by running the contract's `legalMoves` over the enemy's pieces (`web/src/lib/chess/attacked.ts`).
+A square a piece of another army may legally move onto this cycle, judged on the board the cycle started with: a piece standing there can be captured, and one arriving there collides. Because every army moves at once this is not chess's attacked square: a pawn steps one square every way and captures on all four of its diagonals, so an enemy pawn's four steps onto empty squares are attacked and its diagonals only where a piece stands to be captured (onto an empty square that pawn may not move this cycle). A frozen army and a stone attack nothing, since neither moves again. The client works it out only by running the contract's `legalMoves` over the enemy's pieces (`web/src/lib/chess/attacked.ts`).
 _Avoid_: threatened, controlled, in check
 
 ## The work/ contract

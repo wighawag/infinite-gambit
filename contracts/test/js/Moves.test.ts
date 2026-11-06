@@ -2,7 +2,14 @@ import {expect} from 'earl';
 import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not support vitest
 import {network} from 'hardhat';
 import {setupFixtures, squareAt, xyOf} from './utils/index.js';
-import {movesWorld, at, move, type Piece} from './utils/moves-world.js';
+import {
+	movesWorld,
+	at,
+	move,
+	REVEAL_ORDERS,
+	type Piece,
+	type RevealOrder,
+} from './utils/moves-world.js';
 
 /**
  * MOVES: one per army per cycle, judged against the board as it stood at the
@@ -16,14 +23,15 @@ import {movesWorld, at, move, type Piece} from './utils/moves-world.js';
  * The game here is the tight-grid world of `utils/moves-world.ts` (spacing 6),
  * so that armies stand next to each other and meet in a cycle:
  *
- *   alice, spawn (0,0), facing North        bob, spawn (6,0), facing East
+ *   alice, spawn (0,0)                 bob, spawn (6,0): alice's moved right 6
  *
- *   y= 1  . P P P P .     x = -3 .. 2      x = 4: pawns facing West, y 1..-2
- *   y= 0  P K B N R P                      x = 5: P R N B Q P, y 2..-3
- *   y=-1  P R N B Q P                      x = 6: P K B N R P, y 2..-3
- *   y=-2  . P P P P .                      x = 7: pawns facing East, y 1..-2
+ *   y= 2  . P P P .     x = -2 .. 2    x = 4 .. 8
+ *   y= 1  P R N B P
+ *   y= 0  P Q K . P     (the king on the spawn point, (1,0) empty)
+ *   y=-1  P B N R P
+ *   y=-2  . P P P .
  *
- *   carol, spawn (0,6), facing North: alice's picture moved up 6.
+ *   carol, spawn (0,6), and dave, spawn (6,6): the same, moved up 6.
  */
 
 const {provider, networkHelpers} = await network.connect();
@@ -39,21 +47,17 @@ const world = movesWorld({
 
 const MINE = 1n << 160n;
 const THEIRS = 2n << 160n;
-const FORWARD = {N: 0, E: 1, S: 2, W: 3} as const;
 const KINDS = {P: 1, N: 2, B: 3, R: 4, Q: 5, K: 6} as const;
 
-/** `'Q@0,0'` (mine) or `'k@1,1'` (lower case: theirs), with `:E` for a
- *  pawn's forward and `*` once it has moved. */
+/** `'Q@0,0'` (mine) or `'k@1,1'` (lower case: theirs). */
 function p(spec: string): Piece {
-	const m = /^([PNBRQKpnbrqk])@(-?\d+),(-?\d+)(?::([NESW]))?(\*)?$/.exec(spec);
+	const m = /^([PNBRQKpnbrqk])@(-?\d+),(-?\d+)$/.exec(spec);
 	if (!m) throw new Error(`bad piece ${spec}`);
 	const letter = m[1];
 	return {
 		position: at(Number(m[2]), Number(m[3])),
 		army: letter === letter.toUpperCase() ? MINE : THEIRS,
 		kind: KINDS[letter.toUpperCase() as keyof typeof KINDS],
-		forward: FORWARD[(m[4] ?? 'N') as keyof typeof FORWARD],
-		moved: m[5] === '*',
 	};
 }
 
@@ -84,40 +88,45 @@ function ray(x: number, y: number, dx: number, dy: number, range = 7) {
 }
 
 describe('the move rule', function () {
-	it('moves a pawn forward one, or two on its first move, along its own forward', async function () {
+	it('steps a pawn one square orthogonally, every way, and never two (no double step)', async function () {
 		const legal = await rules();
-		expect(await legal(['P@0,0:N'], [0, 0])).toEqual(squares([0, 1], [0, 2]));
-		expect(await legal(['P@0,0:E'], [0, 0])).toEqual(squares([1, 0], [2, 0]));
-		expect(await legal(['P@0,0:S'], [0, 0])).toEqual(squares([0, -1], [0, -2]));
-		expect(await legal(['P@0,0:W'], [0, 0])).toEqual(squares([-1, 0], [-2, 0]));
-		// Once it has moved, one square only.
-		expect(await legal(['P@0,0:N*'], [0, 0])).toEqual(squares([0, 1]));
+		expect(await legal(['P@0,0'], [0, 0])).toEqual(
+			squares([1, 0], [-1, 0], [0, 1], [0, -1]),
+		);
+		// The same after it has moved: there is no first-move double step.
+		expect(await legal(['P@5,-3'], [5, -3])).toEqual(
+			squares([6, -3], [4, -3], [5, -2], [5, -4]),
+		);
 	});
 
-	it('needs an empty square to advance onto, and to pass over', async function () {
+	it('needs an empty square to step onto, and never captures straight', async function () {
 		const legal = await rules();
-		// Blocked in front, by anyone: no straight move at all, no capture.
-		expect(await legal(['P@0,0:N', 'p@0,1'], [0, 0])).toEqual([]);
-		expect(await legal(['P@0,0:N', 'N@0,1'], [0, 0])).toEqual([]);
-		// Blocked two ahead: one square only.
-		expect(await legal(['P@0,0:N', 'p@0,2'], [0, 0])).toEqual(squares([0, 1]));
+		// Blocked by anyone, an enemy included: a step is never a capture.
+		expect(await legal(['P@0,0', 'p@0,1', 'N@1,0'], [0, 0])).toEqual(
+			squares([-1, 0], [0, -1]),
+		);
+		expect(
+			await legal(['P@0,0', 'p@0,1', 'p@1,0', 'p@-1,0', 'p@0,-1'], [0, 0]),
+		).toEqual([]);
 	});
 
-	it('captures diagonally forward, only an enemy, and never onto an empty square (no en passant)', async function () {
+	it('captures on any of the four diagonals, only an enemy, and never onto an empty square (no en passant)', async function () {
 		const legal = await rules();
-		expect(await legal(['P@0,0:N*', 'p@1,1', 'p@-1,1'], [0, 0])).toEqual(
-			squares([0, 1], [1, 1], [-1, 1]),
+		const steps: [number, number][] = [
+			[1, 0],
+			[-1, 0],
+			[0, 1],
+			[0, -1],
+		];
+		expect(
+			await legal(['P@0,0', 'p@1,1', 'p@-1,1', 'p@1,-1', 'p@-1,-1'], [0, 0]),
+		).toEqual(squares(...steps, [1, 1], [-1, 1], [1, -1], [-1, -1]));
+		// Its own piece is not a capture, and an empty diagonal is no move.
+		expect(await legal(['P@0,0', 'N@1,1', 'p@-1,-1'], [0, 0])).toEqual(
+			squares(...steps, [-1, -1]),
 		);
-		// Its own piece is not a capture.
-		expect(await legal(['P@0,0:N*', 'N@1,1'], [0, 0])).toEqual(squares([0, 1]));
-		// A pawn that just passed beside it is not either: there is no en passant.
-		expect(await legal(['P@0,0:N*', 'p@1,0:S*'], [0, 0])).toEqual(
-			squares([0, 1]),
-		);
-		// Backwards diagonals are not a pawn's.
-		expect(await legal(['P@0,0:E*', 'p@-1,1', 'p@1,1'], [0, 0])).toEqual(
-			squares([1, 0], [1, 1]),
-		);
+		// A pawn that just passed beside it is no capture either: no en passant.
+		expect(await legal(['P@0,0', 'p@2,1'], [0, 0])).toEqual(squares(...steps));
 	});
 
 	it('jumps a knight over anything, onto anything but its own', async function () {
@@ -206,59 +215,63 @@ describe('moving an army', function () {
 		const [a] = await w.deploy([[w.alice, [0, 0]]]);
 		const before = await w.board();
 
-		const twoSquares = [move([-2, 1], [-2, 3])];
-		await w.commit(w.alice, a, twoSquares);
+		const step = [move([-1, 2], [-1, 3])];
+		await w.commit(w.alice, a, step);
 		await w.toRevealPhase();
-		await w.reveal(w.alice, a, twoSquares);
+		await w.reveal(w.alice, a, step);
 		// Revealed, and the board is still the start-of-cycle board.
 		expect(await w.board()).toEqual(before);
 
 		await w.toNextCycle();
-		expect(await w.pieceAt(-2, 1)).toEqual(undefined);
-		expect(await w.pieceAt(-2, 3)).toEqual(`P@-2,3#${a}:N*`);
+		expect(await w.pieceAt(-1, 2)).toEqual(undefined);
+		expect(await w.pieceAt(-1, 3)).toEqual(`P@-1,3#${a}`);
 		expect((await w.board()).length).toEqual(20);
 	});
 
 	it('keeps the registry returning where each king stands, resolved', async function () {
 		const w = await world();
 		const [a] = await w.deploy([[w.alice, [0, 0]]]);
-		expect((await w.registry())[0].king).toEqual({x: -2, y: 0});
+		// The king stands on the spawn point.
+		expect((await w.registry())[0].king).toEqual({x: 0, y: 0});
 
-		// Into the empty corner of its own footprint.
-		const kingMove = [move([-2, 0], [-3, 1])];
+		// Into the empty core square of its own footprint.
+		const kingMove = [move([0, 0], [1, 0])];
 		await w.commit(w.alice, a, kingMove);
 		await w.toRevealPhase();
 		await w.reveal(w.alice, a, kingMove);
-		expect((await w.registry())[0].king).toEqual({x: -2, y: 0});
+		expect((await w.registry())[0].king).toEqual({x: 0, y: 0});
 		await w.toNextCycle();
-		expect((await w.registry())[0].king).toEqual({x: -3, y: 1});
-		expect(await w.pieceAt(-3, 1)).toEqual(`K@-3,1#${a}:N*`);
+		expect((await w.registry())[0].king).toEqual({x: 1, y: 0});
+		expect(await w.pieceAt(1, 0)).toEqual(`K@1,0#${a}`);
 
 		// And again, from where it now stands.
-		await w.play([{owner: w.alice, army: a, moves: [move([-3, 1], [-3, 2])]}]);
-		expect((await w.registry())[0].king).toEqual({x: -3, y: 2});
+		await w.play([{owner: w.alice, army: a, moves: [move([1, 0], [0, 0])]}]);
+		expect((await w.registry())[0].king).toEqual({x: 0, y: 0});
 	});
 
 	it('reveals exactly the moves the simulation route calls legal', async function () {
 		const w = await world();
 		await w.deploy([[w.alice, [0, 0]]]);
-		// The knight on (0,0): over the pawns, onto the two empty squares in
-		// front and the empty corner.
-		expect(await w.legalMoves([0, 0])).toEqual(
-			squares([1, 2], [-1, 2], [2, 1]),
+		// The knight on (0,1): over the pawns, onto the two empty squares above
+		// them and the two empty corners.
+		expect(await w.legalMoves([0, 1])).toEqual(
+			squares([1, 3], [-1, 3], [2, 2], [-2, 2]),
 		);
-		// The rook on (1,0) and the king on (-2,0) are boxed in, but for the
-		// king's corner.
-		expect(await w.legalMoves([1, 0])).toEqual([]);
-		expect(await w.legalMoves([-2, 0])).toEqual(squares([-3, 1]));
-		// The east pawn on (2,0) advances East.
-		expect(await w.legalMoves([2, 0])).toEqual(squares([3, 0], [4, 0]));
+		// The queen on (-1,0) is boxed in; the king on (0,0) has only the empty
+		// core square beside it.
+		expect(await w.legalMoves([-1, 0])).toEqual([]);
+		expect(await w.legalMoves([0, 0])).toEqual(squares([1, 0]));
+		// The east pawn on (2,0) steps out East, or in onto the empty core
+		// square; the top pawn (0,2) only out.
+		expect(await w.legalMoves([2, 0])).toEqual(squares([1, 0], [3, 0]));
+		expect(await w.legalMoves([0, 2])).toEqual(squares([0, 3]));
 
 		for (const illegal of [
-			move([1, 0], [1, 2]), // a rook through its own pawn
-			move([-2, 0], [0, 0]), // a king two squares: castling
+			move([1, -1], [1, -3]), // a rook through its own pawn
+			move([0, 0], [2, 2]), // a king two squares: castling
 			move([2, 0], [3, 1]), // a pawn diagonally onto an empty square
-			move([2, 0], [2, 1]), // a pawn sideways
+			move([2, 0], [4, 0]), // a pawn two squares: no double step
+			move([0, 2], [0, 1]), // a pawn onto its own knight
 			move([5, 5], [5, 6]), // nothing there
 		]) {
 			// A fresh army each time: a commitment that cannot be revealed is a
@@ -283,8 +296,8 @@ describe('moving an army', function () {
 		// And a legal one goes through: the knight to the corner.
 		const ok = await world();
 		const [army] = await ok.deploy([[ok.alice, [0, 0]]]);
-		await ok.play([{owner: ok.alice, army, moves: [move([0, 0], [2, 1])]}]);
-		expect(await ok.pieceAt(2, 1)).toEqual(`N@2,1#${army}:N*`);
+		await ok.play([{owner: ok.alice, army, moves: [move([0, 1], [2, 2])]}]);
+		expect(await ok.pieceAt(2, 2)).toEqual(`N@2,2#${army}`);
 	});
 
 	it("refuses a move of another army's piece", async function () {
@@ -312,7 +325,7 @@ describe('moving an army', function () {
 		expect(await w.board()).toEqual(start);
 
 		// Two moves in one submission: refused, whichever chunk comes first.
-		const two = [move([-2, 1], [-2, 2]), move([1, 1], [1, 2])];
+		const two = [move([-1, 2], [-1, 3]), move([1, 2], [1, 3])];
 		await w.commit(w.alice, a, two);
 		await w.toRevealPhase();
 		await expect(w.reveal(w.alice, a, two)).toBeRejectedWith(/OneMovePerCycle/);
@@ -324,29 +337,25 @@ describe('moving an army', function () {
 		// A second reveal of a move already revealed: refused by the base.
 		const v = await world();
 		const [army] = await v.deploy([[v.alice, [0, 0]]]);
-		const one = [move([-2, 1], [-2, 2])];
+		const one = [move([-1, 2], [-1, 3])];
 		await v.commit(v.alice, army, one);
 		await v.toRevealPhase();
 		await v.reveal(v.alice, army, one);
 		await expect(v.reveal(v.alice, army, one)).toBeRejected();
 		await v.toNextCycle();
-		expect(await v.pieceAt(-2, 2)).toEqual(`P@-2,2#${army}:N*`);
+		expect(await v.pieceAt(-1, 3)).toEqual(`P@-1,3#${army}`);
 	});
 
 	it('never promotes a pawn, however far it goes', async function () {
 		const w = await world();
 		const [a] = await w.deploy([[w.alice, [0, 0]]]);
-		let y = 1;
-		await w.play([
-			{owner: w.alice, army: a, moves: [move([1, y], [1, y + 2])]},
-		]);
-		y += 2;
-		for (let k = 0; k < 6; k++, y++) {
+		let y = 2;
+		for (let k = 0; k < 7; k++, y++) {
 			await w.play([
-				{owner: w.alice, army: a, moves: [move([1, y], [1, y + 1])]},
+				{owner: w.alice, army: a, moves: [move([0, y], [0, y + 1])]},
 			]);
 		}
-		expect(await w.pieceAt(1, y)).toEqual(`P@1,${y}#${a}:N*`);
+		expect(await w.pieceAt(0, y)).toEqual(`P@0,${y}#${a}`);
 	});
 });
 
@@ -358,14 +367,14 @@ describe('resolving moves', function () {
 	/**
 	 * Two cycles of three armies' moves, revealed in `order`:
 	 *
-	 * 1. alice's pawn (-1,1) two squares to (-1,3) and carol's pawn (-1,4) one
-	 *    square to the same square (two arrivals: both fail, by the count);
-	 *    bob's pawn (4,0) to (3,0), alone (it lands).
+	 * 1. alice's pawn (-1,2) up to (-1,3) and carol's pawn (-1,4) down to the
+	 *    same square (two arrivals: both fail, by the count); bob's pawn (4,0)
+	 *    West to (3,0), alone (it lands).
 	 * 2. alice's pawn (2,-1) captures bob's pawn on (3,0) diagonally (one
-	 *    arrival on a piece that stayed); bob's knight (5,0) to (3,1); carol's
-	 *    pawn (0,4) to (0,3).
+	 *    arrival on a piece that stayed); bob's pawn (4,1) West to (3,1);
+	 *    carol's pawn (0,4) down to (0,3).
 	 */
-	async function playBothCycles(order: 'forward' | 'reverse') {
+	async function playBothCycles(order: RevealOrder) {
 		const w = await world();
 		const [a, b, c] = await w.deploy([
 			[w.alice, [0, 0]],
@@ -374,7 +383,7 @@ describe('resolving moves', function () {
 		]);
 		await w.play(
 			[
-				{owner: w.alice, army: a, moves: [move([-1, 1], [-1, 3])]},
+				{owner: w.alice, army: a, moves: [move([-1, 2], [-1, 3])]},
 				{owner: w.bob, army: b, moves: [move([4, 0], [3, 0])]},
 				{owner: w.carol, army: c, moves: [move([-1, 4], [-1, 3])]},
 			],
@@ -384,7 +393,7 @@ describe('resolving moves', function () {
 		await w.play(
 			[
 				{owner: w.alice, army: a, moves: [move([2, -1], [3, 0])]},
-				{owner: w.bob, army: b, moves: [move([5, 0], [3, 1])]},
+				{owner: w.bob, army: b, moves: [move([4, 1], [3, 1])]},
 				{owner: w.carol, army: c, moves: [move([0, 4], [0, 3])]},
 			],
 			order,
@@ -406,26 +415,93 @@ describe('resolving moves', function () {
 		// What happened, read once.
 		expect(forward.afterFirst.length).toEqual(58);
 		expect(await w.pieceAt(-1, 3)).toEqual(undefined);
-		expect(await w.pieceAt(-1, 1)).toEqual(undefined);
+		expect(await w.pieceAt(-1, 2)).toEqual(undefined);
 		expect(await w.pieceAt(-1, 4)).toEqual(undefined);
-		expect(await w.pieceAt(3, 0)).toEqual(`P@3,0#${a}:E*`);
-		expect(await w.pieceAt(3, 1)).toEqual(`N@3,1#${b}:E*`);
-		expect(await w.pieceAt(0, 3)).toEqual(`P@0,3#${c}:S*`);
+		expect(await w.pieceAt(3, 0)).toEqual(`P@3,0#${a}`);
+		expect(await w.pieceAt(3, 1)).toEqual(`P@3,1#${b}`);
+		expect(await w.pieceAt(0, 3)).toEqual(`P@0,3#${c}`);
 		expect(forward.afterSecond.length).toEqual(57);
 
-		const reverse = await playBothCycles('reverse');
-		expect(reverse.afterFirst).toEqual(forward.afterFirst);
-		expect(reverse.afterSecond).toEqual(forward.afterSecond);
-		expect(reverse.registry).toEqual(forward.registry);
+		for (const order of REVEAL_ORDERS.slice(1)) {
+			const other = await playBothCycles(order);
+			expect(other.afterFirst).toEqual(forward.afterFirst);
+			expect(other.afterSecond).toEqual(forward.afterSecond);
+			expect(other.registry).toEqual(forward.registry);
+		}
+	});
+
+	/**
+	 * Four armies' pawns, moving every way, in two cycles revealed in `order`:
+	 *
+	 * 1. alice's (2,1) East to (3,1), bob's (4,-1) West to (3,-1), carol's
+	 *    (0,4) South to (0,3), dave's (5,4) South to (5,3).
+	 * 2. alice's (3,1) North to (3,2); carol's (0,3) takes alice's (1,2) on
+	 *    its South-East diagonal; bob's (3,-1) takes alice's (2,0) on its
+	 *    North-West diagonal; dave's (5,3) takes bob's (6,2) on its South-East
+	 *    diagonal.
+	 */
+	async function pawnsEveryWay(order: RevealOrder) {
+		const w = await world();
+		const [a, b, c, d] = await w.deploy([
+			[w.alice, [0, 0]],
+			[w.bob, [1, 0]],
+			[w.carol, [0, 1]],
+			[w.dave, [1, 1]],
+		]);
+		await w.play(
+			[
+				{owner: w.alice, army: a, moves: [move([2, 1], [3, 1])]},
+				{owner: w.bob, army: b, moves: [move([4, -1], [3, -1])]},
+				{owner: w.carol, army: c, moves: [move([0, 4], [0, 3])]},
+				{owner: w.dave, army: d, moves: [move([5, 4], [5, 3])]},
+			],
+			order,
+		);
+		const afterFirst = await w.board();
+		await w.play(
+			[
+				{owner: w.alice, army: a, moves: [move([3, 1], [3, 2])]},
+				{owner: w.carol, army: c, moves: [move([0, 3], [1, 2])]},
+				{owner: w.bob, army: b, moves: [move([3, -1], [2, 0])]},
+				{owner: w.dave, army: d, moves: [move([5, 3], [6, 2])]},
+			],
+			order,
+		);
+		return {
+			w,
+			armies: [a, b, c, d],
+			afterFirst,
+			afterSecond: await w.board(),
+			registry: await w.registry(),
+		};
+	}
+
+	it('gives the same board whatever order pawns moving every way are revealed in', async function () {
+		const forward = await pawnsEveryWay('forward');
+		const {w, armies} = forward;
+		const [a, b, c, d] = armies;
+		expect(forward.afterFirst.length).toEqual(80);
+		expect(await w.pieceAt(3, 2)).toEqual(`P@3,2#${a}`);
+		expect(await w.pieceAt(1, 2)).toEqual(`P@1,2#${c}`);
+		expect(await w.pieceAt(2, 0)).toEqual(`P@2,0#${b}`);
+		expect(await w.pieceAt(6, 2)).toEqual(`P@6,2#${d}`);
+		expect(forward.afterSecond.length).toEqual(77);
+		for (const order of REVEAL_ORDERS.slice(1)) {
+			const other = await pawnsEveryWay(order);
+			expect(other.afterFirst).toEqual(forward.afterFirst);
+			expect(other.afterSecond).toEqual(forward.afterSecond);
+			expect(other.registry).toEqual(forward.registry);
+		}
 	});
 
 	it('fails a new army whose footprint a move arrives on in its deployment cycle, whatever the order, and lands the move', async function () {
 		async function play(order: 'forward' | 'reverse') {
 			const w = await world();
 			const [a] = await w.deploy([[w.alice, [0, 0]]]);
-			// alice's east pawn two squares onto (4,0), which bob's army, deployed
-			// in the same cycle, lays a pawn on.
-			const pawn = [move([2, 0], [4, 0])];
+			// alice's east pawn steps into the gap first, then onto (4,0), which
+			// bob's army, deployed in that same cycle, lays a pawn on.
+			await w.play([{owner: w.alice, army: a, moves: [move([2, 0], [3, 0])]}]);
+			const pawn = [move([3, 0], [4, 0])];
 			await w.commit(w.alice, a, pawn);
 			const [b] = await w.commitDeployments([[w.bob, [1, 0]]]);
 			await w.toRevealPhase();
@@ -443,9 +519,9 @@ describe('resolving moves', function () {
 		// The arrival blocks bob's whole deployment (refunded, see
 		// `DeploymentCollisions.test.ts`), and alice's pawn lands on (4,0) as on
 		// any empty square.
-		expect(await forward.w.pieceAt(2, 0)).toEqual(undefined);
+		expect(await forward.w.pieceAt(3, 0)).toEqual(undefined);
 		expect(await forward.w.pieceAt(4, 0)).toEqual(
-			`P@4,0#${(await forward.w.registry())[0].id}:E*`,
+			`P@4,0#${(await forward.w.registry())[0].id}`,
 		);
 		expect(forward.board.length).toEqual(20);
 		expect((await forward.w.registry())[1].status).toEqual(3);
@@ -454,11 +530,11 @@ describe('resolving moves', function () {
 		expect(await reverse.w.registry()).toEqual(await forward.w.registry());
 	});
 
-	/** alice's pawn (-2,1) two squares, then one, with `idle` cycles between. */
+	/** alice's pawn (-1,2) one square up, then one more, with `idle` cycles between. */
 	async function pawnWalk(idle: number) {
 		const w = await world();
 		const [a] = await w.deploy([[w.alice, [0, 0]]]);
-		await w.play([{owner: w.alice, army: a, moves: [move([-2, 1], [-2, 3])]}]);
+		await w.play([{owner: w.alice, army: a, moves: [move([-1, 2], [-1, 3])]}]);
 		const reads: string[][] = [];
 		for (let k = 0; k < idle; k++) {
 			reads.push(await w.board());
@@ -466,7 +542,7 @@ describe('resolving moves', function () {
 		}
 		reads.push(await w.board());
 		// The second move folds the first one's facts, however old they are.
-		await w.play([{owner: w.alice, army: a, moves: [move([-2, 3], [-2, 4])]}]);
+		await w.play([{owner: w.alice, army: a, moves: [move([-1, 3], [-1, 4])]}]);
 		return {reads, board: await w.board()};
 	}
 

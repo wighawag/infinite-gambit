@@ -252,12 +252,13 @@ describe('games for a fixed set of players', function () {
 		})) as {owner: string; spawnPoint: bigint};
 		expect(view.owner.toLowerCase()).toEqual(table.alice.toLowerCase());
 		expect(view.spawnPoint).toEqual(0n);
-		// The next seat takes the next spawn point of the table's tighter grid.
+		// The next seat takes the next spawn point of the table's grid, the
+		// world's spacing of 9 (`docs/adr/0015`).
 		const second = (await table.env.read(table.Table, {
 			functionName: 'getArmy',
 			args: [await table.join(table.bob)],
 		})) as {spawnPoint: bigint};
-		expect(second.spawnPoint).toEqual(squareAt(10, 0));
+		expect(second.spawnPoint).toEqual(squareAt(9, 0));
 		const worldReserve = (await table.env.read(table.Game, {
 			functionName: 'getReserve',
 			args: [idOf(table.alice)],

@@ -817,9 +817,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     {
         int256 s = int256(uint256(SPAWN_SPACING));
         int256 i0 = _ceilDiv(int256(rect.minX) - 2, s);
-        int256 i1 = _floorDiv(int256(rect.maxX) + 3, s);
+        int256 i1 = _floorDiv(int256(rect.maxX) + 2, s);
         int256 j0 = _ceilDiv(int256(rect.minY) - 2, s);
-        int256 j1 = _floorDiv(int256(rect.maxY) + 3, s);
+        int256 j1 = _floorDiv(int256(rect.maxY) + 2, s);
         if (i1 < i0 || j1 < j0) return (spawnPoints, armies);
         uint256 points = uint256((i1 - i0 + 1) * (j1 - j0 + 1));
         spawnPoints = new uint64[](points);

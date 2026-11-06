@@ -7,7 +7,7 @@ import {
 	mergeBoardView,
 	stonesOf,
 } from '$lib/chess/view';
-import {DIRECTION, PIECE_KIND, type Piece} from '$lib/chess/board';
+import {PIECE_KIND, type Piece} from '$lib/chess/board';
 import {noOutcomes} from '$lib/chess/outcomes';
 import {describeCountdown, formatCountdown} from '$lib/chess/ui/hud';
 import type {CycleInfo} from '$lib/game/core/cycle';
@@ -74,8 +74,6 @@ describe('the kings and their stakes', () => {
 			position: squareAt(x, y),
 			army,
 			kind: PIECE_KIND.Stone,
-			forward: DIRECTION.North,
-			moved: false,
 		});
 		const pawn: Piece = {...stone(9, 9, 1n), kind: PIECE_KIND.Pawn};
 		const pieces = new Map(

@@ -21,9 +21,8 @@ import {tableWorld} from './utils/table-world.js';
  * The tables here are on the tightest grid (`utils/table-world.ts`), so their
  * seats stand where the move suites' armies do:
  *
- *   seat 0 at (0,0) facing North (king (-2,0), knight (0,0)),
- *   seat 1 at (6,0) facing East (king (6,1), pawns facing West on x=4),
- *   seat 2 at (6,6) facing North (queen (7,5)).
+ *   seat 0 at (0,0), seat 1 at (6,0), seat 2 at (6,6), seat 3 at (0,6),
+ *   every king on its spawn point, every army the one layout.
  */
 
 const {provider, networkHelpers} = await network.connect();
@@ -71,18 +70,18 @@ describe('a table', function () {
 		await t.start();
 		expect((await t.attendance()).waitedFor).toEqual(3n);
 		expect((await t.pieces()).length).toEqual(60);
-		expect(await t.pieceAt(-2, 0)).toEqual(`K@-2,0#${a}:N`);
-		expect(await t.pieceAt(6, 1)).toEqual(`K@6,1#${b}:E`);
+		expect(await t.pieceAt(0, 0)).toEqual(`K@0,0#${a}`);
+		expect(await t.pieceAt(6, 0)).toEqual(`K@6,0#${b}`);
 		const after = await t.army(b);
-		expect([after.status, after.king]).toEqual([DEPLOYED, {x: 6, y: 1}]);
+		expect([after.status, after.king]).toEqual([DEPLOYED, {x: 6, y: 0}]);
 
 		// And it plays: a first move lands.
 		await t.play([
-			{owner: w.alice, army: a, moves: [move([0, 0], [2, 1])]},
+			{owner: w.alice, army: a, moves: [move([0, 1], [2, 2])]},
 			{owner: w.bob, army: b, moves: []},
 			{owner: w.carol, army: c, moves: []},
 		]);
-		expect(await t.pieceAt(2, 1)).toEqual(`N@2,1#${a}:N*`);
+		expect(await t.pieceAt(2, 2)).toEqual(`N@2,2#${a}`);
 		await expect(t.buy(w.dave)).toBeRejectedWith('GameAlreadyStarted');
 	});
 
@@ -131,8 +130,8 @@ describe('a table', function () {
 		await t.start();
 		// The leaver's army is gone from the board: three armies, none at (0,0).
 		expect((await t.pieces()).length).toEqual(60);
-		expect(await t.pieceAt(-2, 0)).toEqual(undefined);
-		expect(await t.pieceAt(-2, 6)).toEqual(`K@-2,6#${d}:N`);
+		expect(await t.pieceAt(0, 0)).toEqual(undefined);
+		expect(await t.pieceAt(0, 6)).toEqual(`K@0,6#${d}`);
 		await expect(t.execute(w.bob, 'leaveTable', [b])).toBeRejectedWith(
 			'GameAlreadyStarted',
 		);
@@ -144,11 +143,14 @@ describe('a table', function () {
 		const a = await t.buy(w.alice);
 		const b = await t.buy(w.bob);
 		await t.start();
-		// (-3,3) is an exit of a 6-grid: half the spacing off a spawn point.
+		// (3,-2) is an exit of a 6-grid: in the 2 by 2 block (3..4, -3..-2) at
+		// the centre of a cell. alice's rook steps aside and her king walks
+		// there by (1,-1) and her empty corner (2,-2).
 		for (const step of [
-			move([-2, 0], [-3, 1]),
-			move([-3, 1], [-3, 2]),
-			move([-3, 2], [-3, 3]),
+			move([1, -1], [1, 0]),
+			move([0, 0], [1, -1]),
+			move([1, -1], [2, -2]),
+			move([2, -2], [3, -2]),
 		]) {
 			await t.play([
 				{owner: w.alice, army: a, moves: [step]},
@@ -157,16 +159,16 @@ describe('a table', function () {
 		}
 		// And one more cycle, so a touch has folded the exit square's facts.
 		await t.play([
-			{owner: w.alice, army: a, moves: [move([0, 1], [0, 2])]},
+			{owner: w.alice, army: a, moves: [move([0, 2], [0, 3])]},
 			{owner: w.bob, army: b, moves: []},
 		]);
 		expect(await t.read<boolean>('isExited', [a])).toEqual(false);
 		await expect(t.execute(w.carol, 'exit', [a])).toBeRejectedWith('NotExited');
-		expect(await t.pieceAt(-3, 3)).toEqual(`K@-3,3#${a}:N*`);
+		expect(await t.pieceAt(3, -2)).toEqual(`K@3,-2#${a}`);
 		const army = await t.army(a);
 		expect([army.status, army.king, army.stake]).toEqual([
 			DEPLOYED,
-			{x: -3, y: 3},
+			{x: 3, y: -2},
 			DEFAULT_STAKE,
 		]);
 	});
@@ -182,12 +184,12 @@ describe('a table', function () {
 		await t.start();
 		await expect(t.claim(d)).toBeRejectedWith('TableNotOver');
 
-		// dave's queen, (7,5) to (8,4) to (8,3), takes bob's king on (6,1);
-		// bob only passes, with empty commitments.
+		// dave's knight, by (7,3) and bob's pawn (5,2), takes bob's king on
+		// (6,0); bob only passes, with empty commitments.
 		for (const step of [
-			move([7, 5], [8, 4]),
-			move([8, 4], [8, 3]),
-			move([8, 3], [6, 1]),
+			move([6, 5], [7, 3]),
+			move([7, 3], [5, 2]),
+			move([5, 2], [6, 0]),
 		]) {
 			await t.play([
 				{owner: w.dave, army: d, moves: [step]},
@@ -231,7 +233,7 @@ describe('a table', function () {
 		await t.start();
 		// alice's knight takes one of bob's pawns: 43 against 42.
 		await t.play([
-			{owner: w.alice, army: a, moves: [move([0, 0], [2, 1])]},
+			{owner: w.alice, army: a, moves: [move([0, 1], [2, 2])]},
 			{owner: w.bob, army: b, moves: []},
 		]);
 		await expect(t.claim(a)).toBeRejectedWith('TableNotOver');
@@ -239,7 +241,7 @@ describe('a table', function () {
 			'TableNotOver',
 		);
 		await t.play([
-			{owner: w.alice, army: a, moves: [move([2, 1], [4, 0])]},
+			{owner: w.alice, army: a, moves: [move([2, 2], [4, 1])]},
 			{owner: w.bob, army: b, moves: []},
 		]);
 		// Past the last cycle: nobody commits, and the board is final.
@@ -247,8 +249,9 @@ describe('a table', function () {
 		expect((await t.outcome()).over).toEqual(true);
 		expect((await t.outcome()).winner).toEqual(0n);
 
-		// The count, a few steps at a time: 24 steps are alice's footprint,
-		// whose untouched squares hold all of her but the knight.
+		// The count, a few steps at a time: 25 steps are alice's 5 by 5
+		// square, whose untouched squares hold all of her but the knight (the
+		// 25th, a corner, holds nothing).
 		for (let k = 0; k < 3; k++) await t.execute(w.carol, 'tally', [8n]);
 		const counted = await t.outcome();
 		expect([counted.tallied, counted.totalMaterial]).toEqual([
@@ -286,7 +289,7 @@ describe('a table', function () {
 		await t.start();
 
 		// alice commits a move and never reveals it; bob passes.
-		await t.commit(w.alice, a, [move([0, 1], [0, 2])]);
+		await t.commit(w.alice, a, [move([0, 2], [0, 3])]);
 		await t.commit(w.bob, b, []);
 		await t.advance();
 		await t.reveal(w.bob, b, []);
@@ -306,9 +309,9 @@ describe('a table', function () {
 });
 
 /**
- * THE CHAIN OF `Stones.test.ts` AT A TABLE: seat 2's queen takes seat 1's king
- * on (6,1) while seat 3's pawn takes seat 2's king, stepped to (3,7): seat 1's
- * king is a stone holding its stake, and seat 3's pawn is a queen.
+ * THE CHAIN OF `Stones.test.ts` AT A TABLE: seat 2's knight takes seat 1's
+ * king on (6,0) while seat 3's knight takes seat 2's king on (6,6): seat 1's
+ * king is a stone holding its stake, and seat 3's knight is a queen.
  */
 async function chainAtATable(
 	t: Awaited<ReturnType<Awaited<ReturnType<typeof world>>['create']>>,
@@ -327,21 +330,20 @@ async function chainAtATable(
 		army,
 		moves: [],
 	});
-	for (const step of [
-		move([7, 5], [8, 4]),
-		move([8, 4], [8, 3]),
-		move([4, 6], [3, 7]),
+	for (const [daveStep, carolStep] of [
+		[move([6, 5], [7, 3]), move([0, 7], [2, 8])],
+		[move([7, 3], [5, 2]), move([2, 8], [4, 7])],
 	]) {
 		await t.play([
-			{owner: dave, army: d, moves: [step]},
+			{owner: dave, army: d, moves: [daveStep]},
 			pass(bob, b),
-			pass(carol, c),
+			{owner: carol, army: c, moves: [carolStep]},
 			...others,
 		]);
 	}
 	await t.play([
-		{owner: dave, army: d, moves: [move([8, 3], [6, 1])]},
-		{owner: carol, army: c, moves: [move([2, 6], [3, 7])]},
+		{owner: dave, army: d, moves: [move([5, 2], [6, 0])]},
+		{owner: carol, army: c, moves: [move([4, 7], [6, 6])]},
 		pass(bob, b),
 		...others,
 	]);
@@ -350,7 +352,7 @@ async function chainAtATable(
 describe('a table with a stone on it', function () {
 	it("counts a promoted queen as 9 and a stone as nothing at the cap, and splits the untaken stone's stake with the rest", async function () {
 		const w = await world();
-		const t = await w.create(4, 4);
+		const t = await w.create(4, 3);
 		const a = await t.buy(w.alice);
 		const b = await t.buy(w.bob);
 		const d = await t.buy(w.dave);
@@ -359,14 +361,14 @@ describe('a table with a stone on it', function () {
 		await chainAtATable(t, {b: [w.bob, b], d: [w.dave, d], c: [w.carol, c]}, [
 			{owner: w.alice, army: a, moves: []},
 		]);
-		expect(await t.pieceAt(6, 1)).toEqual(`S@6,1#${b}:N`);
-		expect(await t.pieceAt(3, 7)).toEqual(`Q@3,7#${c}:N*`);
+		expect(await t.pieceAt(6, 0)).toEqual(`S@6,0#${b}`);
+		expect(await t.pieceAt(6, 6)).toEqual(`Q@6,6#${c}`);
 		expect((await t.outcome()).over).toEqual(true);
 		await t.claim(a);
 		await t.claim(c);
-		// carol's army lost a pawn and gained a queen; the stone counts for
+		// carol's army lost a knight and gained a queen; the stone counts for
 		// nobody, and the pot is all four stakes, the stone's included.
-		const carolMaterial = ARMY_MATERIAL - 1n + 9n;
+		const carolMaterial = ARMY_MATERIAL - 3n + 9n;
 		const total = ARMY_MATERIAL + carolMaterial;
 		const pot = 4n * DEFAULT_STAKE;
 		const settled = await t.outcome();

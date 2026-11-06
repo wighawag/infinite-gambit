@@ -99,33 +99,26 @@ library ChessRules {
     // THE ARMY'S LAYOUT
     // ------------------------------------------------------------------------
     //
-    // In its horizontal form, facing North (+y), rows going up the board:
+    // One layout for every army, centred on its spawn point (`docs/adr/0015`):
+    // a 5 by 5 square without its corners, rows going up the board:
     //
-    //   row 3   . P P P P .        y = sy + 1
-    //   row 2   P K B N R P        y = sy        <- the king's row
-    //   row 1   P R N B Q P        y = sy - 1
-    //   row 0   . P P P P .        y = sy - 2
-    //           x = sx-3 ... sx+2
+    //   row 4   .  P  P  P  .      y = sy + 2
+    //   row 3   P  R  N  B  P      y = sy + 1
+    //   row 2   P  Q  K  .  P      y = sy        <- the king on the spawn point
+    //   row 1   P  B  N  R  P      y = sy - 1
+    //   row 0   .  P  P  P  .      y = sy - 2
+    //           x = sx-2 ... sx+2
     //
-    // Rotationally symmetric apart from the king and the queen. The other three
-    // facings are this one turned by quarter turns about the rectangle's
-    // centre, so the king's row is always on the side away from the origin and
-    // the long side always faces it. Every pawn advances outward from its side.
+    // There is no facing: a pawn steps and captures every way. THE FOOTPRINT
+    // is the 21 squares of the square without its corners, the empty core
+    // square (row 2, column 3) included, so a deployment's king always has
+    // its free square.
 
     /// @notice How many pieces an army is deployed with.
     uint256 internal constant ARMY_SIZE = 20;
 
-    /// @notice Which way an army deployed at `spawnPoint` faces: away from the
-    ///         origin, along the axis on which the spawn point is farther out
-    ///         (y when the two are equal). A coordinate of 0 counts as
-    ///         positive, so the origin itself faces North.
-    function facing(uint64 spawnPoint) internal pure returns (T.Direction) {
-        (int32 x, int32 y) = PositionUtils.toXY(spawnPoint);
-        if (_abs(y) >= _abs(x)) {
-            return y >= 0 ? T.Direction.North : T.Direction.South;
-        }
-        return x >= 0 ? T.Direction.East : T.Direction.West;
-    }
+    /// @notice How far a footprint reaches from its spawn point on each axis.
+    int32 internal constant FOOTPRINT_REACH = 2;
 
     /// @notice The pieces of an army deployed at `spawnPoint`, none moved.
     function layout(
@@ -133,18 +126,15 @@ library ChessRules {
         uint256 army
     ) internal pure returns (T.Piece[] memory pieces) {
         pieces = new T.Piece[](ARMY_SIZE);
-        T.Direction face = facing(spawnPoint);
         uint256 n = 0;
-        for (uint256 r = 0; r < 4; r++) {
-            for (uint256 c = 0; c < 6; c++) {
-                (T.PieceKind kind, T.Direction forward) = _canonical(r, c);
+        for (uint256 r = 0; r < 5; r++) {
+            for (uint256 c = 0; c < 5; c++) {
+                T.PieceKind kind = _canonical(r, c);
                 if (kind == T.PieceKind.None) continue;
                 pieces[n] = T.Piece({
-                    position: _place(spawnPoint, face, r, c),
+                    position: layoutSquare(spawnPoint, r, c),
                     army: army,
-                    kind: kind,
-                    forward: _rotate(forward, face),
-                    moved: false
+                    kind: kind
                 });
                 n++;
             }
@@ -152,14 +142,24 @@ library ChessRules {
     }
 
     /// @notice The square of row `r`, column `c` of the layout of an army
-    ///         deployed at `spawnPoint` (see {layout}); a corner of the
-    ///         rectangle, where both are on its edge, holds no piece.
+    ///         deployed at `spawnPoint` (see {layout}): (sx - 2 + c, sy - 2 + r).
     function layoutSquare(
         uint64 spawnPoint,
         uint256 r,
         uint256 c
     ) internal pure returns (uint64) {
-        return _place(spawnPoint, facing(spawnPoint), r, c);
+        return
+            PositionUtils.offset(
+                spawnPoint,
+                int32(int256(c)) - FOOTPRINT_REACH,
+                int32(int256(r)) - FOOTPRINT_REACH
+            );
+    }
+
+    /// @notice Whether row `r`, column `c` of the 5 by 5 square is on the
+    ///         footprint: every cell but the four corners.
+    function onFootprint(uint256 r, uint256 c) internal pure returns (bool) {
+        return !((r == 0 || r == 4) && (c == 0 || c == 4));
     }
 
     /// @notice What a piece of `kind` is worth when a table's stakes are
@@ -173,97 +173,65 @@ library ChessRules {
         return 0;
     }
 
-    /// @notice Where the king of an army deployed at `spawnPoint` stands.
+    /// @notice Where the king of an army deployed at `spawnPoint` stands: on
+    ///         the spawn point itself.
     function kingOf(uint64 spawnPoint) internal pure returns (uint64) {
-        return _place(spawnPoint, facing(spawnPoint), 2, 1);
+        return spawnPoint;
     }
 
-    /// @dev The canonical (North-facing) piece at row `r`, column `c`, and
-    ///      which way a pawn there advances.
+    /// @dev The piece at row `r`, column `c` of the layout; `None` on the
+    ///      four corners and on the empty core square.
     function _canonical(
         uint256 r,
         uint256 c
-    ) private pure returns (T.PieceKind, T.Direction) {
-        bool edgeRow = r == 0 || r == 3;
-        bool edgeColumn = c == 0 || c == 5;
-        if (edgeRow && edgeColumn) return (T.PieceKind.None, T.Direction.North);
-        if (r == 0) return (T.PieceKind.Pawn, T.Direction.South);
-        if (r == 3) return (T.PieceKind.Pawn, T.Direction.North);
-        if (c == 0) return (T.PieceKind.Pawn, T.Direction.West);
-        if (c == 5) return (T.PieceKind.Pawn, T.Direction.East);
-        if (r == 1) {
-            // P R N B Q P
-            if (c == 1) return (T.PieceKind.Rook, T.Direction.North);
-            if (c == 2) return (T.PieceKind.Knight, T.Direction.North);
-            if (c == 3) return (T.PieceKind.Bishop, T.Direction.North);
-            return (T.PieceKind.Queen, T.Direction.North);
+    ) private pure returns (T.PieceKind) {
+        if (!onFootprint(r, c)) return T.PieceKind.None;
+        if (r == 0 || r == 4 || c == 0 || c == 4) return T.PieceKind.Pawn;
+        if (r == 2) {
+            // P Q K . P
+            if (c == 1) return T.PieceKind.Queen;
+            if (c == 2) return T.PieceKind.King;
+            return T.PieceKind.None;
         }
-        // P K B N R P
-        if (c == 1) return (T.PieceKind.King, T.Direction.North);
-        if (c == 2) return (T.PieceKind.Bishop, T.Direction.North);
-        if (c == 3) return (T.PieceKind.Knight, T.Direction.North);
-        return (T.PieceKind.Rook, T.Direction.North);
-    }
-
-    /// @dev Row `r`, column `c` of the canonical layout, turned to `face`,
-    ///      anchored on `spawnPoint`. The horizontal forms cover x from sx-3 to
-    ///      sx+2 and y from sy-2 to sy+1; the vertical ones are that rectangle
-    ///      transposed.
-    function _place(
-        uint64 spawnPoint,
-        T.Direction face,
-        uint256 r,
-        uint256 c
-    ) private pure returns (uint64) {
-        (int32 sx, int32 sy) = PositionUtils.toXY(spawnPoint);
-        int32 ri = int32(int256(r));
-        int32 ci = int32(int256(c));
-        if (face == T.Direction.North) {
-            return PositionUtils.fromXY(sx - 3 + ci, sy - 2 + ri);
-        }
-        if (face == T.Direction.East) {
-            return PositionUtils.fromXY(sx - 2 + ri, sy + 2 - ci);
-        }
-        if (face == T.Direction.South) {
-            return PositionUtils.fromXY(sx + 2 - ci, sy + 1 - ri);
-        }
-        return PositionUtils.fromXY(sx + 1 - ri, sy - 3 + ci);
+        // row 3: P R N B P, row 1: P B N R P
+        if (c == 2) return T.PieceKind.Knight;
+        if ((r == 3) == (c == 1)) return T.PieceKind.Rook;
+        return T.PieceKind.Bishop;
     }
 
     /// @notice The piece an army deployed at `spawnPoint` has on `position`
-    ///         before anything moves: kind `None` off its footprint and on its
-    ///         four empty corners. The inverse of {layout}, one square at a
-    ///         time, which is what lets a square be read without laying the
-    ///         whole army out.
+    ///         before anything moves: kind `None` off its footprint, on the
+    ///         corners and on the empty core square. The inverse of {layout},
+    ///         one square at a time, which is what lets a square be read
+    ///         without laying the whole army out.
     function layoutAt(
         uint64 spawnPoint,
         uint256 army,
         uint64 position
     ) internal pure returns (T.Piece memory piece) {
         piece.position = position;
-        (int32 sx, int32 sy) = PositionUtils.toXY(spawnPoint);
-        (int32 x, int32 y) = PositionUtils.toXY(position);
-        T.Direction face = facing(spawnPoint);
-        int256 r;
-        int256 c;
-        if (face == T.Direction.North) {
-            (r, c) = (int256(y) - sy + 2, int256(x) - sx + 3);
-        } else if (face == T.Direction.East) {
-            (r, c) = (int256(x) - sx + 2, int256(sy) + 2 - y);
-        } else if (face == T.Direction.South) {
-            (r, c) = (int256(sy) + 1 - y, int256(sx) + 2 - x);
-        } else {
-            (r, c) = (int256(sx) + 1 - x, int256(y) - sy + 3);
-        }
-        if (r < 0 || r > 3 || c < 0 || c > 5) return piece;
-        (T.PieceKind kind, T.Direction forward) = _canonical(
-            uint256(r),
-            uint256(c)
-        );
+        (bool on, uint256 r, uint256 c) = footprintCell(spawnPoint, position);
+        if (!on) return piece;
+        T.PieceKind kind = _canonical(r, c);
         if (kind == T.PieceKind.None) return piece;
         piece.army = army;
         piece.kind = kind;
-        piece.forward = _rotate(forward, face);
+    }
+
+    /// @notice Whether `position` is on the footprint of a deployment at
+    ///         `spawnPoint` (see {onFootprint}), and its row and column.
+    function footprintCell(
+        uint64 spawnPoint,
+        uint64 position
+    ) internal pure returns (bool on, uint256 r, uint256 c) {
+        (int32 sx, int32 sy) = PositionUtils.toXY(spawnPoint);
+        (int32 x, int32 y) = PositionUtils.toXY(position);
+        int256 dc = int256(x) - sx + FOOTPRINT_REACH;
+        int256 dr = int256(y) - sy + FOOTPRINT_REACH;
+        if (dr < 0 || dr > 4 || dc < 0 || dc > 4) return (false, 0, 0);
+        r = uint256(dr);
+        c = uint256(dc);
+        on = onFootprint(r, c);
     }
 
     // ------------------------------------------------------------------------
@@ -278,14 +246,13 @@ library ChessRules {
     //
     //   1. {moveSquares}: from the piece and the destination alone, whether
     //      the move has a legal SHAPE, and which squares' contents decide the
-    //      rest. `squares[0]` is always the destination; a slider's path and a
-    //      pawn's skipped square follow it, and a king's eight neighbours of
-    //      the destination do.
+    //      rest. `squares[0]` is always the destination; a slider's path
+    //      follows it, and a king's eight neighbours of the destination do.
     //   2. {isLegalMove}: given what stood on each of those squares, whether
     //      the move is legal.
     //
-    // No castling, no en passant and no pawn promotion: none of them has a
-    // shape here, so all three are simply illegal moves (the one promotion,
+    // No castling, no en passant, no pawn double step and no pawn promotion:
+    // none of them has a shape here, so all four are simply illegal moves (the one promotion,
     // of a piece that takes a king, is {settle}'s). No check: a king may move
     // onto an attacked square (story 19). But a king may not move next to
     // another army's king, measured on the start-of-cycle board, except onto
@@ -309,9 +276,13 @@ library ChessRules {
         int256 dy = int256(toY) - fy;
         if (dx == 0 && dy == 0) return (false, squares);
         T.PieceKind kind = piece.kind;
-        if (kind == T.PieceKind.Pawn) return _pawnSquares(piece, to, dx, dy);
         int256 ax = _abs(dx);
         int256 ay = _abs(dy);
+        if (kind == T.PieceKind.Pawn) {
+            // One square orthogonally, or one diagonally (a capture).
+            if (ax > 1 || ay > 1) return (false, squares);
+            return (true, _one(to));
+        }
         if (kind == T.PieceKind.Knight) {
             bool jump = (ax == 1 && ay == 2) || (ax == 2 && ay == 1);
             return jump ? (true, _one(to)) : (false, squares);
@@ -330,32 +301,6 @@ library ChessRules {
         int256 distance = ax > ay ? ax : ay;
         if (uint256(distance) > SLIDER_RANGE) return (false, squares);
         return (true, _path(fx, fy, dx / distance, dy / distance, distance));
-    }
-
-    /// @dev A pawn's move: one forward, two forward on its first move (the
-    ///      skipped square follows the destination), or one diagonally forward.
-    function _pawnSquares(
-        T.Piece memory piece,
-        uint64 to,
-        int256 dx,
-        int256 dy
-    ) private pure returns (bool, uint64[] memory squares) {
-        (int256 px, int256 py) = _step(piece.forward);
-        if (dx == px && dy == py) return (true, _one(to));
-        if (dx == 2 * px && dy == 2 * py) {
-            if (piece.moved) return (false, squares);
-            squares = new uint64[](2);
-            squares[0] = to;
-            squares[1] = PositionUtils.offset(
-                piece.position,
-                int32(px),
-                int32(py)
-            );
-            return (true, squares);
-        }
-        bool diagonal =
-            px == 0 ? (dy == py && _abs(dx) == 1) : (dx == px && _abs(dy) == 1);
-        return diagonal ? (true, _one(to)) : (false, squares);
     }
 
     /// @dev The destination of a king's move, then its eight neighbours.
@@ -410,16 +355,12 @@ library ChessRules {
         bool enemy = !empty && target.army != piece.army;
 
         if (piece.kind == T.PieceKind.Pawn) {
-            (int256 px, ) = _step(piece.forward);
             (int32 fx, int32 fy) = PositionUtils.toXY(piece.position);
             (int32 toX, int32 toY) = PositionUtils.toXY(to);
-            // A diagonal leaves the line the pawn advances along.
-            bool diagonal = px == 0 ? toX != fx : toY != fy;
-            if (diagonal) return enemy; // it only ever captures
-            for (uint256 i = 0; i < contents.length; i++) {
-                if (contents[i].kind != T.PieceKind.None) return false;
-            }
-            return true;
+            // A diagonal only ever captures; a step only ever onto an empty
+            // square, whichever of the four ways it goes.
+            if (toX != fx && toY != fy) return enemy;
+            return empty;
         }
         if (!empty && !enemy) return false; // never onto one's own piece
         if (piece.kind == T.PieceKind.King) {
@@ -449,27 +390,13 @@ library ChessRules {
         (int32 fx, int32 fy) = PositionUtils.toXY(piece.position);
         T.PieceKind kind = piece.kind;
         uint256 n = 0;
-        if (kind == T.PieceKind.Pawn) {
-            (int256 px, int256 py) = _step(piece.forward);
-            moves = new uint64[](4);
-            moves[n++] = PositionUtils.fromXY(int32(fx + px), int32(fy + py));
-            if (!piece.moved) {
-                moves[n++] = PositionUtils.fromXY(
-                    int32(fx + 2 * px),
-                    int32(fy + 2 * py)
-                );
-            }
-            // The two diagonals: forward plus one step across.
-            (int256 qx, int256 qy) = (py, px);
-            moves[n++] = PositionUtils.fromXY(
-                int32(fx + px + qx),
-                int32(fy + py + qy)
-            );
-            moves[n++] = PositionUtils.fromXY(
-                int32(fx + px - qx),
-                int32(fy + py - qy)
-            );
-        } else if (kind == T.PieceKind.Knight || kind == T.PieceKind.King) {
+        if (
+            kind == T.PieceKind.Pawn ||
+            kind == T.PieceKind.Knight ||
+            kind == T.PieceKind.King
+        ) {
+            // A pawn's and a king's eight neighbours are the same squares:
+            // {isLegalMove} tells a pawn's steps from its captures.
             moves = new uint64[](8);
             for (int32 oy = -2; oy <= 2; oy++) {
                 for (int32 ox = -2; ox <= 2; ox++) {
@@ -601,7 +528,6 @@ library ChessRules {
         queen.position = position;
         queen.army = piece.army;
         queen.kind = T.PieceKind.Queen;
-        queen.moved = true;
     }
 
     /// @dev A stone of `victim`'s army, on `square`'s position.
@@ -706,27 +632,9 @@ library ChessRules {
         return (0, 0, 0);
     }
 
-    /// @dev The unit step a pawn facing `forward` advances by.
-    function _step(
-        T.Direction forward
-    ) private pure returns (int256 x, int256 y) {
-        if (forward == T.Direction.North) return (0, 1);
-        if (forward == T.Direction.East) return (1, 0);
-        if (forward == T.Direction.South) return (0, -1);
-        return (-1, 0);
-    }
-
     function _one(uint64 square) private pure returns (uint64[] memory one) {
         one = new uint64[](1);
         one[0] = square;
-    }
-
-    /// @dev `direction` turned as far clockwise as North is to `face`.
-    function _rotate(
-        T.Direction direction,
-        T.Direction face
-    ) private pure returns (T.Direction) {
-        return T.Direction((uint8(direction) + uint8(face)) % 4);
     }
 
     // ------------------------------------------------------------------------

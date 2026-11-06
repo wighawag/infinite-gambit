@@ -21,14 +21,16 @@ import {
  * cycle, with helpers to deploy, commit, reveal in a chosen order and read the
  * resolved board. Shared by `Moves.test.ts` and `Collisions.test.ts`.
  *
- *   alice, spawn (0,0), facing North        bob, spawn (6,0), facing East
+ *   alice, spawn (0,0)                 bob, spawn (6,0): alice's moved right 6
  *
- *   y= 1  . P P P P .     x = -3 .. 2      x = 4: pawns facing West, y 1..-2
- *   y= 0  P K B N R P                      x = 5: P R N B Q P, y 2..-3
- *   y=-1  P R N B Q P                      x = 6: P K B N R P, y 2..-3
- *   y=-2  . P P P P .                      x = 7: pawns facing East, y 1..-2
+ *   y= 2  . P P P .     x = -2 .. 2    x = 4 .. 8
+ *   y= 1  P R N B P
+ *   y= 0  P Q K . P     (the king on the spawn point, (1,0) empty)
+ *   y=-1  P B N R P
+ *   y=-2  . P P P .
  *
- *   carol, spawn (0,6), facing North: alice's picture moved up 6.
+ *   carol, spawn (0,6): alice's picture moved up 6. One empty column (x = 3)
+ *   lies between alice and bob, one empty row (y = 3) between alice and carol.
  */
 
 const COMMIT_PHASE = 60n;
@@ -51,14 +53,10 @@ export const REVEAL_ORDERS: readonly RevealOrder[] = [
 	'reverse',
 	'rotate',
 ];
-const DIRECTION = ['N', 'E', 'S', 'W'] as const;
-
 export type Piece = {
 	position: bigint;
 	army: bigint;
 	kind: number;
-	forward: number;
-	moved: boolean;
 };
 
 export const at = (x: number, y: number) => squareAt(x, y);
@@ -67,10 +65,10 @@ export const move = (from: [number, number], to: [number, number]): Move => ({
 	to: at(...to),
 });
 
-/** A piece as one comparable line: kind, square, army, forward, moved. */
+/** A piece as one comparable line: kind, square, army. */
 export function describePiece(piece: Piece): string {
 	const {x, y} = xyOf(piece.position);
-	return `${KIND[piece.kind]}@${x},${y}#${piece.army}:${DIRECTION[piece.forward]}${piece.moved ? '*' : ''}`;
+	return `${KIND[piece.kind]}@${x},${y}#${piece.army}`;
 }
 
 type Fixtures = ReturnType<typeof setupFixtures>;

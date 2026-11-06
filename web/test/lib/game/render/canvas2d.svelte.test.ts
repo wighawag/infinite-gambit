@@ -46,10 +46,7 @@ function piece(
 	kind: PieceView['kind'] = 1,
 ): [bigint, PieceView] {
 	const position = squareAt(x, y);
-	return [
-		position,
-		{position, army, kind, forward: 0, moved: false, position2d: {x, y}},
-	];
+	return [position, {position, army, kind, position2d: {x, y}}];
 }
 
 /** `#8d8579`: a stone's tile (`$lib/chess/render/style.ts`). */

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A square army, pawns that move every way, spawn points 9 apart and 2 by 2 exits

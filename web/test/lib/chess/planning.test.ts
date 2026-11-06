@@ -6,12 +6,7 @@ import {
 	piecesAround,
 	MOVE_REACH,
 } from '$lib/chess/planning';
-import {
-	DIRECTION,
-	PIECE_KIND,
-	type BoardState,
-	type Piece,
-} from '$lib/chess/board';
+import {PIECE_KIND, type BoardState, type Piece} from '$lib/chess/board';
 import {
 	bondFor,
 	deploymentAt,
@@ -48,8 +43,6 @@ function piece(
 		position: squareAt(x, y),
 		army,
 		kind,
-		forward: DIRECTION.North,
-		moved: false,
 	};
 }
 

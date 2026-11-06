@@ -116,14 +116,10 @@ abstract contract UsingGameStore is
         uint256 army;
         uint64 cycle;
         PieceKind kind;
-        Direction forward;
-        bool moved;
         bool departed;
         uint32 arrivals;
         bool kingArrived;
         PieceKind arriverKind;
-        Direction arriverForward;
-        Direction kingForward;
         uint256 arriverArmy;
         uint256 kingArmy;
     }
@@ -267,9 +263,9 @@ abstract contract UsingGameStore is
             })
         )
     {
-        // Six is the widest an army stands, so spawn points any closer would
-        // let two footprints share a square, and the board read assumes a
-        // square belongs to at most one spawn point.
+        // An army is five squares wide, so spawn points any closer than six
+        // would let two footprints touch or share a square, and the board
+        // read assumes a square belongs to at most one spawn point.
         if (config.spawnSpacing < 6 || config.openSpawnPoints == 0) {
             revert InvalidSpawnGrid();
         }
