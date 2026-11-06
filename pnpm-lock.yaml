@@ -13,6 +13,9 @@ importers:
 
   .:
     devDependencies:
+      chess-battleground-contracts:
+        specifier: workspace:*
+        version: link:contracts
       dorfl:
         specifier: 0.15.1
         version: 0.15.1

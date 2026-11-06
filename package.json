@@ -5,6 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.28.1",
   "devDependencies": {
+    "chess-battleground-contracts": "workspace:*",
     "dorfl": "0.15.1",
     "expand-vars": "^0.1.0",
     "ldenv": "^0.6.0",
@@ -14,6 +15,7 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "_prepare": "Runs AFTER contracts' own prepare, because the root devDepends on chess-battleground-contracts (workspace:*) and pnpm runs lifecycle scripts in dependency order. Without that edge pnpm ran both at once, and ensure-deployments' throwaway deploy compiled while `contracts prepare` compiled, the two racing on contracts/cache/build-info (ENOENT on rename), which failed `pnpm i` and every dorfl gate.",
     "prepare": "node scripts/ensure-deployments.mjs",
     "cleandep": "rm -rf node_modules && pnpm -r exec rm -rf node_modules",
     "---------------------- FORMAT ----------------------": "",
