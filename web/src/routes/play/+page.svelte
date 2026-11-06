@@ -44,6 +44,10 @@
 	 * page is identical whichever is chosen.
 	 */
 	const canvasModule = browser ? loadCanvasComponent() : undefined;
+
+	// The camera follows the played army while the board is shown, and lets go
+	// when the player looks elsewhere: `$lib/chess/camera-follow`.
+	$effect(() => render.follow.start());
 </script>
 
 <DefaultHead />

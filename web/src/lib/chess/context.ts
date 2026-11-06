@@ -106,6 +106,12 @@ import {
 	withAwaitedDeployments,
 } from './awaited-deployments';
 import type {TableStore} from '$lib/game/lobby/table';
+import {
+	createCameraFollow,
+	followTarget,
+	type CameraFollowStore,
+} from './camera-follow';
+import {createMinimap, type MinimapStore} from './minimap';
 
 export type Game = {
 	config: ChessConfig;
@@ -166,6 +172,13 @@ export type Render = {
 	cameraControl: CameraControl;
 	gameRenderer: GameRenderer<GameSurface>;
 	eventEmitter: CanvasEventEmitter;
+	/**
+	 * The camera on the played army's king until the player looks elsewhere
+	 * (`./camera-follow.ts`). Started by the page that shows the board.
+	 */
+	follow: CameraFollowStore;
+	/** The spawn spiral and the armies, and a way to send the camera there. */
+	minimap: MinimapStore;
 };
 
 export type GameContext = {
@@ -503,6 +516,19 @@ export function createGameContext(core: CoreServices): GameContext {
 		intervalMs: deployments.chain.id === 31337 ? 1_000 : 5_000,
 	});
 
+	// THE CAMERA FOLLOWS THE ARMY, and the minimap sends it elsewhere: both read
+	// the registry the board reader already reads whole, never more pieces.
+	const follow = createCameraFollow({
+		cameraControl: crg.render.cameraControl,
+		target: followTarget({board: crg.onchainState, you: activeIdentity}),
+	});
+	const minimap = createMinimap({
+		board: crg.onchainState,
+		you: activeIdentity,
+		camera: crg.render.camera,
+		lookAt: follow.lookAt,
+	});
+
 	return {
 		onchainState: crg.onchainState,
 		viewState: crg.viewState,
@@ -516,7 +542,7 @@ export function createGameContext(core: CoreServices): GameContext {
 			needsDeployment,
 			revealSchedule,
 		},
-		render: crg.render,
+		render: {...crg.render, follow, minimap},
 		start: () => {
 			const stop = crg.start();
 			const stopFallback = scheduler
