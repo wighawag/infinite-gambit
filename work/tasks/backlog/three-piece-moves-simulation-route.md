@@ -4,6 +4,7 @@ slug: three-piece-moves-simulation-route
 spec: three-piece-moves
 blockedBy: [three-piece-moves-in-the-contract]
 covers: [5]
+needsAnswers: true
 ---
 
 ## What to build
