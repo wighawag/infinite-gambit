@@ -288,8 +288,17 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 touched = record.cycle;
         if (touched == cycleNumber) return record;
         if (touched == 0) {
-            _touchedSquares[PositionUtils.getZone(position)] |=
-                uint256(1) << PositionUtils.zoneLocalIndex(position);
+            uint64 zone = PositionUtils.getZone(position);
+            uint256 bits = _touchedSquares[zone];
+            // AT A TABLE a zone touched for the first time is listed, for the
+            // count of material at the cap (`UsingGameTable-_tally`). The
+            // roster is read only for a zone nobody has touched yet. Which
+            // reveal lists a zone, and so the list's order, depends on the
+            // order of reveals; the set listed does not, and the count over
+            // it is a sum (`docs/adr/0012`).
+            if (bits == 0 && _roster().seats != 0) _tableZones.push(zone);
+            _touchedSquares[zone] =
+                bits | (uint256(1) << PositionUtils.zoneLocalIndex(position));
         }
         if (touched != 0) {
             _foldCapture(record, cycleNumber);
@@ -389,6 +398,10 @@ abstract contract UsingGameBoard is UsingGameStore {
     ) internal view returns (bool) {
         ArmyRecord storage record = _armies[army];
         if (record.exited) return true;
+        // NO EXITS AT A TABLE: a table ends with a winner, so a king that lands
+        // on an exit square there is only a king on a square. Read from the
+        // slot `exited` is in, so it costs nothing.
+        if (record.atTable) return false;
         uint64 movedIn = record.kingMovedIn;
         if (movedIn == 0 || movedIn >= cycleNumber) return false;
         uint64 to = record.kingTo;
@@ -399,7 +412,10 @@ abstract contract UsingGameBoard is UsingGameStore {
     /// @notice Before an exit square's facts are folded away, keep that the
     ///         king which landed alone on it has exited.
     function _foldExit(SquareRecord storage record, uint64 position) private {
-        if (_exitIn(record, position)) _armies[record.kingArmy].exited = true;
+        if (!_exitIn(record, position)) return;
+        ArmyRecord storage army = _armies[record.kingArmy];
+        // Exits do nothing at a table ({_exited}).
+        if (!army.atTable) army.exited = true;
     }
 
     // ------------------------------------------------------------------------

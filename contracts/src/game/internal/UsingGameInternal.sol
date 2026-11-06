@@ -65,7 +65,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     ///      template's delegation. An army that does not exist yet may be named
     ///      only as its owner's NEXT army, which is what a deployment commits
     ///      for (see {_createArmy}). An address-derived id is the base's: an
-    ///      account, which is only ever a member at a table.
+    ///      account, which is never a member (at a table too, the seat is an
+    ///      army: `UsingGameTable-_joinTable`).
     function _playerOf(
         address sender,
         uint256 id
@@ -114,6 +115,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             collecting: false,
             paid: false,
             frozen: false,
+            atTable: false,
             capturedInto: 0,
             loopedIn: 0
         });
@@ -143,6 +145,15 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         ArmyRecord storage record = _armies[army];
         if (record.owner == address(0)) return ArmyStatus.None;
         if (record.cancelled) return ArmyStatus.Cancelled;
+        // A TABLE'S ARMY IS DEPLOYED BY ITS PURCHASE, on a spawn point of its
+        // own, and stands inert and hidden until the table starts
+        // (`UsingGameTable-_joinTable`): nothing can fail it.
+        if (record.atTable) {
+            return
+                _isBeforeTableStart()
+                    ? ArmyStatus.Deploying
+                    : ArmyStatus.Deployed;
+        }
         uint64 deployCycle = record.deployCycle;
         if (deployCycle >= cycleNumber) return ArmyStatus.Deploying;
         uint32 indexPlusOne = record.spawnIndexPlusOne;
@@ -160,6 +171,15 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             return ArmyStatus.Deployed;
         }
         return ArmyStatus.Failed;
+    }
+
+    /// @notice Whether this is a table that has not started yet: its armies
+    ///         stand inert and hidden on their spawn points until it does.
+    /// @dev The lobby's `start()` calls no game code, so this is what every
+    ///      read asks instead: nothing is written when a table starts.
+    function _isBeforeTableStart() internal view returns (bool) {
+        Roster memory roster = _roster();
+        return roster.seats != 0 && !roster.started;
     }
 
     /// @notice THE ONE "DEAD" PREDICATE: whether `id` is an army that can never
@@ -717,6 +737,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         uint64 cycleNumber
     ) internal view returns (Piece[] memory pieces) {
         if (maxX < minX || maxY < minY) return new Piece[](0);
+        // A table's armies are hidden until it starts.
+        if (_isBeforeTableStart()) return new Piece[](0);
         Rect memory rect = Rect(minX, minY, maxX, maxY);
         uint64[] memory spawnPoints;
         uint256[] memory armies;

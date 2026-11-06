@@ -17,6 +17,7 @@ import {
 import {parseEther, zeroAddress} from 'viem';
 import {movesWorld, move} from './utils/moves-world.js';
 import {fourArmies, threeArmyLoop, twoArmyLoop} from './utils/capture-loops.js';
+import {tableWorld} from './utils/table-world.js';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -97,7 +98,13 @@ const MINIMUM_HEADROOM_PERCENT = 10n;
 const MAX_CHAIN = 8n;
 
 /** The worst reveals of the first case, for the capture-chain case to build on. */
-const measured: {king?: bigint; slider?: bigint; perMerge?: bigint} = {};
+const measured: {
+	king?: bigint;
+	slider?: bigint;
+	perMerge?: bigint;
+	/** The worst reveal of the world, as the capture-loop case prices it. */
+	worst?: bigint;
+} = {};
 
 describe('the declared gas budget', function () {
 	it('covers the worst commit and the worst reveal these contracts can produce', async function () {
@@ -395,6 +402,7 @@ describe('the declared gas budget', function () {
 			loopOf(MAX_CHAIN) +
 			foldUps +
 			exitReads;
+		measured.worst = worst;
 		console.log(
 			`gas budget: folding a loop: of two ${loopOf(2n)}, per army ${perArmy}, of ${MAX_CHAIN} ${loopOf(MAX_CHAIN)}; exits and reserve move-ups ${foldUps + exitReads}; worst looped reveal ${worst}, declared ${declaredReveal}`,
 		);
@@ -402,6 +410,67 @@ describe('the declared gas budget', function () {
 			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
 			`a reveal folding a capture loop of ${MAX_CHAIN} armies costs about ${worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
 				`Raise it in contracts/rocketh/config.ts, or bound the loops a reveal folds: a reveal that runs out of gas is a missed reveal.`,
+		);
+	});
+
+	it('covers the worst reveal at a table, which lists every zone it touches first', async function () {
+		// A TABLE RUNS THE SAME ROUTES, and a reveal there costs what it costs in
+		// the world plus one thing: the first touch of a zone lists it, for the
+		// count of material at the cap (`UsingGameTable._tally`). Priced as the
+		// difference between the same first move on a table and in the world:
+		// bob's pawn (7,0) to (8,0), from zone 0 into zone 1, the first touch of
+		// both. The list is packed four zones a slot, so this second push shared
+		// the first's slot; at worst it opens one of its own.
+		assert.ok(measured.worst && measured.king, 'runs after the loop case');
+		const lobby = BigInt(
+			(
+				(await networkHelpers.loadFixture(deployAll)).env.get('GameFactory')
+					.linkedData as {revealGas: string}
+			).revealGas,
+		);
+		const step = move([7, 0], [8, 0]);
+
+		const world = movesWorld({
+			deployAll,
+			loadFixture: networkHelpers.loadFixture,
+		});
+		const w = await world();
+		const [, b] = await w.deploy([
+			[w.alice, [0, 0]],
+			[w.bob, [1, 0]],
+		]);
+		await w.commit(w.bob, b, [step]);
+		await w.toRevealPhase();
+		const inTheWorld = BigInt((await w.reveal(w.bob, b, [step]))!.gasUsed);
+
+		const tables = tableWorld({
+			deployAll,
+			loadFixture: networkHelpers.loadFixture,
+		});
+		const tw = await tables();
+		const t = await tw.create(2);
+		const ta = await t.buy(tw.alice);
+		const tb = await t.buy(tw.bob);
+		await t.start();
+		await t.commit(tw.alice, ta, []);
+		await t.commit(tw.bob, tb, [step]);
+		await t.advance();
+		const atTheTable = BigInt((await t.reveal(tw.bob, tb, [step]))!.gasUsed);
+
+		const listing = atTheTable - inTheWorld + 22_100n;
+		const worst = measured.worst! + listing;
+		const plainest = measured.king! + listing;
+		console.log(
+			`gas budget: a table's first move ${atTheTable} against the world's ${inTheWorld}; worst table reveal ${worst}, declared ${lobby}`,
+		);
+		assert.ok(
+			lobby >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`a table's worst reveal costs about ${worst} gas, and the lobby's revealGas is declared at ${lobby}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
+				`Raise LOBBY_REVEAL_GAS in contracts/rocketh/config.ts: a reveal that runs out of gas is a missed reveal.`,
+		);
+		assert.ok(
+			lobby <= plainest * GENEROSITY_CEILING,
+			`the lobby's revealGas is declared at ${lobby} against a plainest table reveal of about ${plainest}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
 		);
 	});
 

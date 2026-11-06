@@ -69,6 +69,11 @@ abstract contract UsingGameStore is
         ///         commitment meanwhile,
         ///         `docs/adr/0005-missed-reveal-freezes-the-army.md`)
         bool frozen;
+        /// @notice whether it was created by buying a seat at a TABLE, where
+        ///         exits do nothing and the stake is paid out by the table's
+        ///         end (`UsingGameTable`); in this slot so that every read of
+        ///         `exited` sees it for free
+        bool atTable;
         // ---- third slot: whose army it merged into
         /// @notice the army that took its king, once a later reveal has folded
         ///         the square it was taken on; zero until then, and for an army
@@ -210,6 +215,42 @@ abstract contract UsingGameStore is
     ///      Bounded by the seats a world or a table has, because only those
     ///      policies fill it.
     uint256[] internal _awaitedArmies;
+
+    /// @notice A TABLE'S OWN STATE: its spawn counter and its end.
+    /// @dev Untouched in the persistent world. See `UsingGameTable`.
+    struct TableState {
+        /// @notice how many spawn points its seats have been given: the next
+        ///         seat takes this spiral index. ONLY EVER INCREASES, so a
+        ///         seat that leaves leaves a gap and moves nobody else.
+        uint32 spawned;
+        /// @notice how many kings stood at the cap, for an even split when
+        ///         nobody has any material left
+        uint32 standing;
+        /// @notice whether the table's outcome and pot are written
+        bool settled;
+        /// @notice whether the material at the cap is counted
+        bool tallied;
+        /// @notice how far the count has got (see `UsingGameTable-_tally`)
+        uint64 tallyCursor;
+        /// @notice every stake on the table, once settled: what is paid out
+        uint256 pot;
+        /// @notice the material of every standing army at the cap, summed
+        uint256 totalMaterial;
+        /// @notice the last king standing, if the table ended that way
+        uint256 winner;
+    }
+    TableState internal _table;
+
+    /// @notice AT A TABLE, every zone a reveal has touched a square of, once
+    ///         each, in the order first touched: what the count of material
+    ///         at the cap walks (`UsingGameTable-_tally`), since the zone
+    ///         index alone cannot be listed.
+    /// @dev Written only when a zone's bits go from none to some, and only
+    ///      under a roster, so the world's reveals never pay for it.
+    uint64[] internal _tableZones;
+
+    /// @notice The material each standing army holds at a table's cap.
+    mapping(uint256 army => uint256 material) internal _materialOf;
 
     /// @notice Create an instance of a game
     /// @param config configuration options for the game

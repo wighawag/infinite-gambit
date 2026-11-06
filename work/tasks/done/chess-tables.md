@@ -63,3 +63,26 @@ git fetch <remote> && git switch -c work/chess-tables <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-tables.md work/tasks/done/chess-tables.md
 ```
+
+## Decisions
+
+- **`addToReserve` moved to a new `GameTable` route**, which also holds `leaveTable`, `tally`, `claim`, `getTableOutcome` and `getTableShare`. Creating an army at a table did not fit in `GameCommit`, which had 407 bytes left. `addToReserve` now lives in its own interface, `IGameStake`, and `StakeSale` names that type. The combined ABI is unchanged. The new route was added to both deploy scripts and the test helper. The alternative was a self-call from `GameCommit` guarded by `msg.sender == address(this)`, which I rejected as fragile.
+- **The table spacing is set per deployment, not per table:** `data.Lobby.spawnSpacing` = 10, since every table is a clone of one implementation. Passing it in `gameOptions` per table would have meant decoding options in every route.
+- **How material is found at the cap (ADR 0012, new):** at a table, the first time a reveal touches a 16×16 zone, that zone is added to a list. The world reads the roster only when a never-touched zone is touched, so its reveals never pay for the list. The count walks the untouched footprint squares plus every touched square in the listed zones. I rejected keeping a running count during reveals (it would break the rule that reveal order cannot matter), listing every touched square (too much reveal gas), and scanning a bounding box (no upper bound on cost).
+- **Tables declare their own reveal gas**, `LOBBY_REVEAL_GAS` = 1,400,000, because the world's figure had no room for the zone list. This affects the table client's gas budget.
+- **A seat costs exactly one stake.** Any other amount reverts with a new error, `WrongStake`, and each purchase creates a new army, so one account may hold several seats.
+- **New errors** for the new paths:
+  - `NotArmyOwner`: someone other than the owner tries to leave.
+  - `TableNotOver`: a claim or tally before the table is over.
+  - `NothingToClaim`: an army that is owed nothing.
+- **New events:** `TableSeatTaken`, `TableLeft`, `TableSettled`, `TablePaid`.
+- **Leaving pays tokens back, not ETH,** like `withdrawFromReserve`; the player can redeem them at the sale. The left army shows as `Cancelled` and its spawn record is cleared.
+- **"Hidden" before the start:** a table army reads as `Deploying` (no king shown), and the board read returns nothing until the start. The spawn point stays visible in the registry, since it is fixed by seat order anyway.
+- **Who gets a share at the cap:** a frozen king still counts as standing, so a frozen army gets a share by its material, and it also prevents a "last king standing" win. If no standing army has any material left, the standing kings split evenly. Shares round down, so a few wei of dust can stay in the game.
+- **When the outcome is fixed:** the first `claim` writes the outcome and collects every reserve into the pot. After an early win the game keeps running, but there is nothing left to win.
+- **A missed reveal at a table freezes the army**, exactly as in the world. The creator's `forfeitMember` frees the seat but leaves the army on the board.
+- **Client at a table:**
+  - The played army is the latest one that has not left the table (`chooseSeat`), even if it was captured or frozen, so the player keeps the table screen.
+  - The HUD's exit-payout slot is reused: at a table its button sends `claim` instead of `exit`.
+  - Before the first claim the HUD cannot show the amount, only "Collect your share" or "Collect every stake".
+- **`CONTEXT.md`:** added "Table seat" and "Material", and the Exit entry now says tables have none. ADR 0006 already described the leave-before-start exception, so it needed no change.

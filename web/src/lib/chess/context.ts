@@ -113,6 +113,7 @@ import {
 	type CameraFollowStore,
 } from './camera-follow';
 import {createMinimap, type MinimapStore} from './minimap';
+import {createTableClaim, type TableClaimStore} from './table-payout';
 
 export type Game = {
 	config: ChessConfig;
@@ -148,8 +149,13 @@ export type Game = {
 	reserve: ReserveStore;
 	acquisition: AcquisitionStore;
 	missedReveal: MissedRevealStore;
-	/** Paying an army that left through an exit (`exit(army)`). */
+	/**
+	 * Paying an army that left through an exit (`exit(army)`), or at a table,
+	 * paying its share of the table's outcome (`claim(army)`).
+	 */
 	exitPayout: ExitPayoutStore;
+	/** At a table, what the played army may claim once it is over. */
+	tableClaim: TableClaimStore | undefined;
 	recovery: RecoveryStore<Move>;
 	/** What the planned submission will cost the account's reserve. */
 	cost: Readable<bigint>;
@@ -212,9 +218,20 @@ export function stakeNeeded(params: {
 	armiesLoaded: boolean;
 	stake: bigint;
 	refund?: bigint;
+	/**
+	 * At a table the seat is the army: one held, whatever became of it, needs
+	 * no stake, and the account's reserve never pays for one (a purchase seats
+	 * a new army directly).
+	 */
+	atTable?: boolean;
 }): {step: 'stake'} | undefined {
 	if (!params.armiesLoaded || params.reserve.step !== 'Loaded')
 		return undefined;
+	if (params.atTable) {
+		return params.army && params.army.status !== ARMY_STATUS.Cancelled
+			? undefined
+			: {step: 'stake'};
+	}
 	if (params.army && isLive(params.army)) return undefined;
 	return (params.reserve.amount ?? 0n) + (params.refund ?? 0n) < params.stake
 		? {step: 'stake'}
@@ -254,10 +271,14 @@ export function createGameContext(core: CoreServices): GameContext {
 	 * army its next deployment creates. A SELECTION, not a derivation from the
 	 * account.
 	 */
+	// AT A TABLE THE SEAT IS THE ARMY: bought in, never deployed, and a pass
+	// is an empty commitment (`chess-tables`).
+	const atTable = core.table !== undefined;
 	const armies = createArmies({
 		publicClient: core.publicClient,
 		contract: {address: contract.address, abi: contract.abi},
 		account,
+		atTable,
 	});
 	const activeIdentity = armies.active;
 
@@ -266,7 +287,9 @@ export function createGameContext(core: CoreServices): GameContext {
 	const needsDeployment = derived(
 		[armies, armies.activeArmy],
 		([$armies, $army]) =>
-			$armies.step === 'Loaded' && ($army === undefined || !isLive($army)),
+			!atTable &&
+			$armies.step === 'Loaded' &&
+			($army === undefined || !isLive($army)),
 	);
 
 	// An army acts from the cycle after it lands, and only while it stands.
@@ -275,14 +298,26 @@ export function createGameContext(core: CoreServices): GameContext {
 		($army) => $army?.status === ARMY_STATUS.Deployed,
 	);
 
-	const refreshStake = () => Promise.all([reserve.update(), armies.update()]);
+	const refreshStake = () =>
+		Promise.all([reserve.update(), armies.update()]).then(() =>
+			tableClaim?.update(),
+		);
 	// The exit's payout: an army that left through an exit is paid by a call
 	// anyone may make, and this client makes it for its own account's.
+	// At a table there are no exits: the table's outcome pays, by `claim`.
 	const exitPayout = createExitPayout({
 		deps: core,
 		contract,
+		functionName: atTable ? 'claim' : 'exit',
 		onPaid: () => void refreshStake(),
 	});
+	const tableClaim = atTable
+		? createTableClaim({
+				publicClient: core.publicClient,
+				contract,
+				army: armies.activeArmy,
+			})
+		: undefined;
 
 	// Keyed by WHO PLAYS (an army), in the account data. Typed with the layers'
 	// extensions (`with/fuzd`'s schedule); the format is this game's.
@@ -362,9 +397,13 @@ export function createGameContext(core: CoreServices): GameContext {
 	// has acted, so a deployed army's pass has to be SENT: the player presses
 	// Pass, which commits an empty submission. Under a clock committing nothing
 	// is already a pass, and committing one would spend gas to say nothing.
+	// AT A TABLE TOO, under its clock: committing nothing never counts as
+	// having acted, so only an empty commitment lets the table advance early.
 	const manual = config.cycle.policy === 'manual';
 	const commitWhenIdle = () =>
-		manual && get(armies.activeArmy) !== undefined && !get(needsDeployment);
+		(manual || atTable) &&
+		get(armies.activeArmy) !== undefined &&
+		!get(needsDeployment);
 
 	// THE CYCLE WAITS FOR EVERY SEAT A WORLD NAMES, deployed or not: see
 	// `./awaited-deployments.ts`. Nothing is read where no world named any.
@@ -453,6 +492,7 @@ export function createGameContext(core: CoreServices): GameContext {
 						armiesLoaded: $armies.step === 'Loaded',
 						stake: config.stake,
 						refund: $refund,
+						atTable,
 					}),
 			),
 			acquisition: createStakeAcquisition({
@@ -504,7 +544,7 @@ export function createGameContext(core: CoreServices): GameContext {
 			void refreshStake();
 			const stopAccount = account.subscribe(() => void refreshStake());
 			const stopCycle = crg.game.currentCycleNumber.subscribe(
-				() => void armies.update(),
+				() => void armies.update().then(() => tableClaim?.update()),
 			);
 			return () => {
 				stopAccount();
@@ -554,6 +594,7 @@ export function createGameContext(core: CoreServices): GameContext {
 			armies,
 			reserve,
 			exitPayout,
+			tableClaim,
 			cost,
 			needsDeployment,
 			revealSchedule,

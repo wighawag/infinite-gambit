@@ -8,34 +8,6 @@ contract GameCommit is IGameCommit, UsingGameInternal {
     constructor(Config memory config) UsingGameInternal(config) {}
 
     /// @inheritdoc IGameCommit
-    function addToReserve(uint256 player, uint256 amount) external {
-        // An army's reserve is its stake: funded once, by its deployment, from
-        // its owner's reserve, and by nothing else.
-        if (_isArmyId(player)) {
-            revert InvalidPlayer(player);
-        }
-        if (amount > 0) {
-            // Paid by msg.sender, CREDITED to `player`: the stake is paid from
-            // the wallet holding the funds, the game is played by a local key
-            // that holds none. A gift to someone else's reserve is safe, since
-            // only its owner can withdraw it.
-            //
-            // CREDITED WITHOUT TAKING A SEAT. Only armies are waited for: an
-            // account that became a member by buying stake would stall every
-            // policy that waits for everyone, since an account never commits.
-            // AT A TABLE the template's rule still holds until this game seats
-            // its armies there (`work/tasks/backlog/chess-tables.md`): the
-            // credited account takes the seat, and can only pass.
-            if (_roster().seats != 0) {
-                _addToReserve(player, amount);
-            } else {
-                CommitReveal.deposit(player, amount);
-            }
-            TOKENS.transferFrom(msg.sender, address(this), amount);
-        }
-    }
-
-    /// @inheritdoc IGameCommit
     function withdrawFromReserve(uint256 amount) external {
         // A failed deployment's refund is the account's to withdraw: written
         // first, so the player never has to know it was still pending.

@@ -170,5 +170,21 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         uint256 mergedInto;
     }
 
+    /// @notice How a table ended, as far as it has.
+    struct TableOutcome {
+        /// @notice whether it is over: one king stands, or its last cycle is
+        bool over;
+        /// @notice whether its outcome and pot are written (by the first claim)
+        bool settled;
+        /// @notice whether the material at the cap has been counted
+        bool tallied;
+        /// @notice the last king standing; zero while more than one stands
+        uint256 winner;
+        /// @notice every stake on the table, once settled
+        uint256 pot;
+        /// @notice the material of every standing army at the cap, once counted
+        uint256 totalMaterial;
+    }
+
     // ------------------------------------------------------------------------
 }

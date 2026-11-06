@@ -162,6 +162,17 @@ library ChessRules {
         return _place(spawnPoint, facing(spawnPoint), r, c);
     }
 
+    /// @notice What a piece of `kind` is worth when a table's stakes are
+    ///         split by material at its cap: pawn 1, knight 3, bishop 3,
+    ///         rook 5, queen 9, and nothing for a king or an empty square.
+    function materialOf(T.PieceKind kind) internal pure returns (uint256) {
+        if (kind == T.PieceKind.Pawn) return 1;
+        if (kind == T.PieceKind.Knight || kind == T.PieceKind.Bishop) return 3;
+        if (kind == T.PieceKind.Rook) return 5;
+        if (kind == T.PieceKind.Queen) return 9;
+        return 0;
+    }
+
     /// @notice Where the king of an army deployed at `spawnPoint` stands.
     function kingOf(uint64 spawnPoint) internal pure returns (uint64) {
         return _place(spawnPoint, facing(spawnPoint), 2, 1);

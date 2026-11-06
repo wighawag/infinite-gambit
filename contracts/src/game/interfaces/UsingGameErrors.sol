@@ -31,4 +31,13 @@ interface UsingGameErrors is UsingCommitRevealErrors {
     error NotExited(uint256 army);
     /// @notice The exited army's stake was already paid.
     error AlreadyPaid(uint256 army);
+
+    /// @notice A table's seat is bought with exactly one stake.
+    error WrongStake(uint256 amount, uint256 stake);
+    /// @notice Only the account that owns an army may take its stake back.
+    error NotArmyOwner(uint256 army);
+    /// @notice Neither one king stands nor is the table's last cycle over.
+    error TableNotOver();
+    /// @notice The army is owed nothing by the table's outcome.
+    error NothingToClaim(uint256 army);
 }

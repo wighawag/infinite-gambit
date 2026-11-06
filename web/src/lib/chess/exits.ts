@@ -55,6 +55,12 @@ export type ExitPayoutDeps = Pick<
 export function createExitPayout(params: {
 	deps: ExitPayoutDeps;
 	contract: CommitRevealContract;
+	/**
+	 * The call that pays: `exit` in the world, `claim` at a table, where there
+	 * are no exits and the table's outcome pays instead (`./table-payout.ts`).
+	 * Both take the army, may be sent by anyone, and pay its owner.
+	 */
+	functionName?: 'exit' | 'claim';
 	/** Called once the payout has landed, to re-read the registry. */
 	onPaid?: () => void | Promise<void>;
 }): ExitPayoutStore {
@@ -73,7 +79,7 @@ export function createExitPayout(params: {
 			const hash = await executor.client.writeContract({
 				address: contract.address,
 				abi: contract.abi,
-				functionName: 'exit',
+				functionName: params.functionName ?? 'exit',
 				args: [army],
 				account: executor.account,
 				chain: null,
