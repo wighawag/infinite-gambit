@@ -4,7 +4,7 @@ slug: chess-camera-minimap
 spec: infinite-chess
 blockedBy: [chess-collisions]
 covers: [44, 45]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -57,3 +57,9 @@ keep. The gate failed in prepare on the known hardhat compile race (two concurre
 ### q1: 'task:chess-camera-minimap' was bounced — how should we proceed?
 
 keep. Same hardhat compile race in prepare, twice in a row; the conductor runs the verify gate itself in a scratch clone with the prepare steps run one after another, and re-integrates the kept work.
+
+## Applied answers 2026-11-06
+
+### q1: 'task:chess-camera-minimap' was bounced — how should we proceed?
+
+keep. The prepare race is fixed on main (#7: the root devDepends on the contracts workspace, so the two compiles no longer run at once). The committed work is complete and reviewed: do not redo it, check it is still green and finish.
