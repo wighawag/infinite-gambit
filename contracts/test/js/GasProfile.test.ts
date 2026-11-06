@@ -10,6 +10,7 @@ import {
 	commitmentChain,
 	commitmentHashFor,
 	squareAt,
+	xyOf,
 	TURN_BOND,
 	type Move,
 } from './utils/index.js';
@@ -51,6 +52,10 @@ import {loadFunctionIndex} from './utils/gas-functions.js';
  * "Fresh" squares have no record yet (the piece's first move off its
  * deployment, onto a square no reveal touched); "touched" squares, origin and
  * destination both, have a record from an earlier cycle, which the move folds.
+ *
+ * Each move is first measured alone, one piece-move a reveal; then, on a fresh
+ * copy of the scene, the same pawn, slider and king moves are measured as ONE
+ * move of three piece-moves (`docs/adr/0016`), fresh and touched.
  */
 
 const {provider, networkHelpers} = await network.connect();
@@ -69,114 +74,127 @@ const m = (from: [number, number], to: [number, number]): Move => ({
 	to: squareAt(...to),
 });
 
+/**
+ * The shipped world with the scene's army deployed on (0,0), and the helpers
+ * that play it: `profile` folds and prints a receipt, `play` commits and
+ * reveals one move (of up to three piece-moves) in the next cycle, and
+ * `measure` plays one, profiles its reveal and checks every piece landed.
+ */
+async function scene(options: {profileDeployment: boolean}) {
+	const f = await networkHelpers.loadFixture(deployAll);
+	const {env, Game, actionsPerReveal} = f;
+	const contracts = contractsOf(env);
+	const profiles: {title: string; profile: Profile}[] = [];
+	async function profile(
+		title: string,
+		receipt: {transactionHash: `0x${string}`},
+	) {
+		const p = await profileTransaction(
+			provider,
+			receipt.transactionHash,
+			contracts,
+		);
+		profiles.push({title, profile: p});
+		console.log(formatProfile(title, p, {slots: SLOTS, functions: FUNCTIONS}));
+		return p;
+	}
+
+	const player = f.unnamedAccounts[0] as `0x${string}`;
+	const {cycleNumber: start} = f.getCycleNumber(await f.getTimestamp());
+	let cycle = start + 2;
+	await f.advanceToCycleNumber(cycle, true);
+	await fundAccount(f, player);
+
+	const spawnPoint = squareAt(0, 0);
+	const {army, receipt: deployCommit} = await commitDeployment(f, {
+		owner: player,
+		spawnPoint,
+		secret: SECRET,
+		actionsPerReveal,
+	});
+	await f.advanceToRevealPhase(cycle, true);
+	const deployReveal = await revealDeployment(f, {
+		account: player,
+		army,
+		spawnPoint,
+		secret: SECRET,
+		actionsPerReveal,
+	});
+	if (options.profileDeployment) {
+		await profile('deployment commit (the first ever)', deployCommit);
+		await profile('deployment reveal (the first ever)', deployReveal);
+	}
+
+	/** One move in the next cycle: its commit's receipt and its reveal's. */
+	async function play(moves: Move[]) {
+		cycle += 1;
+		await f.advanceToCycleNumber(cycle, true);
+		const commit = await env.execute(Game, {
+			account: player,
+			functionName: 'makeCommitment',
+			args: [
+				army,
+				commitmentHashFor(moves, SECRET, actionsPerReveal),
+				TURN_BOND,
+				zeroAddress,
+			],
+		});
+		await f.advanceToRevealPhase(cycle, true);
+		const {chunks} = commitmentChain(moves, SECRET, actionsPerReveal);
+		const reveal = await env.execute(Game, {
+			account: player,
+			functionName: 'reveal',
+			args: [
+				army,
+				chunks[0].moves,
+				SECRET,
+				chunks[0].furtherActions,
+				zeroAddress,
+			],
+		});
+		return {commit, reveal};
+	}
+	async function pieceAt(x: number, y: number): Promise<string | undefined> {
+		const [pieces] = (await env.read(Game, {
+			functionName: 'getPieces',
+			args: [x, y, x, y],
+		})) as [Piece[], bigint];
+		return pieces.length === 0
+			? undefined
+			: describePiece(pieces[0]).replace(/#\d+/, '');
+	}
+	/**
+	 * Play `moves`, profile its reveal, and check each piece landed: `landed`
+	 * is what stands on each destination after, in the same order.
+	 */
+	async function measure(title: string, moves: Move[], landed: string[]) {
+		const {commit, reveal} = await play(moves);
+		const p = await profile(title, reveal);
+		await f.advanceToCycleNumber(cycle + 1, true);
+		for (const [i, {to}] of moves.entries()) {
+			const {x, y} = xyOf(to);
+			assert.strictEqual(
+				await pieceAt(x, y),
+				landed[i],
+				`${title}: the piece-move to (${x},${y}) did not land`,
+			);
+		}
+		return {commit, reveal: p};
+	}
+	return {profile, play, measure, profiles};
+}
+
 describe('the gas profile of a plain move', function () {
 	it('folds every commit and reveal of a deployment and its moves into where the gas goes', async function () {
-		const f = await networkHelpers.loadFixture(deployAll);
-		const {env, Game, actionsPerReveal} = f;
-		const contracts = contractsOf(env);
-		const profiles: {title: string; profile: Profile}[] = [];
-		async function profile(
-			title: string,
-			receipt: {transactionHash: `0x${string}`},
-		) {
-			const p = await profileTransaction(
-				provider,
-				receipt.transactionHash,
-				contracts,
-			);
-			profiles.push({title, profile: p});
-			console.log(
-				formatProfile(title, p, {slots: SLOTS, functions: FUNCTIONS}),
-			);
-			return p;
-		}
-
-		const player = f.unnamedAccounts[0] as `0x${string}`;
-		const {cycleNumber: start} = f.getCycleNumber(await f.getTimestamp());
-		let cycle = start + 2;
-		await f.advanceToCycleNumber(cycle, true);
-		await fundAccount(f, player);
-
-		const spawnPoint = squareAt(0, 0);
-		const {army, receipt: deployCommit} = await commitDeployment(f, {
-			owner: player,
-			spawnPoint,
-			secret: SECRET,
-			actionsPerReveal,
+		const {profile, play, measure, profiles} = await scene({
+			profileDeployment: true,
 		});
-		await profile('deployment commit (the first ever)', deployCommit);
-		await f.advanceToRevealPhase(cycle, true);
-		const deployReveal = await revealDeployment(f, {
-			account: player,
-			army,
-			spawnPoint,
-			secret: SECRET,
-			actionsPerReveal,
-		});
-		await profile('deployment reveal (the first ever)', deployReveal);
-
-		/** One move in the next cycle: its commit's receipt and its reveal's. */
-		async function play(move: Move) {
-			cycle += 1;
-			await f.advanceToCycleNumber(cycle, true);
-			const commit = await env.execute(Game, {
-				account: player,
-				functionName: 'makeCommitment',
-				args: [
-					army,
-					commitmentHashFor([move], SECRET, actionsPerReveal),
-					TURN_BOND,
-					zeroAddress,
-				],
-			});
-			await f.advanceToRevealPhase(cycle, true);
-			const {chunks} = commitmentChain([move], SECRET, actionsPerReveal);
-			const reveal = await env.execute(Game, {
-				account: player,
-				functionName: 'reveal',
-				args: [
-					army,
-					chunks[0].moves,
-					SECRET,
-					chunks[0].furtherActions,
-					zeroAddress,
-				],
-			});
-			return {commit, reveal};
-		}
-		async function pieceAt(x: number, y: number): Promise<string | undefined> {
-			const [pieces] = (await env.read(Game, {
-				functionName: 'getPieces',
-				args: [x, y, x, y],
-			})) as [Piece[], bigint];
-			return pieces.length === 0
-				? undefined
-				: describePiece(pieces[0]).replace(/#\d+/, '');
-		}
-		/** Play `move`, profile its reveal, and check it landed. */
-		async function measure(
-			title: string,
-			move: Move,
-			landed: string,
-			to: [number, number],
-		) {
-			const {commit, reveal} = await play(move);
-			const p = await profile(title, reveal);
-			await f.advanceToCycleNumber(cycle + 1, true);
-			assert.strictEqual(
-				await pieceAt(...to),
-				landed,
-				`${title}: the move did not land`,
-			);
-			return {commit, reveal: p};
-		}
 
 		// A PAWN, fresh: its first step, onto a square nobody touched.
 		const first = await measure(
 			'pawn step, fresh squares',
-			m([0, 2], [0, 3]),
-			'P@0,3',
-			[0, 3],
+			[m([0, 2], [0, 3])],
+			['P@0,3'],
 		);
 		await profile(
 			'plain move commit (the army first commit after its deployment)',
@@ -184,50 +202,72 @@ describe('the gas profile of a plain move', function () {
 		);
 		// The knight touches (0,4) and leaves it, so the pawn's next step is
 		// from a touched square onto a touched square.
-		await play(m([0, 1], [1, 3]));
-		await play(m([1, 3], [2, 5]));
-		await play(m([2, 5], [0, 4]));
-		await play(m([0, 4], [1, 6]));
-		await measure(
-			'pawn step, touched squares',
-			m([0, 3], [0, 4]),
-			'P@0,4',
-			[0, 4],
-		);
+		await play([m([0, 1], [1, 3])]);
+		await play([m([1, 3], [2, 5])]);
+		await play([m([2, 5], [0, 4])]);
+		await play([m([0, 4], [1, 6])]);
+		await measure('pawn step, touched squares', [m([0, 3], [0, 4])], ['P@0,4']);
 
 		// A BISHOP, 7 squares up the open diagonal past the empty corner, and
 		// back: fresh, then touched (its path is only read, never touched).
 		await measure(
 			'7-square slider, fresh squares',
-			m([1, 1], [8, 8]),
-			'B@8,8',
-			[8, 8],
+			[m([1, 1], [8, 8])],
+			['B@8,8'],
 		);
 		await measure(
 			'7-square slider, touched squares',
-			m([8, 8], [1, 1]),
-			'B@1,1',
-			[1, 1],
+			[m([8, 8], [1, 1])],
+			['B@1,1'],
 		);
 
 		// THE KING, into its empty core square and back.
-		await measure(
-			'king step, fresh squares',
-			m([0, 0], [1, 0]),
-			'K@1,0',
-			[1, 0],
-		);
+		await measure('king step, fresh squares', [m([0, 0], [1, 0])], ['K@1,0']);
 		const last = await measure(
 			'king step, touched squares',
-			m([1, 0], [0, 0]),
-			'K@0,0',
-			[0, 0],
+			[m([1, 0], [0, 0])],
+			['K@0,0'],
 		);
 		await profile('plain move commit (a later cycle)', last.commit);
 
 		// Every profile accounts for its whole receipt (asserted inside), and
 		// the reveals of a plain move are what this suite is about.
 		assert.strictEqual(profiles.length, 10);
+		for (const {title, profile} of profiles) {
+			assert.ok(profile.execution > 0, `${title}: no execution traced`);
+		}
+	});
+
+	it('folds a move of three piece-moves, a pawn, a slider and the king, into where the gas goes', async function () {
+		// THE SAME THREE PIECE-MOVES AS THE SINGLE MOVES ABOVE, in one move
+		// (`docs/adr/0016`), on a fresh copy of the same scene: the pawn's
+		// first step, the bishop's 7 squares up the open diagonal and the
+		// king into its empty core square, every square fresh; then all three
+		// back, every origin and destination touched (the bishop's path is
+		// only read, so it is fresh both ways). What the one reveal shares
+		// across its piece-moves (the transaction, dispatch, the base's
+		// bookkeeping, the event, the mover's own king square) is what it
+		// saves on three single moves; the mask of the army's own vacated
+		// squares (`ChessRules.vacate`) is what it adds.
+		const {profile, measure, profiles} = await scene({
+			profileDeployment: false,
+		});
+		const fresh = await measure(
+			'three piece-moves (pawn, 7-square slider, king), fresh squares',
+			[m([0, 2], [0, 3]), m([1, 1], [8, 8]), m([0, 0], [1, 0])],
+			['P@0,3', 'B@8,8', 'K@1,0'],
+		);
+		await profile(
+			'three piece-moves commit (the army first commit after its deployment)',
+			fresh.commit,
+		);
+		await measure(
+			'three piece-moves (pawn, 7-square slider, king), touched squares',
+			[m([0, 3], [0, 2]), m([8, 8], [1, 1]), m([1, 0], [0, 0])],
+			['P@0,2', 'B@1,1', 'K@0,0'],
+		);
+
+		assert.strictEqual(profiles.length, 3);
 		for (const {title, profile} of profiles) {
 			assert.ok(profile.execution > 0, `${title}: no execution traced`);
 		}

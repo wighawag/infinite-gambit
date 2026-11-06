@@ -14,10 +14,11 @@ import {
 	TURN_BOND,
 	type Move,
 } from './utils/index.js';
-import {parseEther, zeroAddress} from 'viem';
+import {parseEther, toHex, zeroAddress} from 'viem';
 import {movesWorld, move} from './utils/moves-world.js';
 import {tableWorld} from './utils/table-world.js';
 import {OFFLINE_OPEN_SPAWN_POINTS} from '../../rocketh/config.js';
+import {artifacts} from '../../rocketh/environment.js';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -41,12 +42,21 @@ import {OFFLINE_OPEN_SPAWN_POINTS} from '../../rocketh/config.js';
  * previous deployment (none yet), creates the army, moves the stake between
  * two reserves, starts waiting for the army and then commits; in a manual
  * world it also remembers the army for the sweep of dead armies, which makes
- * that world's first paid deployment the worst of all (measured below). The worst reveal is the most expensive of three: the first
- * deployment ever (which writes the whole open set of spawn points beside the
- * spawn point's record), a king's move (which reads the eight squares around
- * its destination on its own footprint), and a slider's longest move, 7
- * squares over a path of squares whose facts are many idle cycles old (each
- * read resolves its record, and the origin and the destination fold theirs).
+ * that world's first paid deployment the worst of all (measured below). The
+ * dearest plain reveal is the dearer of two: the first deployment ever (which
+ * writes the whole open set of spawn points beside the spawn point's record),
+ * and a move of three piece-moves (`docs/adr/0016`): a king's first step
+ * (which reads the eight squares around its destination on its own
+ * footprint) and two sliders' longest moves, 7 squares each over a path of
+ * squares whose facts are many idle cycles old (each read resolves its record,
+ * and the origin and the destination fold theirs). The worst reveal is that
+ * move with every piece-move as dear as the rules allow (the capture case).
+ *
+ * THE GENEROSITY CHECKS ARE AGAINST THAT PLAIN MOVE, in the world and at a
+ * table: a declared figure more than `GENEROSITY_CEILING` times what a move
+ * meeting nothing costs has not been re-measured. If the worst plus the
+ * headroom ever outgrows three plain moves, the answer is a cheaper worst or a
+ * decision about the ceiling, not a quiet raise of it.
  *
  * IT IS TWO-SIDED, BECAUSE THE FIGURES ARE NOW CEILINGS. The client passes them
  * as the gas LIMIT on every commit and every reveal, so a transaction that needs
@@ -90,10 +100,33 @@ const GENEROSITY_CEILING = 3n;
  */
 const MINIMUM_HEADROOM_PERCENT = 10n;
 
+/**
+ * How many zones a table has listed (`UsingGameStore-_tableZones`, the length
+ * of the array), read from storage: no route returns it.
+ */
+const TABLE_ZONES_SLOT = BigInt(
+	(
+		(artifacts.GameReveal as any).storageLayout as {
+			storage: {label: string; slot: string}[];
+		}
+	).storage.find((s) => s.label === '_tableZones')!.slot,
+);
+async function tableZonesListed(table: `0x${string}`): Promise<bigint> {
+	return BigInt(
+		(await provider.request({
+			method: 'eth_getStorageAt',
+			params: [table, toHex(TABLE_ZONES_SLOT, {size: 32}), 'latest'],
+		})) as string,
+	);
+}
+
 /** The worst reveals of the first case, for the capture case to build on. */
 const measured: {
-	king?: bigint;
-	slider?: bigint;
+	/**
+	 * The dearest plain move: the king's first step and two 7-square sliders
+	 * over stale squares, in one reveal. The baseline of both generosity checks.
+	 */
+	three?: bigint;
 	/** The worst reveal of the world, as the capture case prices it. */
 	worst?: bigint;
 } = {};
@@ -139,9 +172,10 @@ describe('the declared gas budget', function () {
 		);
 		const deploymentRevealUsed = BigInt(revealReceipt.gasUsed);
 
-		// THE MOVES, by the same army, one per cycle.
+		// THE MOVES, by the same army, one move per cycle, each of up to three
+		// piece-moves (`docs/adr/0016`).
 		let cycle = start + 2;
-		async function revealMove(m: Move): Promise<bigint> {
+		async function revealMove(ms: Move[]): Promise<bigint> {
 			cycle += 1;
 			await advanceToCycleNumber(cycle, true);
 			await env.execute(Game, {
@@ -149,13 +183,13 @@ describe('the declared gas budget', function () {
 				functionName: 'makeCommitment',
 				args: [
 					army,
-					commitmentHashFor([m], SECRET, actionsPerReveal),
+					commitmentHashFor(ms, SECRET, actionsPerReveal),
 					TURN_BOND,
 					zeroAddress,
 				],
 			});
 			await advanceToRevealPhase(cycle, true);
-			const {chunks} = commitmentChain([m], SECRET, actionsPerReveal);
+			const {chunks} = commitmentChain(ms, SECRET, actionsPerReveal);
 			const receipt = await env.execute(Game, {
 				account: player,
 				functionName: 'reveal',
@@ -169,33 +203,40 @@ describe('the declared gas budget', function () {
 			});
 			return BigInt(receipt.gasUsed);
 		}
-		// The army stands on (0,-9): its king on the spawn point, next to the
-		// empty core square (1,-9), which it steps into; its queen on (-1,-9)
-		// behind the pawn on (-2,-9), which steps out West.
-		const kingRevealUsed = await revealMove({
-			from: squareAt(0, -9),
-			to: squareAt(1, -9),
-		});
-		// The pawn walks 8 squares West, one a cycle, leaving a stale record on
-		// every square of the row; then the queen behind it slides 7 squares
-		// over them, many idle cycles later.
+		// THE DEAREST PLAIN MOVE: three piece-moves, the dearest the army has,
+		// none meeting anything. The army stands on (0,-9): its king on the
+		// spawn point, next to the empty core square (1,-9); its queen on
+		// (-1,-9) behind the pawn on (-2,-9), its rook on (-1,-8) behind the
+		// pawn on (-2,-8). The two pawns walk 8 squares West, side by side, one
+		// step each a cycle, leaving a stale record on every square of both
+		// rows. Many idle cycles later the move: the king's first step (its
+		// army record's second slot written from zero, and the 8 squares
+		// around its destination read), and the queen and the rook each
+		// sliding 7 squares West over those stale squares (each read resolves
+		// its record, and the origin and the destination fold theirs).
+		const walked: bigint[] = [];
 		for (let x = -2; x > -10; x--) {
-			await revealMove({from: squareAt(x, -9), to: squareAt(x - 1, -9)});
+			walked.push(
+				await revealMove([
+					{from: squareAt(x, -9), to: squareAt(x - 1, -9)},
+					{from: squareAt(x, -8), to: squareAt(x - 1, -8)},
+				]),
+			);
 		}
 		cycle += 10;
-		const sliderRevealUsed = await revealMove({
-			from: squareAt(-1, -9),
-			to: squareAt(-8, -9),
-		});
-		measured.king = kingRevealUsed;
-		measured.slider = sliderRevealUsed;
+		const threeRevealUsed = await revealMove([
+			{from: squareAt(0, -9), to: squareAt(1, -9)},
+			{from: squareAt(-1, -9), to: squareAt(-8, -9)},
+			{from: squareAt(-1, -8), to: squareAt(-8, -8)},
+		]);
+		measured.three = threeRevealUsed;
 		const revealUsed = [
 			deploymentRevealUsed,
-			kingRevealUsed,
-			sliderRevealUsed,
+			threeRevealUsed,
+			...walked,
 		].reduce((a, b) => (a > b ? a : b));
 		console.log(
-			`gas budget: reveals: deployment ${deploymentRevealUsed}, king ${kingRevealUsed}, 7-square slider ${sliderRevealUsed}`,
+			`gas budget: reveals: deployment ${deploymentRevealUsed}, two pawns stepping ${walked[0]}, king and two 7-square sliders ${threeRevealUsed}`,
 		);
 
 		assert.ok(
@@ -232,9 +273,12 @@ describe('the declared gas budget', function () {
 			declaredCommit <= commitUsed * GENEROSITY_CEILING,
 			`commitGas is declared at ${declaredCommit} against a measured ${commitUsed}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
 		);
+		// Against the dearest PLAIN move, three piece-moves meeting nothing:
+		// what a player pays for on a quiet board, and what the capture case
+		// builds its worst on.
 		assert.ok(
-			declaredReveal <= revealUsed * GENEROSITY_CEILING,
-			`revealGas is declared at ${declaredReveal} against a measured ${revealUsed}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
+			declaredReveal <= threeRevealUsed * GENEROSITY_CEILING,
+			`revealGas is declared at ${declaredReveal} against a plain three-piece-move reveal of ${threeRevealUsed}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
 		);
 
 		console.log(
@@ -254,7 +298,7 @@ describe('the declared gas budget', function () {
 		// check: the army record and its king's square). Measured here on the
 		// stones of `Stones.test.ts` and the two-victim square of
 		// `KingCapture.test.ts`, then put together on the dearest move.
-		assert.ok(measured.king && measured.slider, 'runs after the first case');
+		assert.ok(measured.three, 'runs after the first case');
 		const world = movesWorld({
 			deployAll,
 			loadFixture: networkHelpers.loadFixture,
@@ -375,26 +419,29 @@ describe('the declared gas budget', function () {
 			foldingTwo,
 		]);
 		// THE WORST, put together: the dearest plain move of the first case
-		// whose origin AND destination each fold a two-victim square, which
-		// notes three candidates (a king and an arriver meeting on a king or
-		// stone that stayed: the arriver's, the standing army's, for the stone
-		// that holds the king's stake if the captor falls, and the mover's,
-		// each a fresh list: its length and its first slot), and
-		// whose every square read meets a piece of a fallen army not yet
-		// folded, a distinct one each, cold: its record's two slots, the four
-		// slots of its king's square, and finding that square. A slider reads
-		// 7 such squares (one holding such a piece reads as empty, so the path
-		// is legal), a king its destination's 8 neighbours.
+		// (three piece-moves: the king's first step and two 7-square sliders,
+		// `docs/adr/0016`), each of whose piece-moves is as dear as the rules
+		// allow. Each piece-move's origin AND destination fold a two-victim
+		// square, and each piece-move notes three candidates (a king and an
+		// arriver meeting on a king or stone that stayed: the arriver's, the
+		// standing army's, for the stone that holds the king's stake if the
+		// captor falls, and the mover's, each a fresh list: its length and its
+		// first slot), and every square the move reads meets a piece of a
+		// fallen army not yet folded, a distinct one each, cold: its record's
+		// two slots, the four slots of its king's square, and finding that
+		// square. A slider reads 7 such squares (one holding such a piece reads
+		// as empty, so the path is legal), a king its destination's 8
+		// neighbours: 22 over the three. AN UPPER BOUND, not a scene: the
+		// three piece-moves share one cache of start-of-cycle facts, and a
+		// captor noted twice pays for a fresh list once, which it ignores.
 		const fold = foldingTwo > plainStep ? foldingTwo - plainStep : 0n;
 		const note = 2n * 22_100n + 1_000n;
 		const vanish = 6n * 2_100n + 3_000n;
-		const extras = 2n * fold + 3n * note;
-		const slider = measured.slider! + extras + 7n * vanish;
-		const king = measured.king! + extras + 8n * vanish;
-		const worst = slider > king ? slider : king;
+		const perPieceMove = 2n * fold + 3n * note;
+		const worst = measured.three! + 3n * perPieceMove + (8n + 7n + 7n) * vanish;
 		measured.worst = worst > captures ? worst : captures;
 		console.log(
-			`gas budget: captures: making a stone ${max(making)}, folding a capture ${foldingCapture}, taking a stone ${takingStone}, the two-victim square ${max(twoVictims)}, folding it ${foldingTwo} (a plain step ${plainStep}); worst reveal ${measured.worst} (slider ${slider}, king ${king}), declared ${declaredReveal}`,
+			`gas budget: captures: making a stone ${max(making)}, folding a capture ${foldingCapture}, taking a stone ${takingStone}, the two-victim square ${max(twoVictims)}, folding it ${foldingTwo} (a plain step ${plainStep}); worst reveal ${measured.worst} (the plain three-piece move ${measured.three}, each piece-move's folds and notes ${perPieceMove}, a vanish check ${vanish}), declared ${declaredReveal}`,
 		);
 		assert.ok(
 			declaredReveal >=
@@ -408,11 +455,22 @@ describe('the declared gas budget', function () {
 		// A TABLE RUNS THE SAME ROUTES, and a reveal there costs what it costs in
 		// the world plus one thing: the first touch of a zone lists it, for the
 		// count of material at the cap (`UsingGameTable._tally`). Priced as the
-		// difference between the same first move on a table and in the world:
-		// bob's bishop (7,1) to his empty corner (8,2), from zone 0 into zone 1,
-		// the first touch of both. The list is packed four zones a slot, so this second push shared
-		// the first's slot; at worst it opens one of its own.
-		assert.ok(measured.worst && measured.king, 'runs after the capture case');
+		// difference between the same first move on a table and in the world.
+		//
+		// A MOVE TOUCHES UP TO SIX SQUARES (three piece-moves, an origin and a
+		// destination each, `docs/adr/0016`), so it can list up to six zones.
+		// Measured on two: bob's bishop (7,1) to his empty corner (8,2), from
+		// zone 0 into zone 1, the first touch of both. And on four: carol's
+		// three piece-moves from (6,6), whose footprint meets four zones
+		// (zones are 16 wide, centred, so 8 is the first square of zone 1):
+		// her bishop (7,7) to her empty corner (8,8), zone (0,0) into zone
+		// (1,1), her pawn (8,6) to (9,6) in zone (1,0) and her pawn (6,8) to
+		// (6,9) in zone (0,1). The two extra zones of the second are what a
+		// zone past the first two costs, the roster read and the list's
+		// length already paid; two more of those price six. The list is
+		// packed four zones a slot, so the four shared one fresh slot: six
+		// spread over at most three, one more fresh slot than measured.
+		assert.ok(measured.worst && measured.three, 'runs after the capture case');
 		const lobby = BigInt(
 			(
 				(await networkHelpers.loadFixture(deployAll)).env.get('GameFactory')
@@ -447,12 +505,55 @@ describe('the declared gas budget', function () {
 		await t.commit(tw.bob, tb, [step]);
 		await t.advance();
 		const atTheTable = BigInt((await t.reveal(tw.bob, tb, [step]))!.gasUsed);
+		// Read now: the next table is a clone at the same address, once the
+		// fixture is reverted.
+		assert.strictEqual(
+			await tableZonesListed(t.Table.address),
+			2n,
+			'the bishop step should list two zones',
+		);
 
-		const listing = atTheTable - inTheWorld + 22_100n;
+		const four = [
+			move([7, 7], [8, 8]),
+			move([8, 6], [9, 6]),
+			move([6, 8], [6, 9]),
+		];
+		const w4 = await world();
+		const [c4] = await w4.deploy([[w4.carol, [1, 1]]]);
+		await w4.commit(w4.carol, c4, four);
+		await w4.toRevealPhase();
+		const fourInTheWorld = BigInt(
+			(await w4.reveal(w4.carol, c4, four))!.gasUsed,
+		);
+		const tw4 = await tables();
+		const t4 = await tw4.create(3);
+		const seats4 = [
+			await t4.buy(tw4.alice),
+			await t4.buy(tw4.bob),
+			await t4.buy(tw4.carol),
+		];
+		await t4.start();
+		await t4.commit(tw4.alice, seats4[0], []);
+		await t4.commit(tw4.bob, seats4[1], []);
+		await t4.commit(tw4.carol, seats4[2], four);
+		await t4.advance();
+		const fourAtTheTable = BigInt(
+			(await t4.reveal(tw4.carol, seats4[2], four))!.gasUsed,
+		);
+		assert.strictEqual(
+			await tableZonesListed(t4.Table.address),
+			4n,
+			"carol's three piece-moves should list four zones",
+		);
+
+		const listingTwo = atTheTable - inTheWorld;
+		const listingFour = fourAtTheTable - fourInTheWorld;
+		const twoMore = listingFour > listingTwo ? listingFour - listingTwo : 0n;
+		const listing = listingFour + twoMore + 22_100n;
 		const worst = measured.worst! + listing;
-		const plainest = measured.king! + listing;
+		const plainest = measured.three! + listing;
 		console.log(
-			`gas budget: a table's first move ${atTheTable} against the world's ${inTheWorld}; worst table reveal ${worst}, declared ${lobby}`,
+			`gas budget: a table's first move ${atTheTable} against the world's ${inTheWorld} (two zones listed, ${listingTwo}); a table's three piece-moves ${fourAtTheTable} against the world's ${fourInTheWorld} (four zones, ${listingFour}); six zones ${listing}; worst table reveal ${worst}, plain ${plainest}, declared ${lobby}`,
 		);
 		assert.ok(
 			lobby >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
@@ -461,7 +562,7 @@ describe('the declared gas budget', function () {
 		);
 		assert.ok(
 			lobby <= plainest * GENEROSITY_CEILING,
-			`the lobby's revealGas is declared at ${lobby} against a plainest table reveal of about ${plainest}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
+			`the lobby's revealGas is declared at ${lobby} against a plain three-piece-move table reveal of about ${plainest}, more than ${GENEROSITY_CEILING}x. Re-measure it.`,
 		);
 	});
 

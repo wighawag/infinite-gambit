@@ -1,6 +1,6 @@
 # Where the gas of a plain move goes
 
-Measured by `lean-rules-one-slot-square-record-and-tight-gas-limits` (2026-11-07), on the `test` network (EDR, `evmVersion: london`), by `contracts/test/js/GasProfile.test.ts`, with the folding in `contracts/test/js/utils/gas-profile.ts` and `utils/gas-functions.ts`. The raw output of that run, every slot of every transaction included, is in `docs/spikes/lean-rules-one-slot-square-record-and-tight-gas-limits/default-build.txt` (the test build) and `production-build.txt` (the optimised build); `before-default-build.txt` and `before-production-build.txt` are the same scene measured just before that task, on the four-slot square record. The first profile (`gas-profile-of-a-plain-move`, commit `a9ae76a`, 2026-11-06, on the old 6 by 4 board) is kept in `docs/spikes/gas-profile-of-a-plain-move/`.
+Measured by `three-piece-moves-gas-limits` (2026-11-07), on the `test` network (EDR, `evmVersion: london`), by `contracts/test/js/GasProfile.test.ts`, with the folding in `contracts/test/js/utils/gas-profile.ts` and `utils/gas-functions.ts`. A move is now up to three piece-moves (`docs/adr/0016-an-army-moves-up-to-three-pieces-a-cycle-simultaneously.md`), so the profile measures each kind of piece-move alone and then a pawn, a slider and the king as one move. The raw output of that run, every slot of every transaction included, is in `docs/spikes/three-piece-moves-gas-limits/default-build.txt` (the test build), `production-build.txt` (the optimised build) and `default-build-functions.txt` (the test build's functions). The profile before it, of one piece-move a reveal on the one-slot square record (`lean-rules-one-slot-square-record-and-tight-gas-limits`, 2026-11-07), is kept in `docs/spikes/lean-rules-one-slot-square-record-and-tight-gas-limits/` with the four-slot record it replaced (`before-*.txt`); the first profile (`gas-profile-of-a-plain-move`, commit `a9ae76a`, 2026-11-06, on the old 6 by 4 board) is in `docs/spikes/gas-profile-of-a-plain-move/`.
 
 To reproduce, from `contracts/`:
 
@@ -35,48 +35,69 @@ y=-2  . P P P .
 - **pawn**: (0,2) to (0,3), its first step ("fresh": neither square has a record); later (0,3) to (0,4) after a knight has stood on (0,4) and left ("touched": both squares have a record of an earlier cycle, which the move folds).
 - **slider**: the bishop (1,1) to (8,8) down the open diagonal, 7 squares, then back. Its path squares are only read, never touched, so the path is fresh both ways. (8,8) is on the footprint of the spawn point (9,9), so the move also writes that spawn record's `arrivedIn` (the deployment-collision rule), from zero the first time.
 - **king**: (0,0) into its empty core square (1,0), then back.
-- **commit**: the commitment of the king's return, a cycle after several moves; the army's first commit after its deployment costs 83,105 (73,441 optimised) and differs only in reading a king's square with no record.
+- **three piece-moves**: on a fresh copy of the scene, the pawn, the bishop and the king moves above as ONE move, (0,2) to (0,3), (1,1) to (8,8) and (0,0) to (1,0), every square fresh; then all three back, (0,3) to (0,2), (8,8) to (1,1) and (1,0) to (0,0), every origin and destination touched (the bishop's path is only read, so it is fresh both ways).
+- **commit**: the commitment of the king's return, a cycle after several moves; the army's first commit after its deployment costs 84,954 (75,290 optimised) and differs only in reading a king's square with no record. A commit stores a hash, so the first commit of the three piece-moves costs exactly that too.
 - **deployment**: the first ever, commit and reveal, every slot cold.
 
-`GasBudget.test.ts` logs different figures because its scene is the budget's worst case: the last spawn point of the open set, a king stepping into a zone nobody touched, a slider over seven squares holding stale facts, and the captures. This profile is of the ordinary case.
+`GasBudget.test.ts` logs different figures because its scene is the budget's worst case: the last spawn point of the open set, a king's first step beside two sliders each over seven squares holding stale facts, and the captures. This profile is of the ordinary case.
 
 ## The breakdown
 
-Gas per bucket. Storage is the test build's; the optimised build's storage differs only by repeated warm reads it drops (a few hundred gas per transaction, see the raw output). Compute is given for both builds.
+Gas per bucket. Storage is the test build's; the optimised build's storage differs only by repeated warm reads it drops (a few hundred gas per transaction, 4,760 on the touched three piece-moves, see the raw output). Compute is given for both builds. The single moves cost a little more than on the one-slot record's profile (about 1,700 a reveal, 1,849 a commit): a commit's dispatch is 1,849 dearer through the vendored router that routes past 48 selectors (`contracts/src/vendor/router/Router10X60.sol`), a reveal's only 48, and a reveal's compute is about 1,650 more, mostly `ChessRules.vacatedBy` (1,173), which checks the cap and the refusals of a move (`docs/adr/0016`).
 
-| | commit | pawn fresh | pawn touched | slider fresh | slider touched | king fresh | king touched | deploy commit | deploy reveal |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| intrinsic (21000) | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 |
-| calldata | 1,116 | 1,400 | 1,400 | 1,424 | 1,424 | 1,388 | 1,388 | 1,188 | 1,376 |
-| dispatch: proxy + router | 9,102 | 11,446 | 11,446 | 11,446 | 11,446 | 11,446 | 11,446 | 9,102 | 16,643 |
-| commit-reveal: attendance | 7,600 | 5,200 | 5,200 | 5,200 | 5,200 | 5,200 | 5,200 | 67,100 | 5,200 |
-| commit-reveal: commitment | 7,800 | 7,400 | 7,400 | 7,400 | 7,400 | 7,400 | 7,400 | 46,800 | 10,200 |
-| commit-reveal: cycle state | 5,300 | 4,600 | 4,600 | 4,600 | 4,600 | 4,600 | 4,600 | 5,900 | 4,600 |
-| commit-reveal: reserve | 2,100 |  |  |  |  |  |  | 27,200 |  |
-| commit-reveal: roster |  | 2,500 |  | 2,500 |  |  |  | 2,500 |  |
-| game: army count |  |  |  |  |  |  |  | 22,200 |  |
-| game: army list |  | 2,100 | 2,200 | 2,200 | 2,400 | 2,300 | 2,600 | 44,300 |  |
-| game: army record | 5,600 | 4,900 | 4,900 | 4,900 | 4,900 | 25,400 | 8,500 | 22,700 | 5,500 |
-| game: open spawn set |  |  |  |  |  |  |  |  | 89,700 |
-| game: spawn records | 2,400 | 2,400 |  | 25,300 | 8,200 | 5,600 | 5,600 |  | 37,700 |
-| game: square records | 2,400 | 46,500 | 15,800 | 59,100 | 28,400 | 61,400 | 32,600 |  | 44,100 |
-| game: zone index |  | 22,300 |  | 27,100 |  | 5,200 |  |  |  |
-| events | 2,012 | 2,268 | 2,268 | 2,268 | 2,268 | 2,268 | 2,268 | 8,935 | 4,024 |
-| hashing | 462 | 900 | 726 | 1,356 | 1,260 | 1,392 | 1,332 | 708 | 1,614 |
-| calls out |  |  |  |  |  |  |  |  | 100 |
-| compute (test build) | 17,082 | 50,241 | 43,077 | 121,280 | 117,004 | 118,537 | 123,962 | 21,252 | 59,317 |
-| compute (production build) | 8,813 | 29,871 | 26,061 | 70,715 | 69,088 | 77,027 | 80,696 | 10,691 | 36,354 |
-| refund |  |  |  |  |  |  |  | -4,800 | -4,800 |
-| **total, test build** | **83,974** | **185,155** | **120,017** | **297,074** | **215,502** | **273,131** | **227,896** | **296,085** | **296,274** |
-| **total, production build** | **74,105** | **163,949** | **101,329** | **245,637** | **165,842** | **230,713** | **182,214** | **283,188** | **272,511** |
+| | commit | pawn fresh | pawn touched | slider fresh | slider touched | king fresh | king touched | three fresh | three touched | deploy commit | deploy reveal |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| intrinsic (21000) | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 | 21,000 |
+| calldata | 1,116 | 1,400 | 1,400 | 1,424 | 1,424 | 1,388 | 1,388 | 1,972 | 1,972 | 1,188 | 1,376 |
+| dispatch: proxy + router | 10,951 | 11,494 | 11,494 | 11,494 | 11,494 | 11,494 | 11,494 | 11,542 | 11,542 | 10,951 | 17,808 |
+| commit-reveal: attendance | 7,600 | 5,200 | 5,200 | 5,200 | 5,200 | 5,200 | 5,200 | 5,200 | 5,200 | 67,100 | 5,200 |
+| commit-reveal: commitment | 7,800 | 7,400 | 7,400 | 7,400 | 7,400 | 7,400 | 7,400 | 7,400 | 7,400 | 46,800 | 10,200 |
+| commit-reveal: cycle state | 5,300 | 4,600 | 4,600 | 4,600 | 4,600 | 4,600 | 4,600 | 4,600 | 4,600 | 5,900 | 4,600 |
+| commit-reveal: reserve | 2,100 |  |  |  |  |  |  |  |  | 27,200 |  |
+| commit-reveal: roster |  | 2,500 |  | 2,500 |  |  |  | 3,000 |  | 2,500 |  |
+| game: army count |  |  |  |  |  |  |  |  |  | 22,200 |  |
+| game: army list |  | 2,100 | 2,200 | 2,200 | 2,400 | 2,300 | 2,600 | 2,400 | 3,000 | 44,300 |  |
+| game: army record | 5,600 | 4,900 | 4,900 | 4,900 | 4,900 | 25,400 | 8,500 | 25,800 | 8,900 | 22,700 | 5,500 |
+| game: open spawn set |  |  |  |  |  |  |  |  |  |  | 89,700 |
+| game: spawn records | 2,400 | 2,400 |  | 25,300 | 8,200 | 5,600 | 5,600 | 28,900 | 9,000 |  | 37,700 |
+| game: square records | 2,400 | 46,500 | 15,800 | 59,100 | 28,400 | 61,400 | 32,600 | 158,900 | 68,700 |  | 44,100 |
+| game: zone index |  | 22,300 |  | 27,100 |  | 5,200 |  | 45,000 |  |  |  |
+| events | 2,012 | 2,268 | 2,268 | 2,268 | 2,268 | 2,268 | 2,268 | 2,268 | 2,268 | 8,935 | 4,024 |
+| hashing | 462 | 900 | 726 | 1,356 | 1,260 | 1,392 | 1,332 | 2,922 | 2,676 | 708 | 1,614 |
+| calls out |  |  |  |  |  |  |  |  |  |  | 100 |
+| compute (test build) | 17,082 | 51,885 | 44,722 | 122,927 | 118,652 | 120,225 | 125,651 | 271,367 | 272,321 | 21,252 | 59,317 |
+| compute (production build) | 8,813 | 31,152 | 27,342 | 71,998 | 70,370 | 78,224 | 81,891 | 171,047 | 173,399 | 10,691 | 36,354 |
+| refund |  |  |  |  |  |  |  |  |  | -4,800 | -4,800 |
+| **total, test build** | **85,823** | **186,847** | **121,710** | **298,769** | **217,198** | **274,867** | **229,633** | **592,271** | **418,579** | **297,934** | **297,439** |
 
-`game: army list` is new: it is `_armyIds`, read to turn an army's compact index back into its id (one cold read per distinct army a reveal meets, then 100 a time). The touched moves have no refund any more: a fold no longer clears army-id slots, because there are none.
+`game: army list` is `_armyIds`, read to turn an army's compact index back into its id (one cold read per distinct army a reveal meets, then 100 a time). The touched moves have no refund any more: a fold no longer clears army-id slots, because there are none.
 
 No plain move notes a capture candidate (`_capturesBy`): that list is only pushed when a king meets a piece, and is priced in `GasBudget.test.ts`.
 
+### A move of three piece-moves
+
+The pawn, the bishop and the king moved as ONE move cost 592,271 fresh and 418,579 touched (490,407 and 314,897 optimised). Moved as three single moves, the same piece-moves cost 760,483 and 568,541 (644,004 and 453,087 optimised): one reveal of three saves 168,212 fresh and 149,962 touched (153,597 and 138,190 optimised), about a quarter. What a reveal pays once whatever it holds (test build, fresh, against the three singles):
+
+| shared once per reveal | saved |
+|---|---:|
+| intrinsic (21,000 a transaction) | 42,000 |
+| dispatch: proxy + router | 22,940 |
+| commit-reveal: commitment, attendance, cycle state (the base's chunk and tally) | 34,400 |
+| events (the one reveal event) | 4,536 |
+| calldata (one transaction's head) | 2,240 |
+| game: army record, army list, roster (the mover read once) | 15,600 |
+| game: spawn records, square records (the mover's own king square and the covering spawn points read once, `Reads`) | 12,500 |
+| game: zone index (zone 0's first touch, shared by the pawn and the bishop) | 9,600 |
+| hashing and compute (one dispatch, one chunk opened and closed, one cache) | 24,396 |
+| **total** | **168,212** |
+
+What three piece-moves add that one does not is the legality-only mask (`docs/adr/0016`): `ChessRules.vacate` reads the army's own vacated squares as empty for the rule, 7,803 fresh and 7,138 touched, and `ChessRules.vacatedBy` checks the cap and the refusals (no piece twice, no two to one square) over the three, 5,224 where one piece-move costs 1,173. Together about 11,000 to 12,000 a three-piece-move reveal, nothing on a single piece-move (`vacate` returns at once). Everything else is paid per piece-move, as on a single move: the squares it reads and writes, the arrival mark, the move rule.
+
+So a player who moves three pieces pays about three times the per-piece cost and once the transaction, and the cost of a move grows with the pieces it moves rather than jumping: one piece 186,847 to 298,769, three 418,579 to 592,271 on this scene. What the declared limit is priced on, the worst three-piece-move reveal, is far above either (`The declared figures`, below).
+
 ### Against the first profile, and change by change
 
-Totals, test build, on the same kinds of move. The first profile was measured on the old 6 by 4 board, so its column is the old scene; "before" is this scene just before the storage task; then each change of `lean-rules-one-slot-square-record-and-tight-gas-limits` in turn.
+Totals, test build, on the same kinds of move. The first profile was measured on the old 6 by 4 board, so its column is the old scene; "before" is this scene just before the storage task; then each change of `lean-rules-one-slot-square-record-and-tight-gas-limits` in turn; "now" is this profile, single piece-moves, after the vendored router and the three piece-moves rule (above).
 
 | | commit | pawn fresh | pawn touched | slider fresh | slider touched | king fresh | king touched |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -85,11 +106,13 @@ Totals, test build, on the same kinds of move. The first profile was measured on
 | 1. compact army index: square and spawn records one slot | 83,974 | 204,094 | 143,586 | 314,078 | 240,723 | 354,483 | 324,581 |
 | 2. each square read once per reveal | 83,974 | 190,140 | 125,002 | 302,059 | 220,487 | 278,117 | 232,882 |
 | 3. a touched square written in one store | 83,974 | 185,155 | 120,017 | 297,074 | 215,502 | 273,131 | 227,896 |
-| **saved against before** | **3,401** | **67,243** | **63,993** | **64,982** | **66,681** | **133,479** | **138,484** |
+| now (three piece-moves rule, single piece-moves) | 85,823 | 186,847 | 121,710 | 298,769 | 217,198 | 274,867 | 229,633 |
+| **saved against before** | **1,552** | **65,551** | **62,300** | **63,287** | **64,985** | **131,743** | **136,747** |
 | production build, before | 77,847 | 223,992 | 157,954 | 303,787 | 224,731 | 332,874 | 288,846 |
-| production build, now | 74,105 | 163,949 | 101,329 | 245,637 | 165,842 | 230,713 | 182,214 |
+| production build, after the storage task | 74,105 | 163,949 | 101,329 | 245,637 | 165,842 | 230,713 | 182,214 |
+| production build, now | 75,954 | 165,278 | 102,658 | 246,968 | 167,172 | 231,758 | 183,257 |
 
-What each change saved (test build):
+What each change of the storage task saved (test build):
 
 1. **The compact army index** (`docs/gas.md` item 1, with items 5 and 6): about 48,000 on a fresh move, 40,000 to 42,000 on a touched one, 52,000 on the king's fresh step, 3,400 on a commit. Each army gets a 32-bit index when it is created (its place in `_armyIds`, plus one, kept in the first slot of its record), and storage names armies by it: the standing, arriving and king armies of a square record, the army of a spawn record and the army that took a stake (`capturedByIndex`). The square record and the spawn record are then one slot each, so a written square is one fresh or updated slot instead of two to four, and the commit reads one slot of the king's square and one of the spawn record. Turning an index back into an id costs a cold read of `_armyIds` per distinct army (2,100, then 100). The 256-bit id is unchanged everywhere outside storage: the base, the events, the views.
 2. **Each square read once per reveal** (item 2): about 14,000 on a pawn, 12,000 to 20,000 on a slider, 76,000 to 92,000 on a king step. A reveal carries a small memory cache (`UsingGameBoard.Reads`) through the squares it reads: the covering spawn point, its deployment and its army are found once per 5 by 5 square instead of once per square read, and the vanish check's answer once per army. And the two squares a move writes are no longer read a second time: the origin's and the destination's start-of-cycle pieces were already read to judge the move, so `_touch` is handed them. Both are caches of start-of-cycle facts, which no reveal of the cycle can change, so neither can make the order of reveals matter.
@@ -116,14 +139,16 @@ Three slots, laid out by who reads them: the first (`owner`, `deployCycle`, `spa
 
 ### Where the compute goes
 
-On the test build (`GAS_PROFILE=functions`), inclusive of storage, the king step back onto its square (227,896) spends 98,761 in `_squareAt` over the 10 squares it reads (44,153 in `_laidAt`, 22,602 of it laying the piece out, `ChessRules.layoutAt`, and only 8,206 finding the covering spawn point, `_spawnCovering`, which was 53,339 before), 24,916 in `ChessRules.moveSquares`, 22,639 settling the touched squares' facts, 14,839 in `ChessRules.isLegalMove`, 7,690 in `_touch` and 50,369 in compiler-generated helpers (memory struct copies, checked arithmetic, cleanups). The optimiser removes about 40% of the compute; the shape stays.
+On the test build (`GAS_PROFILE=functions`), inclusive of storage, the king step back onto its square (227,896) spends 98,761 in `_squareAt` over the 10 squares it reads (44,153 in `_laidAt`, 22,602 of it laying the piece out, `ChessRules.layoutAt`, and only 8,206 finding the covering spawn point, `_spawnCovering`, which was 53,339 before), 24,916 in `ChessRules.moveSquares`, 22,639 settling the touched squares' facts, 14,839 in `ChessRules.isLegalMove`, 7,690 in `_touch` and 50,369 in compiler-generated helpers (memory struct copies, checked arithmetic, cleanups). The optimiser removes about 40% of the compute; the shape stays. (Measured by the storage task; the raw functions of this profile are in `docs/spikes/three-piece-moves-gas-limits/default-build-functions.txt`.)
+
+The three piece-moves back onto touched squares (418,579) spend 192,711 in `_squareAt` over the 20 squares they read (100,537 in `_laidAt`, 50,938 finding covering spawn points), 53,701 in `ChessRules.moveSquares`, 33,263 settling the touched squares' facts, 31,546 in `ChessRules.isLegalMove`, 21,717 marking arrivals, 20,346 in `_touch`, 12,362 in the mask and the refusals (`vacate`, `vacatedBy`) and 123,686 in compiler-generated helpers: three single moves' worth of the move rule, shared only where `Reads` caches a square or a spawn point.
 
 ## What the commit spends beyond storing a hash
 
-Storing the hash is about 5,600: one cold read and one update of the slot holding the hash and its cycle (5,000), and their warm repeats. The commit of a plain move costs 83,974 (74,105 optimised). The rest:
+Storing the hash is about 5,600: one cold read and one update of the slot holding the hash and its cycle (5,000), and their warm repeats. The commit of a plain move costs 85,823 (75,954 optimised), whether the move holds one piece-move or three: the commitment is one hash. The rest:
 
 - **The transaction**, 22,116: intrinsic 21,000 and calldata 1,116.
-- **Dispatch**, 9,102: the proxy reads its implementation slot (2,100) and delegates to the router, which looks the selector up and delegates to the `Commit` route, with the calldata copied at each hop.
+- **Dispatch**, 10,951: the proxy reads its implementation slot (2,100) and delegates to the router, which looks the selector up and delegates to the `Commit` route, with the calldata copied at each hop. The vendored router (`contracts/src/vendor/router/Router10X60.sol`, which routes past 48 selectors) is 1,849 of it dearer than the package's was on a commit.
 - **The base's bookkeeping**, about 20,000: reading the clock (two cycle-state slots, 5,300), counting the commit in the cycle's tally and checking the army is waited for (7,600), reading the reserve the bond is checked against (2,100), reading the bond slot and writing the same zero back (2,200), and the event (2,012).
 - **The game's checks on who may commit**, 10,400 of storage (25,000 on the first profile): `_playerOf` reads the army record's first slot (the owner); `_isDead` reads its second (the flags and the king's last move), the spawn record (one slot) to know its deployment landed, and the one slot of its king's square; `_isFrozen` reads the commitment again (warm).
 - **Compute**, 17,082 (8,813 optimised), of which `_isDead` is most (17,996 inclusive of its storage on the test build).
@@ -135,14 +160,22 @@ Estimates are per transaction, from the slots above; "measured" means it is the 
 1. **The zone index write: 5,000 per fresh square, 22,100 plus a roster read (2,100) on a zone's first touch, nothing on touched squares (measured).** 22,300 on the pawn's first step (zone 0's first touch) and 27,100 on the bishop's (a new zone and a fresh square of zone 0). Now that a square record is one slot, it is as dear as the record itself on a fresh square. It serves only the viewport read (`getPieces`) and a table's count at the cap, so it could go if those found records another way (by the spawn points in view, plus a per-zone flag written once, or off-chain from the move events): about 5,000 to 10,000 on a piece's first move and 22,000 on a zone's first touch. It needs a design of its own (left out of the storage task on purpose).
 2. **Compute, about 30,000 to 80,000 optimised per reveal (measured): perhaps a fifth of it (estimated).** What is left is mostly the move rule itself (`moveSquares`, `isLegalMove`), laying a deployed piece out per square read (`layoutAt`), settling a touched square's facts, and the compiler's memory copies of `Piece` structs. A king step reads 10 squares, so a cheaper square read is still worth something there.
 3. **The arrival mark on a footprint: 20,000 the first time a move lands on another spawn point's footprint (measured, the slider's 25,300).** `_markArrival` writes `arrivedIn` so that a deployment revealed later in the cycle still sees the arrival (`docs/adr/0002`). It is part of the deployment-collision rule, not a storage layout choice, so it stays.
-4. **Dispatch: 11,446 per reveal, 9,102 per commit (measured).** The price of the proxy and the router: an implementation read and two cold delegate calls. It buys upgradability and routes that fit the size limit; removing it is an architecture change, not an optimisation.
+4. **Dispatch: 11,494 per reveal (11,542 for three piece-moves), 10,951 per commit (measured).** The price of the proxy and the router: an implementation read and two cold delegate calls. It buys upgradability and routes that fit the size limit; removing it is an architecture change, not an optimisation.
 5. **The capture candidate push: nothing on a plain move; two fresh slots (about 45,000) when a king meets a piece (`GasBudget.test.ts`).** Lean rules keeps the list (an exit payout needs it). Pushing compact indices, eight to a slot, would make a later push by the same captor about 5,000 instead of 22,100. Left alone: it is off the plain move's path.
 6. **The base's own bookkeeping** (tally and waited-for, about 7,600 per commit and 5,200 per reveal; the bond slot rewritten with the value it holds, 100) is the framework's, upstream in `template-commit-reveal`, and is left alone here.
 
-The intrinsic 21,000 and the calldata (1,100 to 1,500) are fixed per transaction. Several pieces per move (`work/notes/ideas/king-chase-table-modes.md`) shares them, the dispatch, the base's bookkeeping and the events (together about 51,000 per reveal) across its pieces, and pays the square records and the compute per piece.
+The intrinsic 21,000 and the calldata (1,100 to 2,000) are fixed per transaction. A move of three piece-moves shares them, the dispatch, the base's bookkeeping and the events across its pieces, and pays the square records and the compute per piece: measured above (`A move of three piece-moves`), about 75,000 to 84,000 a reveal saved for each piece-move past the first.
 
 ## The declared figures
 
-`pnpm test` compiles the `default` profile, which has no optimiser, and `GasBudget.test.ts` measures that build; `pnpm deploy` compiles `production` (optimiser, 999,999 runs). The same transactions cost 4% (a first deployment commit) to 23% (a touched slider) less in the build a chain runs, all of it compute, so `commitGas` and `revealGas` carry more headroom on a real chain than the test says, which is the safe direction.
+`pnpm test` compiles the `default` profile, which has no optimiser, and `GasBudget.test.ts` measures that build; `pnpm deploy` compiles `production` (optimiser, 999,999 runs). The same transactions cost 4% (a first deployment commit) to 25% (the touched three piece-moves) less in the build a chain runs, almost all of it compute, so `commitGas` and `revealGas` carry more headroom on a real chain than the test says, which is the safe direction.
 
-`contracts/rocketh/config.ts` declares each figure as the worst case `GasBudget.test.ts` builds plus its minimum headroom (10%), rounded up to ten thousand: `COMMIT_GAS` 410,000 (the worst commit, a first paid deployment commit in a manual world, 368,249), `REVEAL_GAS` 770,000 (the worst reveal, a king's move folding two two-victim squares among 8 fallen armies' pieces and noting three candidates for a stake, 695,871) and `LOBBY_REVEAL_GAS` 840,000 (the worst table reveal, 760,730).
+`contracts/rocketh/config.ts` declares each figure as the worst case `GasBudget.test.ts` builds plus its minimum headroom (10%), rounded up to ten thousand (measured by `three-piece-moves-gas-limits`, 2026-11-07):
+
+- `COMMIT_GAS` 410,000, unchanged: the worst commit is a first paid deployment commit in a manual world, 370,098. A commit stores a hash, whatever the move holds.
+- `REVEAL_GAS` 2,020,000 (was 770,000). The worst reveal is a move of three piece-moves, each as dear as the rules allow: the dearest plain move `GasBudget.test.ts` plays (the king's first step and two 7-square sliders over stale squares, 676,044), with each piece-move folding a two-victim square at its origin and at its destination (67,615 a fold, measured as the fold over a plain step) and noting three candidates for a stake (45,200 each, a fresh list), and each of the 22 squares it reads meeting a piece of a different fallen army not folded yet (15,600 each, the vanish check, cold): 1,831,734. It is an upper bound rather than a scene: three piece-moves share one cache of start-of-cycle facts, and a captor's list is fresh once.
+- `LOBBY_REVEAL_GAS` 2,090,000 (was 840,000): the world's worst plus listing six zones, since a move touches up to six squares (67,571: four zones measured at 44,141 against the same move in the world, two more at what the third and fourth cost, and one more fresh slot of the list), 1,899,305.
+
+THE GENEROSITY CEILING STAYS THREE, and both checks are now against the dearest plain three-piece-move reveal: the world's 676,044 (three times is 2,028,132) and a table's 743,615 (2,230,845). The world's window is narrow: the worst plus its headroom is 2,014,907, so the declared 2,020,000 sits 5,093 above what it must cover and 8,132 below the ceiling. A change that adds gas to every reveal (a read of the table's options, say) widens it, since the ceiling rises by three times what the worst does. A change that makes only the worst dearer, by more than about 4,600, closes it: the rounded figure becomes 2,030,000, above the ceiling (unrounded it would have about 12,000).
+
+What players see: `creditsGasMultiplier` is `COMMIT_GAS + REVEAL_GAS`, 2,430,000 where it was 1,180,000, so a credit is about twice the gas and the same balance shows about half the credits, for everyone, at tables that turn three piece-moves off too. The playing key's stipend and fuzd's prepayment for a scheduled reveal are sized from `revealGas` and rise with it. A plain move still spends what it costs (the breakdown above), so a player makes more moves than their credits say.

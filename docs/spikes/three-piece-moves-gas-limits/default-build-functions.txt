@@ -1,0 +1,688 @@
+deployment commit (the first ever): gasUsed 297934
+  intrinsic (21000)                 21000    7.0%
+  calldata                           1188    0.4%
+  dispatch: proxy + router          10951    3.7%
+  commit-reveal: commitment         46800   15.7%
+  commit-reveal: reserve            27200    9.1%
+  commit-reveal: attendance         67100   22.5%
+  commit-reveal: cycle state         5900    2.0%
+  commit-reveal: roster              2500    0.8%
+  game: army record                 22700    7.6%
+  game: army count                  22200    7.5%
+  game: army list                   44300   14.9%
+  events                             8935    3.0%
+  hashing                             708    0.2%
+  compute                           21252    7.1%
+  refund                            -4800   -1.6%
+  storage ops: read, cold 14x = 29400; read, warm 38x = 3800; write, fresh 8x = 160000; write, fresh (cold) 2x = 44200; write, same 5x = 500; write, update 1x = 2900
+  functions (inclusive / self):
+    GameCommit (dispatch)                                      269595      175
+    GameCommit.makeCommitment                                  268633      499
+    UsingGameInternal._createArmy                              177925    43310
+    UsingCommitReveal._makeCommitment                           76213       80
+    UsingCommitReveal._addToReserve                             74856       85
+    CommitReveal.commit                                         71509    48076
+    UsingCommitReveal._takeSeat                                 50304       64
+    CommitReveal.startWaitingFor                                47016    46577
+    UsingGameStore._registerArmy                                44647    44483
+    CommitReveal.deposit                                        24467    24058
+    CommitReveal._recordCommitment                              23175    23175
+    UsingCommitReveal._cycleNumber                              17881      240
+    UsingCommitReveal._cycle                                    17641      489
+    CommitReveal.cycle                                          15723    10618
+    CommitReveal.withdraw                                       10190     9611
+    (compiler-generated helper)                                  8746     8746
+    UsingGameInternal._playerOf                                  5088     4654
+    CommitReveal.seat                                            3224     3201
+    UsingCommitReveal._clock                                      843      451
+    UsingGameInternal._settleLatestOf                             239      239
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  204      204
+    CommitReveal.layout                                           184      184
+    Delegation.canActFor                                          119      119
+    UsingGameInternal._isArmyId                                    80       80
+    UsingGameStore._cycle32                                        66       66
+deployment reveal (the first ever): gasUsed 297439
+  intrinsic (21000)                 21000    7.1%
+  calldata                           1376    0.5%
+  dispatch: proxy + router          17808    6.0%
+  commit-reveal: commitment         10200    3.4%
+  commit-reveal: attendance          5200    1.7%
+  commit-reveal: cycle state         4600    1.5%
+  game: square records              44100   14.8%
+  game: spawn records               37700   12.7%
+  game: army record                  5500    1.8%
+  game: open spawn set              89700   30.2%
+  events                             4024    1.4%
+  hashing                            1614    0.5%
+  calls out                           100    0.0%
+  compute                           59317   19.9%
+  refund                            -4800   -1.6%
+  storage ops: read, cold 40x = 84000; read, warm 27x = 2700; write, fresh 5x = 100000; write, same 9x = 900; write, update 4x = 11600
+  functions (inclusive / self):
+    GameDeploymentReveal (dispatch)                            256287      130
+    GameDeploymentReveal.revealDeployment                      255136      112
+    UsingGameInternal._revealDeploymentChunk                   255024      194
+    UsingGameInternal._revealDeployment                        223437    47664
+    (compiler-generated helper)                                 99099    99099
+    UsingGameBoard._footprintClear                              79454    51275
+    ChessRules.layoutSquare                                     25473     2121
+    UsingGameInternal._openSet                                  24211     5123
+    UsingGameBoard._landedBefore                                19088    19088
+    UsingCommitReveal._closeChunk                               16959       88
+    CommitReveal.closeRevealedChunk                             16871    16337
+    PositionUtils.offset                                        15288     3528
+    UsingCommitReveal._openChunk                                12207      114
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    GameReveal (dispatch)                                        5768      130
+    GameReveal.reveal                                            4617     2988
+    CommitReveal.openChunk                                       3108     2773
+    ChessRules.onFootprint                                       2488     2488
+    UsingGameInternal._digest                                    1594      202
+    ChessRules.spawnIndexOf                                      1426      308
+    UsingGameInternal._isDeploying                                633      593
+    ChessRules.spiralIndex                                        342      156
+    UsingGameStore._indexOf                                       322      322
+    UsingCommitReveal._clock                                      281      150
+    ChessRules._abs                                               186      186
+    CommitReveal._checkChunk                                      159      159
+    CommitReveal.layout                                            69       69
+    UsingCommitReveal._timestamp                                   68       68
+    PositionUtils.toXY                                             60       60
+    UsingGameInternal._isArmyId                                    40       40
+pawn step, fresh squares: gasUsed 186847
+  intrinsic (21000)                 21000   11.2%
+  calldata                           1400    0.7%
+  dispatch: proxy + router          11494    6.2%
+  commit-reveal: commitment          7400    4.0%
+  commit-reveal: attendance          5200    2.8%
+  commit-reveal: cycle state         4600    2.5%
+  commit-reveal: roster              2500    1.3%
+  game: square records              46500   24.9%
+  game: spawn records                2400    1.3%
+  game: zone index                  22300   11.9%
+  game: army record                  4900    2.6%
+  game: army list                    2100    1.1%
+  events                             2268    1.2%
+  hashing                             900    0.5%
+  compute                           51885   27.8%
+  refund                                0    0.0%
+  storage ops: read, cold 15x = 31500; read, warm 25x = 2500; write, fresh 3x = 60000; write, same 2x = 200; write, update 2x = 5800
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      152953      130
+    GameReveal.reveal                                          151802     2616
+    UsingGameInternal._reveal                                  149186      485
+    UsingGameBoard._revealMove                                 118929     1063
+    UsingGameBoard._storeSquare                                 40935    40935
+    UsingGameBoard._touch                                       38071    24119
+    UsingGameBoard._judgeMove                                   34250      858
+    UsingGameBoard._squareAt                                    28753     5032
+    (compiler-generated helper)                                 26679    26679
+    UsingGameBoard._laidAt                                      16463     3928
+    UsingCommitReveal._closeChunk                               14162       88
+    CommitReveal.closeRevealedChunk                             14074    13537
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._spawnCovering                                9899     1322
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._fellIn                                       6827     5072
+    PositionUtils.zoneLocalIndex                                 6422      448
+    PositionUtils.zoneLocalCoord                                 5044      460
+    PositionUtils.zoneCoord                                      4216      944
+    UsingCommitReveal._roster                                    3518       47
+    CommitReveal.roster                                          3317     3140
+    UsingGameBoard._floorDiv                                     3216     1068
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.getZone                                        3044      316
+    UsingGameBoard._markArrival                                  2987       89
+    ChessRules.moveSquares                                       2885     1050
+    ChessRules.layoutAt                                          2265      362
+    PositionUtils.zoneCoords                                     2256      148
+    UsingGameStore._armyAt                                       2218     2218
+    ChessRules.isLegalMove                                       2119      556
+    UsingGameBoard._kingSquare                                   1755      536
+    UsingGameInternal._digest                                    1594      202
+    ChessRules.footprintCell                                     1494      430
+    ChessRules.vacatedBy                                         1173      646
+    PositionUtils.toXY                                           1020     1020
+    ChessRules.spawnPointAt                                      1015      153
+    UsingGameBoard._within                                        753      287
+    UsingGameStore._indexOf                                       706      706
+plain move commit (the army first commit after its deployment): gasUsed 84954
+  intrinsic (21000)                 21000   24.7%
+  calldata                           1116    1.3%
+  dispatch: proxy + router          10951   12.9%
+  commit-reveal: commitment          7800    9.2%
+  commit-reveal: reserve             2100    2.5%
+  commit-reveal: attendance          7600    8.9%
+  commit-reveal: cycle state         5300    6.2%
+  game: square records               2100    2.5%
+  game: spawn records                2400    2.8%
+  game: army record                  5400    6.4%
+  events                             2012    2.4%
+  hashing                             462    0.5%
+  compute                           16713   19.7%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 34x = 3400; write, same 4x = 400; write, update 2x = 5800
+  functions (inclusive / self):
+    GameCommit (dispatch)                                       51887      175
+    GameCommit.makeCommitment                                   50925      488
+    UsingCommitReveal._makeCommitment                           22017       80
+    CommitReveal.commit                                         17308    10976
+    UsingGameInternal._isDead                                   17127      252
+    UsingCommitReveal._cycleNumber                              13258      160
+    UsingCommitReveal._cycle                                    13098      326
+    CommitReveal.cycle                                          11815     8412
+    UsingGameInternal._deploymentStatus                          6566     6390
+    (compiler-generated helper)                                  6161     6161
+    CommitReveal._recordCommitment                               6075     6075
+    UsingGameInternal._isFrozen                                  5593      627
+    UsingCommitReveal._commitmentOf                              4966       55
+    CommitReveal.commitmentOf                                    4810     4685
+    UsingGameBoard._fellIn                                       4676     2921
+    UsingGameInternal._playerOf                                  2624     2354
+    UsingGameBoard._kingSquare                                   1755      536
+    ChessRules.spawnPointAt                                      1015      153
+    UsingCommitReveal._clock                                      562      301
+    PositionUtils.fromXY                                          257       81
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  136      136
+    UsingGameInternal._isArmyId                                   120      120
+    Delegation.canActFor                                          119      119
+    CommitReveal.layout                                            92       92
+    ChessRules.spiralPoint                                         73       73
+    ChessRules.kingOf                                              28       28
+pawn step, touched squares: gasUsed 121710
+  intrinsic (21000)                 21000   17.3%
+  calldata                           1400    1.2%
+  dispatch: proxy + router          11494    9.4%
+  commit-reveal: commitment          7400    6.1%
+  commit-reveal: attendance          5200    4.3%
+  commit-reveal: cycle state         4600    3.8%
+  game: square records              15800   13.0%
+  game: army record                  4900    4.0%
+  game: army list                    2200    1.8%
+  events                             2268    1.9%
+  hashing                             726    0.6%
+  compute                           44722   36.7%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 53x = 5300; write, same 1x = 100; write, update 4x = 11600
+  functions (inclusive / self):
+    GameReveal (dispatch)                                       87816      130
+    GameReveal.reveal                                           86665     2616
+    UsingGameInternal._reveal                                   84049      485
+    UsingGameBoard._revealMove                                  53791     1063
+    UsingGameBoard._judgeMove                                   35072      858
+    UsingGameBoard._squareAt                                    29575     5427
+    (compiler-generated helper)                                 18605    18605
+    UsingCommitReveal._closeChunk                               14163       88
+    CommitReveal.closeRevealedChunk                             14075    13537
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._settled                                     10557     1078
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    UsingGameBoard._spawnCovering                                8694     1248
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._fellIn                                       6827     5072
+    UsingGameBoard._storeSquare                                  6735     6735
+    UsingGameBoard._laidAt                                       6527      492
+    UsingGameBoard._touch                                        6311     1214
+    UsingGameBoard._arriverOf                                    3615     1091
+    UsingGameBoard._foldCapture                                  3502      286
+    UsingGameBoard._floorDiv                                     3216     1068
+    UsingGameBoard._kingCaptureAt                                3216     2646
+    CommitReveal.openChunk                                       3108     2773
+    UsingGameBoard._markArrival                                  2987       89
+    ChessRules.moveSquares                                       2885     1050
+    UsingGameStore._armyAt                                       2572     2572
+    ChessRules.isLegalMove                                       2119      556
+    UsingGameBoard._captorFell                                   1893     1893
+    UsingGameBoard._kingSquare                                   1755      536
+    UsingGameBoard._standingOf                                   1614     1090
+    UsingGameInternal._digest                                    1594      202
+    ChessRules.settle                                            1302      778
+    ChessRules.vacatedBy                                         1173      646
+    ChessRules.spawnPointAt                                      1015      153
+    UsingGameBoard._kingOf                                        817      578
+    UsingGameStore._indexOf                                       706      706
+    UsingGameBoard._foldExit                                      626      102
+    ChessRules.kingCapture                                        570      404
+    PositionUtils.toXY                                            540      540
+7-square slider, fresh squares: gasUsed 298769
+  intrinsic (21000)                 21000    7.0%
+  calldata                           1424    0.5%
+  dispatch: proxy + router          11494    3.8%
+  commit-reveal: commitment          7400    2.5%
+  commit-reveal: attendance          5200    1.7%
+  commit-reveal: cycle state         4600    1.5%
+  commit-reveal: roster              2500    0.8%
+  game: square records              59100   19.8%
+  game: spawn records               25300    8.5%
+  game: zone index                  27100    9.1%
+  game: army record                  4900    1.6%
+  game: army list                    2200    0.7%
+  events                             2268    0.8%
+  hashing                            1356    0.5%
+  compute                          122927   41.1%
+  refund                                0    0.0%
+  storage ops: read, cold 23x = 48300; read, warm 33x = 3300; write, fresh 4x = 80000; write, same 1x = 100; write, update 3x = 8700
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      264851      130
+    GameReveal.reveal                                          263700     2616
+    UsingGameInternal._reveal                                  261084      485
+    UsingGameBoard._revealMove                                 230825     1063
+    UsingGameBoard._judgeMove                                  114992     2364
+    UsingGameBoard._squareAt                                    83923    19966
+    (compiler-generated helper)                                 71238    71238
+    UsingGameBoard._laidAt                                      54811    10426
+    UsingGameBoard._touch                                       42882    28919
+    UsingGameBoard._storeSquare                                 40935    40935
+    UsingGameBoard._spawnCovering                               38653     3846
+    UsingGameBoard._markArrival                                 29330    20850
+    ChessRules.moveSquares                                      25174     2058
+    ChessRules._path                                            21012     4198
+    ChessRules.isLegalMove                                      14307     1718
+    UsingCommitReveal._closeChunk                               14164       88
+    CommitReveal.closeRevealedChunk                             14076    13537
+    UsingCommitReveal._openChunk                                12207      114
+    ChessRules.spiralIndex                                      10476     1917
+    UsingGameBoard._floorDiv                                     9572     3128
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._fellIn                                       6827     5072
+    PositionUtils.zoneLocalIndex                                 6422      448
+    PositionUtils.fromXY                                         5140     1620
+    UsingGameBoard._within                                       5061     1799
+    PositionUtils.zoneLocalCoord                                 5044      460
+    ChessRules.footprintCell                                     4404     1290
+    PositionUtils.zoneCoord                                      4216      944
+    ChessRules.layoutAt                                          4064      520
+    UsingCommitReveal._roster                                    3524       47
+    CommitReveal.roster                                          3321     3142
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.getZone                                        3044      316
+    UsingGameStore._armyAt                                       2436     2436
+    PositionUtils.zoneCoords                                     2256      148
+    PositionUtils.toXY                                           2040     2040
+    UsingGameBoard._kingSquare                                   1755      536
+    UsingGameInternal._digest                                    1594      202
+7-square slider, touched squares: gasUsed 217198
+  intrinsic (21000)                 21000    9.7%
+  calldata                           1424    0.7%
+  dispatch: proxy + router          11494    5.3%
+  commit-reveal: commitment          7400    3.4%
+  commit-reveal: attendance          5200    2.4%
+  commit-reveal: cycle state         4600    2.1%
+  game: square records              28400   13.1%
+  game: spawn records                8200    3.8%
+  game: army record                  4900    2.3%
+  game: army list                    2400    1.1%
+  events                             2268    1.0%
+  hashing                            1260    0.6%
+  compute                          118652   54.6%
+  refund                                0    0.0%
+  storage ops: read, cold 20x = 42000; read, warm 66x = 6600; write, same 1x = 100; write, update 5x = 14500
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      183280      130
+    GameReveal.reveal                                          182129     2616
+    UsingGameInternal._reveal                                  179513      485
+    UsingGameBoard._revealMove                                 149254     1063
+    UsingGameBoard._judgeMove                                  124206     2363
+    UsingGameBoard._squareAt                                    92669    20407
+    (compiler-generated helper)                                 63116    63116
+    UsingGameBoard._laidAt                                      52745    10426
+    UsingGameBoard._spawnCovering                               35731     3846
+    ChessRules.moveSquares                                      25640     2058
+    ChessRules._path                                            21014     4200
+    ChessRules.isLegalMove                                      14540     1718
+    UsingCommitReveal._closeChunk                               14164       88
+    CommitReveal.closeRevealedChunk                             14076    13537
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._settled                                     10560     1078
+    UsingGameBoard._floorDiv                                     9572     3128
+    UsingGameBoard._markArrival                                  9308     3750
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    ChessRules.spiralIndex                                       7554     1538
+    UsingGameBoard._fellIn                                       6827     5072
+    UsingGameBoard._storeSquare                                  6735     6735
+    UsingGameBoard._touch                                        6319     1214
+    PositionUtils.fromXY                                         5140     1620
+    UsingGameBoard._within                                       4991     1729
+    ChessRules.footprintCell                                     4404     1290
+    ChessRules.layoutAt                                          4065      520
+    UsingGameBoard._arriverOf                                    3615     1090
+    UsingGameBoard._foldCapture                                  3502      286
+    UsingGameBoard._kingCaptureAt                                3216     2646
+    CommitReveal.openChunk                                       3108     2773
+    UsingGameStore._armyAt                                       3008     3008
+    UsingGameBoard._captorFell                                   1893     1893
+    PositionUtils.toXY                                           1800     1800
+    UsingGameBoard._kingSquare                                   1755      536
+    ChessRules._abs                                              1642     1210
+    UsingGameBoard._standingOf                                   1615     1091
+    UsingGameInternal._digest                                    1594      202
+king step, fresh squares: gasUsed 274867
+  intrinsic (21000)                 21000    7.6%
+  calldata                           1388    0.5%
+  dispatch: proxy + router          11494    4.2%
+  commit-reveal: commitment          7400    2.7%
+  commit-reveal: attendance          5200    1.9%
+  commit-reveal: cycle state         4600    1.7%
+  game: square records              61400   22.3%
+  game: spawn records                5600    2.0%
+  game: zone index                   5200    1.9%
+  game: army record                 25400    9.2%
+  game: army list                    2300    0.8%
+  events                             2268    0.8%
+  hashing                            1392    0.5%
+  compute                          120225   43.7%
+  refund                                0    0.0%
+  storage ops: read, cold 20x = 42000; read, warm 52x = 5200; write, fresh 3x = 60000; write, same 4x = 400; write, update 4x = 11600
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      240985      130
+    GameReveal.reveal                                          239834     2616
+    UsingGameInternal._reveal                                  237218      485
+    UsingGameBoard._revealMove                                 206958     1028
+    UsingGameBoard._judgeMove                                  115190     2865
+    UsingGameBoard._squareAt                                    83207    23809
+    (compiler-generated helper)                                 55685    55685
+    UsingGameBoard._laidAt                                      44014     7183
+    UsingGameBoard._storeSquare                                 40934    40934
+    ChessRules.moveSquares                                      24681     1328
+    ChessRules.layoutAt                                         22472     3522
+    ChessRules._kingSquares                                     22053     5893
+    UsingGameBoard._kingMoved                                   21453    21003
+    UsingGameBoard._touch                                       17422     6978
+    ChessRules.footprintCell                                    16005     4730
+    ChessRules.isLegalMove                                      14721     2377
+    UsingCommitReveal._closeChunk                               14165       88
+    CommitReveal.closeRevealedChunk                             14077    13537
+    UsingCommitReveal._openChunk                                12207      114
+    PositionUtils.offset                                        11648     2688
+    UsingGameBoard._markArrival                                  9308     3750
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    UsingGameBoard._settled                                      8577     1078
+    UsingGameBoard._spawnCovering                                8206      980
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._within                                       6777     2583
+    PositionUtils.zoneLocalIndex                                 6422      448
+    UsingGameBoard._fellIn                                       5415     3660
+    PositionUtils.zoneLocalCoord                                 5044      460
+    PositionUtils.zoneCoord                                      4216      944
+    ChessRules._canonical                                        3203     2333
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.getZone                                        3044      316
+    UsingGameStore._armyAt                                       2790     2790
+    PositionUtils.toXY                                           2520     2520
+    PositionUtils.zoneCoords                                     2256      148
+    UsingGameBoard._floorDiv                                     2144      712
+    UsingGameBoard._captorFell                                   1893     1893
+    ChessRules.onFootprint                                       1827     1827
+king step, touched squares: gasUsed 229633
+  intrinsic (21000)                 21000    9.1%
+  calldata                           1388    0.6%
+  dispatch: proxy + router          11494    5.0%
+  commit-reveal: commitment          7400    3.2%
+  commit-reveal: attendance          5200    2.3%
+  commit-reveal: cycle state         4600    2.0%
+  game: square records              32600   14.2%
+  game: spawn records                5600    2.4%
+  game: army record                  8500    3.7%
+  game: army list                    2600    1.1%
+  events                             2268    1.0%
+  hashing                            1332    0.6%
+  compute                          125651   54.7%
+  refund                                0    0.0%
+  storage ops: read, cold 19x = 39900; read, warm 110x = 11000; write, same 3x = 300; write, update 6x = 17400
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      195751      130
+    GameReveal.reveal                                          194600     2616
+    UsingGameInternal._reveal                                  191984      485
+    UsingGameBoard._revealMove                                 161724     1028
+    UsingGameBoard._judgeMove                                  130988     2865
+    UsingGameBoard._squareAt                                    98768    24483
+    (compiler-generated helper)                                 51064    51064
+    UsingGameBoard._laidAt                                      44155     7191
+    ChessRules.moveSquares                                      24916     1328
+    UsingGameBoard._settled                                     22644     2695
+    ChessRules.layoutAt                                         22602     3424
+    ChessRules._kingSquares                                     22056     5896
+    ChessRules.footprintCell                                    16005     4730
+    ChessRules.isLegalMove                                      14839     2377
+    UsingCommitReveal._closeChunk                               14165       88
+    CommitReveal.closeRevealedChunk                             14077    13537
+    UsingCommitReveal._openChunk                                12207      114
+    PositionUtils.offset                                        11648     2688
+    UsingGameBoard._markArrival                                  9308     3750
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    UsingGameBoard._spawnCovering                                8206      980
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._touch                                        7690     1214
+    UsingGameBoard._within                                       6777     2583
+    UsingGameBoard._storeSquare                                  6734     6734
+    UsingGameBoard._fellIn                                       6284     4885
+    UsingGameBoard._captorFell                                   5133     5133
+    UsingGameBoard._kingMoved                                    4353     3903
+    UsingGameBoard._standingOf                                   3974     2732
+    UsingGameBoard._arriverOf                                    3824     2733
+    UsingGameStore._armyAt                                       3784     3784
+    UsingGameBoard._foldCapture                                  3695      286
+    ChessRules._canonical                                        3425     2555
+    UsingGameBoard._kingCaptureAt                                3409     2828
+    ChessRules.settle                                            3302     1959
+    UsingGameBoard._kingOf                                       3114     2075
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.toXY                                           2400     2400
+    UsingGameBoard._floorDiv                                     2144      712
+plain move commit (a later cycle): gasUsed 85823
+  intrinsic (21000)                 21000   24.5%
+  calldata                           1116    1.3%
+  dispatch: proxy + router          10951   12.8%
+  commit-reveal: commitment          7800    9.1%
+  commit-reveal: reserve             2100    2.4%
+  commit-reveal: attendance          7600    8.9%
+  commit-reveal: cycle state         5300    6.2%
+  game: square records               2400    2.8%
+  game: spawn records                2400    2.8%
+  game: army record                  5600    6.5%
+  events                             2012    2.3%
+  hashing                             462    0.5%
+  compute                           17082   19.9%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 39x = 3900; write, same 4x = 400; write, update 2x = 5800
+  functions (inclusive / self):
+    GameCommit (dispatch)                                       52756      175
+    GameCommit.makeCommitment                                   51794      488
+    UsingCommitReveal._makeCommitment                           22017       80
+    UsingGameInternal._isDead                                   17996      252
+    CommitReveal.commit                                         17308    10976
+    UsingCommitReveal._cycleNumber                              13258      160
+    UsingCommitReveal._cycle                                    13098      326
+    CommitReveal.cycle                                          11815     8412
+    UsingGameInternal._deploymentStatus                          6566     6390
+    CommitReveal._recordCommitment                               6075     6075
+    (compiler-generated helper)                                  5841     5841
+    UsingGameInternal._isFrozen                                  5593      627
+    UsingGameBoard._fellIn                                       5545     4146
+    UsingCommitReveal._commitmentOf                              4966       55
+    CommitReveal.commitmentOf                                    4810     4685
+    UsingGameInternal._playerOf                                  2624     2354
+    UsingGameBoard._isExit                                        943      123
+    UsingGameBoard._inExitBand                                    760      196
+    UsingCommitReveal._clock                                      562      301
+    UsingGameBoard._kingSquare                                    456      456
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  136      136
+    UsingGameInternal._isArmyId                                   120      120
+    Delegation.canActFor                                          119      119
+    CommitReveal.layout                                            92       92
+    PositionUtils.toXY                                             60       60
+  the gas profile of a plain move
+three piece-moves (pawn, 7-square slider, king), fresh squares: gasUsed 592271
+  intrinsic (21000)                 21000    3.5%
+  calldata                           1972    0.3%
+  dispatch: proxy + router          11542    1.9%
+  commit-reveal: commitment          7400    1.2%
+  commit-reveal: attendance          5200    0.9%
+  commit-reveal: cycle state         4600    0.8%
+  commit-reveal: roster              3000    0.5%
+  game: square records             158900   26.8%
+  game: spawn records               28900    4.9%
+  game: zone index                  45000    7.6%
+  game: army record                 25800    4.4%
+  game: army list                    2400    0.4%
+  events                             2268    0.4%
+  hashing                            2922    0.5%
+  compute                          271367   45.8%
+  refund                                0    0.0%
+  storage ops: read, cold 32x = 67200; read, warm 67x = 6700; write, fresh 10x = 200000; write, same 7x = 700; write, update 3x = 8700
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      557757      130
+    GameReveal.reveal                                          556606     2616
+    UsingGameInternal._reveal                                  553990      781
+    UsingGameBoard._revealMove                                 517548     3154
+    UsingGameBoard._judgeMove                                  236842     6088
+    UsingGameBoard._squareAt                                   160635    44660
+    (compiler-generated helper)                                141144   141144
+    UsingGameBoard._storeSquare                                122804   122804
+    UsingGameBoard._laidAt                                     103233    16336
+    UsingGameBoard._touch                                       86801    50416
+    ChessRules.moveSquares                                      52760     4436
+    UsingGameBoard._spawnCovering                               52655     5658
+    UsingGameBoard._markArrival                                 41625    24689
+    ChessRules.isLegalMove                                      31075     4570
+    ChessRules.layoutAt                                         28833     4404
+    ChessRules._kingSquares                                     22069     5909
+    ChessRules.footprintCell                                    21903     6450
+    UsingGameBoard._kingMoved                                   21453    21003
+    ChessRules._path                                            21016     4202
+    PositionUtils.zoneLocalIndex                                19266     1344
+    PositionUtils.zoneLocalCoord                                15132     1380
+    UsingCommitReveal._closeChunk                               14167       88
+    CommitReveal.closeRevealedChunk                             14079    13537
+    UsingGameBoard._within                                      14055     5201
+    UsingGameBoard._floorDiv                                    13860     4552
+    PositionUtils.zoneCoord                                     12648     2832
+    UsingCommitReveal._openChunk                                12208      114
+    PositionUtils.offset                                        11648     2688
+    ChessRules.spiralIndex                                      11160     2229
+    PositionUtils.getZone                                        9132      948
+    UsingCommitReveal._cycleNumber                               8834       80
+    UsingCommitReveal._cycle                                     8754      163
+    CommitReveal.cycle                                           8113     6248
+    ChessRules.vacate                                            7803     7556
+    UsingGameBoard._fellIn                                       7667     5912
+    PositionUtils.zoneCoords                                     6768      444
+    PositionUtils.fromXY                                         5654     1782
+    PositionUtils.toXY                                           5580     5580
+    ChessRules.vacatedBy                                         5224     1387
+    UsingCommitReveal._roster                                    5048       94
+three piece-moves commit (the army first commit after its deployment): gasUsed 84954
+  intrinsic (21000)                 21000   24.7%
+  calldata                           1116    1.3%
+  dispatch: proxy + router          10951   12.9%
+  commit-reveal: commitment          7800    9.2%
+  commit-reveal: reserve             2100    2.5%
+  commit-reveal: attendance          7600    8.9%
+  commit-reveal: cycle state         5300    6.2%
+  game: square records               2100    2.5%
+  game: spawn records                2400    2.8%
+  game: army record                  5400    6.4%
+  events                             2012    2.4%
+  hashing                             462    0.5%
+  compute                           16713   19.7%
+  refund                                0    0.0%
+  storage ops: read, cold 12x = 25200; read, warm 34x = 3400; write, same 4x = 400; write, update 2x = 5800
+  functions (inclusive / self):
+    GameCommit (dispatch)                                       51887      175
+    GameCommit.makeCommitment                                   50925      488
+    UsingCommitReveal._makeCommitment                           22017       80
+    CommitReveal.commit                                         17308    10976
+    UsingGameInternal._isDead                                   17127      252
+    UsingCommitReveal._cycleNumber                              13258      160
+    UsingCommitReveal._cycle                                    13098      326
+    CommitReveal.cycle                                          11815     8412
+    UsingGameInternal._deploymentStatus                          6566     6390
+    (compiler-generated helper)                                  6161     6161
+    CommitReveal._recordCommitment                               6075     6075
+    UsingGameInternal._isFrozen                                  5593      627
+    UsingCommitReveal._commitmentOf                              4966       55
+    CommitReveal.commitmentOf                                    4810     4685
+    UsingGameBoard._fellIn                                       4676     2921
+    UsingGameInternal._playerOf                                  2624     2354
+    UsingGameBoard._kingSquare                                   1755      536
+    ChessRules.spawnPointAt                                      1015      153
+    UsingCommitReveal._clock                                      562      301
+    PositionUtils.fromXY                                          257       81
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  136      136
+    UsingGameInternal._isArmyId                                   120      120
+    Delegation.canActFor                                          119      119
+    CommitReveal.layout                                            92       92
+    ChessRules.spiralPoint                                         73       73
+    ChessRules.kingOf                                              28       28
+three piece-moves (pawn, 7-square slider, king), touched squares: gasUsed 418579
+  intrinsic (21000)                 21000    5.0%
+  calldata                           1972    0.5%
+  dispatch: proxy + router          11542    2.8%
+  commit-reveal: commitment          7400    1.8%
+  commit-reveal: attendance          5200    1.2%
+  commit-reveal: cycle state         4600    1.1%
+  game: square records              68700   16.4%
+  game: spawn records                9000    2.2%
+  game: army record                  8900    2.1%
+  game: army list                    3000    0.7%
+  events                             2268    0.5%
+  hashing                            2676    0.6%
+  compute                          272321   65.1%
+  refund                                0    0.0%
+  storage ops: read, cold 29x = 60900; read, warm 187x = 18700; write, same 3x = 300; write, update 10x = 29000
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      384065      130
+    GameReveal.reveal                                          382914     2616
+    UsingGameInternal._reveal                                  380298      781
+    UsingGameBoard._revealMove                                 343855     3154
+    UsingGameBoard._judgeMove                                  269212     6088
+    UsingGameBoard._squareAt                                   192711    46091
+    (compiler-generated helper)                                123686   123686
+    UsingGameBoard._laidAt                                     100537    16300
+    ChessRules.moveSquares                                      53701     4436
+    UsingGameBoard._spawnCovering                               50938     5732
+    UsingGameBoard._settled                                     33263     3773
+    ChessRules.isLegalMove                                      31546     4570
+    ChessRules.layoutAt                                         28968     4306
+    ChessRules.footprintCell                                    23397     6880
+    ChessRules._kingSquares                                     22077     5917
+    UsingGameBoard._markArrival                                 21717     5004
+    ChessRules._path                                            21020     4206
+    UsingGameBoard._touch                                       20346     3642
+    UsingGameBoard._storeSquare                                 20204    20204
+    UsingCommitReveal._closeChunk                               14168       88
+    CommitReveal.closeRevealedChunk                             14080    13537
+    UsingGameBoard._floorDiv                                    13860     4552
+    UsingGameBoard._within                                      13246     4858
+    UsingCommitReveal._openChunk                                12208      114
+    PositionUtils.offset                                        11648     2688
+    UsingGameBoard._foldCapture                                 10699      858
+    UsingGameBoard._kingCaptureAt                                9841     8120
+    UsingCommitReveal._cycleNumber                               8834       80
+    UsingCommitReveal._cycle                                     8754      163
+    ChessRules.spiralIndex                                       8580     2006
+    UsingGameBoard._fellIn                                       8452     7053
+    CommitReveal.cycle                                           8113     6248
+    UsingGameBoard._arriverOf                                    7457     3831
+    ChessRules.vacate                                            7138     7014
+    UsingGameBoard._captorFell                                   7026     7026
+    UsingGameBoard._standingOf                                   6350     4384
+    PositionUtils.fromXY                                         5654     1782
+    ChessRules.vacatedBy                                         5224     1387
+    PositionUtils.toXY                                           5040     5040
+    UsingGameStore._armyAt                                       4860     4860
