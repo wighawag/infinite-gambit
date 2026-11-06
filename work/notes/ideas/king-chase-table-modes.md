@@ -33,3 +33,10 @@ Both could be chosen per table (a lobby option), with A at N = 3 as the default.
 - **Gas must be understood first.** A single-piece reveal already costs about 330,000 to 450,000 gas, and the declared limit is 1,345,000. Three piece-moves per reveal multiplies the dominant costs, so profile where a plain reveal's gas goes before sizing N (see the gas explanation given on 2026-11-06, and `contracts/test/js/GasBudget.test.ts`).
 
 Next step: grill this into a spec (which mode first, N, how the lobby offers it), then write the ADR for A.
+
+## Settled by the maintainer (2026-11-07)
+
+- **A and B are two independent toggles, not one mode to choose.** A table can turn on either, both or neither.
+- **N = 3** for now.
+- **Words: a move is several piece-moves.** `CONTEXT.md`'s Move becomes up to N piece-moves by different pieces of one army in one cycle, and a new Piece-move entry is one chess move by one piece.
+- Still open: what a piece-move sees of the same army's other piece-moves, which toggles the online and offline worlds use, and B's collision rows.
