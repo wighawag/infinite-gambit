@@ -7,7 +7,7 @@
  * here, in plain TypeScript that can be read and tested without a browser.
  */
 import {derived, readable, type Readable} from 'svelte/store';
-import {formatBalance} from '$lib/core/utils/format/balance';
+import {chainValueLabel} from './chain-value';
 import {STAKE} from '../stake';
 import type {Context} from '$lib/context/types';
 import type {SubmissionState} from '$lib/game/core/submission';
@@ -881,12 +881,14 @@ export function describeExitPayout(params: {
 	if (!army) return undefined;
 	const value =
 		sale.amount === 0n ? 0n : (army.stake * sale.price) / sale.amount;
-	const valueLabel = `${formatBalance(value)} ${params.symbol}`;
+	const valueLabel = chainValueLabel(value, params.symbol);
 	return {
 		army: army.id,
 		headline: 'Your king left through an exit.',
 		detail: `It took ${STAKE.amount(army.stake)} with it, paid out as ${valueLabel} to your account.`,
-		actionLabel: payout.busy ? 'Paying out...' : `Collect ${valueLabel}`,
+		actionLabel: payout.busy
+			? 'Paying out...'
+			: `Collect ${STAKE.amount(army.stake)} (${valueLabel})`,
 		busy: payout.busy,
 		error: payout.error,
 	};
@@ -907,7 +909,10 @@ export function describeTableClaim(params: {
 	const valueLabel =
 		claim.share === undefined || sale.amount === 0n
 			? undefined
-			: `${formatBalance((claim.share * sale.price) / sale.amount)} ${params.symbol}`;
+			: `${STAKE.amount(claim.share)} (${chainValueLabel(
+					(claim.share * sale.price) / sale.amount,
+					params.symbol,
+				)})`;
 	return {
 		army: claim.army,
 		headline: claim.winner
@@ -1092,9 +1097,10 @@ export function createHud(context: Context): Readable<HudModel> {
 				// `price + stipend`, and the two can differ by orders of magnitude: a
 				// button that understates what is about to be charged is worse than
 				// one with no number on it.
-				priceLabel: `${formatBalance(
+				priceLabel: chainValueLabel(
 					acquisitionTotal(game.config.sale),
-				)} ${context.deployments.get().chain.nativeCurrency.symbol}`,
+					context.deployments.get().chain.nativeCurrency.symbol,
+				),
 			});
 			if (needsSetup?.action === 'stake') {
 				needsSetup.busy = needsSetup.busyLabel !== undefined;
