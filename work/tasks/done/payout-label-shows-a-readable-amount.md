@@ -39,3 +39,10 @@ FIRST, check this task against current reality: do the payout labels still use `
 Work in small steps (one decision, then edit and run a test), and grow files with edits of at most about 300 lines: earlier builds in this repo died on the 16,384-token output limit when a single reply tried to plan everything.
 
 RECORD non-obvious in-scope decisions in a `## Decisions` block at the end of your FINAL REPORT (the runner transcribes it into the done record). Do not write the done record, commit message or PR body yourself, and do not edit this task body.
+
+## Decisions
+
+- **Values below 1 gwei are shown in wei.** For example `chainValueLabel(1n, 'ETH')` gives "1 wei". The task only names gwei and the currency, but a share's value is rounded down and could fall under 1 gwei. Shown in gwei it would then read `>0`, which the task forbids for a non-zero payout. The alternative was to always use gwei with a wider character limit, but that prints long decimals like "0.000000001 gwei". This only affects the new helper.
+- **A zero value prints as "0 <symbol>".** Only non-zero values are switched to another unit.
+- **The deploy button's amount is the total, not the bare price.** `priceLabel` formats `acquisitionTotal(sale)`, which is price plus the key's funding, as the existing code already did. The task calls it "the sale price"; I kept the total, because the existing comment says the button must not understate what the wallet will charge. It now goes through the shared helper, so its unit may change: it shows gwei whenever the total is below 0.001 of the currency.
+- **The new file is `chain-value.ts`, beside `hud.ts`.** That keeps the unit choice in this game's code rather than in `$lib/core`, as the task asked. I left `formatBalance` alone in `stake.ts` (TOK amounts), `credits-view.ts` and `navbar.svelte`, because those show token amounts, credits, a wallet balance and gas, not payouts or the stake price.
