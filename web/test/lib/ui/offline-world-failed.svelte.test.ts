@@ -38,7 +38,7 @@ vi.mock('$lib/offline-lobby', async () => {
 const failed = offlineWorldExits({step: 'Failed'}, {step: 'Sat', seats: 4});
 
 describe('a failed offline world', () => {
-	it('shows "Try again" and "Leave this table" on its card, wired to their presses', async () => {
+	it('shows "Try again" and "Leave table" on its card, wired to their presses', async () => {
 		let tried = 0;
 		let left = 0;
 		const screen = await render(OfflineWorldFailed, {
@@ -82,12 +82,10 @@ describe('a failed offline world', () => {
 			.not.toBeInTheDocument();
 	});
 
-	it('offers "Leave this table" in the navbar too, calling the lobby', async () => {
+	it('offers "Leave table" in the navbar too, calling the lobby', async () => {
 		const screen = await render(OfflineWorldNavbar);
 
-		await expect
-			.element(screen.getByText('4 seats at this table'))
-			.toBeInTheDocument();
+		await expect.element(screen.getByText('4 seats')).toBeInTheDocument();
 		const before = mocks.left;
 		await screen.getByTestId('leave-the-table').click();
 		expect(mocks.left).toBe(before + 1);

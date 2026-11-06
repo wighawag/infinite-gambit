@@ -2,13 +2,16 @@
 	/**
 	 * WHAT AN OFFLINE WORLD HAS TO SAY THAT WILL NOT FIT IN A NAVBAR.
 	 *
-	 * Two sentences, and neither is decoration. That everything below runs against
-	 * a chain in this tab and nothing leaves the browser is the promise the whole
+	 * One line, and it is not decoration. That everything below runs against a
+	 * chain in this tab and nothing leaves the browser is the promise the whole
 	 * route is making. That this browser holds a key which plays for the player is
-	 * the step an online game would have CHARGED them for, done silently here
-	 * because offline it is a question with one answer - and a player who met it
-	 * for the first time on a real chain, unexplained, in front of a board they had
-	 * already decided to play, is the experience that sentence exists to prevent.
+	 * the step an online game would have CHARGED them for, done silently here, and
+	 * a player who met it for the first time on a real chain, unexplained, is the
+	 * experience that sentence exists to prevent.
+	 *
+	 * ONE LINE because on a phone every line here is a line of board the player
+	 * cannot see. So the key's sentence joins it from `sm` up only; on a phone it
+	 * was already said on the lobby screen, before the world booted.
 	 *
 	 * A BAR RATHER THAN MARKUP IN THE ROUTE, which is where this text used to live.
 	 * The route's copy sat INSIDE the content region, so the board got the region
@@ -35,12 +38,9 @@
 	     and a bar that pinned itself is how two live conditions once landed exactly
 	     on top of each other. See the note in `core/ui/chrome.ts`. -->
 	<div
-		class="border-b border-dashed border-muted-foreground/40 bg-muted/40 px-4 py-2 text-center text-sm"
+		class="border-b border-dashed border-muted-foreground/40 bg-muted/40 px-4 py-1 text-center text-xs text-muted-foreground"
 	>
-		Everything below runs against a chain inside this tab. Nothing leaves the
-		browser.
-		<p class="mt-1 text-xs text-muted-foreground">
-			{THE_KEY_THIS_BROWSER_PLAYS_WITH}
-		</p>
+		Runs on a chain inside this tab. Nothing leaves your browser.
+		<span class="hidden sm:inline">{THE_KEY_THIS_BROWSER_PLAYS_WITH}</span>
 	</div>
 {/if}

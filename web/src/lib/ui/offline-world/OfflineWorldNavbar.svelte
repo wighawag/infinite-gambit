@@ -85,7 +85,7 @@
 		>
 			Home
 		</a>
-		<span class="text-sm font-semibold">Playing offline</span>
+		<span class="text-sm font-semibold">Offline</span>
 		{#if $offlineWorld.step === 'Ready'}
 			<!-- WHICH WORLD THIS IS. The chain id is the only name it has, and it is
 			     the thing that distinguishes this world from the one a player would
@@ -101,14 +101,12 @@
 			{#if exits.seats !== undefined}
 				<!-- HOW MANY ARE AT THE TABLE, which is what the cycle waits for. Its own
 				     element so a test can match this sentence and nothing larger. -->
-				<span class="text-xs text-muted-foreground"
-					>{exits.seats} seats at this table</span
-				>
+				<span class="text-xs text-muted-foreground">{exits.seats} seats</span>
 			{/if}
 			<button
 				class="rounded px-2 py-1 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
 				data-testid="leave-the-table"
-				onclick={() => offlineLobby.leaveTheTable()}>Leave this table</button
+				onclick={() => offlineLobby.leaveTheTable()}>Leave table</button
 			>
 		</div>
 	{/if}

@@ -62,7 +62,7 @@
 			showing planning controls that cannot lead anywhere.
 		-->
 		<p class="text-sm font-semibold">{$hud.setup.headline}</p>
-		<p class="mt-1 max-w-sm text-xs text-muted-foreground">
+		<p class="mt-1 text-xs text-muted-foreground sm:max-w-sm">
 			{$hud.setup.detail}
 		</p>
 		{#if $hud.setup.action === 'stake'}
@@ -100,8 +100,16 @@
 	{/if}
 {/snippet}
 
+<!--
+	MOBILE FIRST. On a phone the board is the game, so the HUD takes as little of
+	it as it can: a slim clock card at the top, the minimap shrunk into the top
+	right corner, and one compact panel along the bottom that holds only what the
+	player acts on (status, the planned move, the buttons). From `sm` up the
+	panel sits bottom-left at its natural width and the minimap moves back to the
+	bottom right, as it always was on a desktop.
+-->
 <div
-	class="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-3"
+	class="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between gap-2 p-2 sm:p-3"
 >
 	<!-- At a table: its lobby (what it plays by, who is seated, the creator's
 	     start) until it has started and this person holds a seat; then who is
@@ -117,17 +125,24 @@
 			{/snippet}
 		</TableLobby>
 	{:else if game.table}
-		<div class="absolute top-3 right-3">
+		<div class="absolute top-20 right-2 sm:top-3 sm:right-3">
 			<TablePanel table={game.table} />
 		</div>
 	{/if}
-	<!-- Where the fighting is, and the way back to your army. -->
-	<div class="absolute right-3 bottom-3">
+	<!-- Where the fighting is, and the way back to your army: the top right
+	     corner on a phone, where the bottom panel cannot cover it, and the bottom
+	     right from `sm` up. At a table on a phone the table's panel has that
+	     corner, so the map steps aside there. -->
+	<div
+		class="absolute top-2 right-2 sm:top-auto sm:right-3 sm:bottom-3 {game.table
+			? 'hidden sm:block'
+			: ''}"
+	>
 		<Minimap minimap={render.minimap} follow={render.follow} />
 	</div>
 	<!-- Phase and cycle -->
 	<div
-		class="pointer-events-auto w-fit rounded-lg bg-background/85 p-3 shadow-lg backdrop-blur"
+		class="pointer-events-auto w-fit max-w-[calc(100%-7rem)] rounded-lg bg-background/85 p-2 shadow-lg backdrop-blur sm:max-w-none sm:p-3"
 	>
 		<!--
 			THE DIAL, not a dot and a bar. It is the one thing a player checks
@@ -136,19 +151,23 @@
 			(`game/ui/GameClock.svelte`) against the four-part model; a game that
 			wants a different picture writes one against the same type.
 		-->
-		<div class="flex items-center gap-3">
+		<div class="flex items-center gap-2 sm:gap-3">
 			<GameClock
 				phase={$hud.phase}
 				progress={$hud.progress}
 				secondsLeft={$hud.secondsLeft}
-				size={72}
+				size={48}
 			/>
-			<div>
-				<p class="text-sm font-semibold">{$hud.phaseLabel}</p>
-				<p class="text-xs text-muted-foreground">cycle {$hud.cycleNumber}</p>
+			<div class="min-w-0">
+				<p class="text-sm leading-tight font-semibold">
+					{$hud.phaseLabel}
+					<span class="font-normal text-muted-foreground"
+						>· cycle {$hud.cycleNumber}</span
+					>
+				</p>
 				{#if $hud.countdown}
 					<p
-						class="max-w-48 text-xs font-medium tabular-nums"
+						class="text-xs text-muted-foreground tabular-nums"
 						data-testid="phase-countdown"
 					>
 						{$hud.countdown.label}
@@ -163,27 +182,30 @@
 		{/if}
 		{#if $hud.planningForNextCycle}
 			<p class="mt-1 text-xs text-amber-400">
-				This cycle is closed. New picks count for the next one.
+				Cycle closed: picks count for the next one.
 			</p>
 		{/if}
 	</div>
 
 	<!-- The submission -->
 	<div
-		class="pointer-events-auto w-fit max-w-md rounded-lg bg-background/85 p-3 shadow-lg backdrop-blur"
+		class="pointer-events-auto w-full rounded-lg bg-background/90 p-3 shadow-lg backdrop-blur sm:w-fit sm:max-w-sm"
 	>
 		<!--
+			Notices first, each a short headline over one line of detail, and only
+			while they apply. They are what a player must not miss, so they come
+			before the routine status rather than after it.
+
 			A missed reveal has already cost the player their bond, so it is stated
 			plainly and settled only on a deliberate press: acknowledging is what
 			makes the forfeit final on chain, and it is not ours to do for them.
-		-->
-		<!--
+
 			The saved turn is not readable yet (loading) or could not be read: play
 			waits, and a failure is said rather than shown as an empty turn.
 		-->
 		{#if $hud.savedTurn}
 			<div
-				class="mb-3 rounded-md border p-2 {$hud.savedTurn.tone === 'bad'
+				class="mb-2 rounded-md border p-2 {$hud.savedTurn.tone === 'bad'
 					? 'border-red-500/40 bg-red-500/10'
 					: 'border-border bg-muted/40'}"
 				data-testid="saved-turn"
@@ -195,7 +217,7 @@
 				>
 					{$hud.savedTurn.headline}
 				</p>
-				<p class="mt-1 text-xs text-muted-foreground">
+				<p class="text-xs text-muted-foreground">
 					{$hud.savedTurn.detail}
 				</p>
 			</div>
@@ -203,12 +225,12 @@
 
 		{#if $hud.exitPayout}
 			<div
-				class="mb-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2"
+				class="mb-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2"
 			>
 				<p class="text-sm font-semibold text-emerald-400">
 					{$hud.exitPayout.headline}
 				</p>
-				<p class="mt-1 text-xs text-muted-foreground">
+				<p class="text-xs text-muted-foreground">
 					{$hud.exitPayout.detail}
 				</p>
 				<Button
@@ -231,25 +253,25 @@
 		-->
 		{#if $hud.revealDeadline}
 			<div
-				class="mb-3 animate-pulse rounded-md border-2 border-red-500 bg-red-500/20 p-2"
+				class="mb-2 animate-pulse rounded-md border-2 border-red-500 bg-red-500/20 p-2"
 				role="alert"
 				data-testid="reveal-deadline"
 			>
 				<p class="text-sm font-bold text-red-400">
 					{$hud.revealDeadline.headline}
 				</p>
-				<p class="mt-1 text-xs text-red-200">
+				<p class="text-xs text-red-200">
 					{$hud.revealDeadline.detail}
 				</p>
 			</div>
 		{/if}
 
 		{#if $hud.missedReveal}
-			<div class="mb-3 rounded-md border border-red-500/40 bg-red-500/10 p-2">
+			<div class="mb-2 rounded-md border border-red-500/40 bg-red-500/10 p-2">
 				<p class="text-sm font-semibold text-red-400">
 					{$hud.missedReveal.headline}
 				</p>
-				<p class="mt-1 text-xs text-muted-foreground">
+				<p class="text-xs text-muted-foreground">
 					{$hud.missedReveal.detail}
 				</p>
 				<Button
@@ -273,12 +295,12 @@
 		-->
 		{#if $hud.recovery}
 			<div
-				class="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2"
+				class="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2"
 			>
 				<p class="text-sm font-semibold text-amber-400">
 					{$hud.recovery.headline}
 				</p>
-				<p class="mt-1 max-w-sm text-xs text-muted-foreground">
+				<p class="text-xs text-muted-foreground">
 					{$hud.recovery.detail}
 				</p>
 				<Button
@@ -296,8 +318,58 @@
 			<!-- In a table's lobby the setup is asked for there, once. -->
 			{#if !inTableLobby}{@render setupControls()}{/if}
 		{:else}
-			<p class="text-sm {toneClass[$hud.submissionTone]}">
-				{$hud.submissionLabel}
+			<!--
+				THE STATUS LINE: what the submission is doing, and beside it the one
+				thing the player is choosing right now (the move, or the spawn point).
+				A hint stands in for the choice until one is made, so a newcomer is
+				told what to tap without a paragraph of rules under every turn.
+			-->
+			<div class="flex flex-wrap items-baseline justify-between gap-x-3">
+				<p class="text-sm font-medium {toneClass[$hud.submissionTone]}">
+					{$hud.submissionLabel}
+				</p>
+				{#if $hud.moving}
+					<div class="text-xs tabular-nums" data-testid="planned-move">
+						{#if $hud.moving.pieceMoves.length > 0}
+							<ol class="inline-flex flex-wrap gap-x-2">
+								{#each $hud.moving.pieceMoves as pieceMove (pieceMove.from)}
+									<li data-testid="planned-piece-move">
+										<span style="color: {pieceMove.colour}"
+											>{pieceMove.label}</span
+										>
+										<button
+											class="ml-0.5 text-muted-foreground underline hover:text-foreground"
+											data-testid="take-back"
+											onclick={() => planning.takeBack(pieceMove.from)}
+										>
+											take back
+										</button>
+									</li>
+								{/each}
+							</ol>
+						{/if}
+						{#if $hud.moving.countLabel}
+							<span class="text-muted-foreground">
+								{$hud.moving.countLabel}
+							</span>
+						{/if}
+					</div>
+				{:else if $hud.deployment}
+					<p class="text-xs tabular-nums">
+						{$hud.deployment.picked ?? ''}
+					</p>
+				{/if}
+			</div>
+			<p class="text-xs text-muted-foreground">
+				{#if $hud.deployment}
+					{$hud.deployment.picked
+						? 'Deploy when ready. Nobody sees where until the reveal.'
+						: 'Tap a gold spawn square (or pick one below).'}
+				{:else if $hud.moving}
+					{$hud.moving.hint}
+				{:else}
+					Your army can move from next cycle.
+				{/if}
 			</p>
 
 			{#if $hud.revealSchedule}
@@ -321,9 +393,6 @@
 					class="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2"
 				>
 					<p class="text-xs text-muted-foreground">{$hud.outOfGas.detail}</p>
-					<!-- The gas remedy, so the payment is a top-up even though the
-					     submission is what is blocked; the sentence above has already
-					     said why. -->
 					<Button
 						size="sm"
 						class="mt-2"
@@ -334,71 +403,55 @@
 				</div>
 			{/if}
 
-			<dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-				{#if $hud.army}
-					<dt class="text-muted-foreground">Army</dt>
-					<dd class={toneClass[$hud.army.tone]} data-testid="army-status">
-						{$hud.army.label}
-					</dd>
-					<dt class="text-muted-foreground">Army stake</dt>
-					<dd>{$hud.army.stakeLabel}</dd>
-				{/if}
-				{#if $hud.lastDeployment}
-					<dt class="text-muted-foreground">Last deployment</dt>
-					<dd
+			{#if $hud.lastDeployment}
+				<!-- Why they are deploying again: it is the reason for this screen,
+				     so it is said in full, once. -->
+				<div class="mt-2 text-xs">
+					<p
 						class={toneClass[$hud.lastDeployment.tone]}
 						data-testid="last-deployment"
 					>
 						{$hud.lastDeployment.label}
-					</dd>
-					<dt class="text-muted-foreground">Its stake</dt>
-					<dd data-testid="last-deployment-stake">
+					</p>
+					<p class="text-muted-foreground" data-testid="last-deployment-stake">
 						{$hud.lastDeployment.stakeLabel}
-					</dd>
+					</p>
+				</div>
+			{/if}
+
+			<!--
+				THE NUMBERS, as one line of chips rather than a table: the army's
+				state, what it holds, and what is left in reserve.
+			-->
+			<div
+				class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"
+			>
+				{#if $hud.army}
+					<span class={toneClass[$hud.army.tone]} data-testid="army-status"
+						>{$hud.army.label}</span
+					>
+					<span
+						>Army <span class="text-foreground">{$hud.army.stakeLabel}</span
+						></span
+					>
 				{/if}
 				{#if $hud.deployment}
-					<dt class="text-muted-foreground">Deploy at</dt>
-					<dd>{$hud.deployment.picked ?? 'pick a spawn point'}</dd>
-					<dt class="text-muted-foreground">Cost</dt>
-					<dd>{$hud.costLabel}</dd>
+					<span>Cost <span class="text-foreground">{$hud.costLabel}</span></span
+					>
 				{/if}
-				{#if $hud.moving}
-					<dt class="text-muted-foreground">Move</dt>
-					<dd data-testid="planned-move">
-						{#if $hud.moving.pieceMoves.length === 0}
-							select a piece
-						{:else}
-							<ol>
-								{#each $hud.moving.pieceMoves as pieceMove (pieceMove.from)}
-									<li data-testid="planned-piece-move">
-										<span style="color: {pieceMove.colour}"
-											>{pieceMove.label}</span
-										>
-										<button
-											class="ml-1 text-xs text-muted-foreground underline hover:text-foreground"
-											data-testid="take-back"
-											onclick={() => planning.takeBack(pieceMove.from)}
-										>
-											take back
-										</button>
-									</li>
-								{/each}
-							</ol>
-						{/if}
-						{#if $hud.moving.countLabel}
-							<span class="text-xs text-muted-foreground">
-								{$hud.moving.countLabel}
-							</span>
-						{/if}
-					</dd>
-				{/if}
-				<dt class="text-muted-foreground">Reserve</dt>
-				<dd>{$hud.reserveLabel}</dd>
-			</dl>
+				<span
+					>Reserve <span class="text-foreground">{$hud.reserveLabel}</span
+					></span
+				>
+			</div>
 
 			{#if $hud.lastCycle}
-				<!-- What the last cycle did, as the contract resolved it. -->
-				<div class="mt-2 text-xs" data-testid="last-cycle">
+				<!-- What the last cycle did, as the contract resolved it. Scrolls
+				     rather than grows, so a busy cycle cannot push the board away. -->
+				<div
+					class="mt-2 max-h-16 overflow-y-auto text-xs sm:max-h-28"
+					data-testid="last-cycle"
+				>
 					<p class="text-muted-foreground">
 						Cycle {$hud.lastCycle.cycleNumber}
 					</p>
@@ -415,13 +468,13 @@
 				     or on the board is the same plan; it stays hidden until the
 				     reveal. -->
 				<ul
-					class="mt-2 max-h-40 overflow-y-auto text-xs"
+					class="mt-2 max-h-24 overflow-y-auto text-xs sm:max-h-40"
 					data-testid="spawn-points"
 				>
 					{#each $hud.deployment.spawnPoints as point (point.spawnPoint)}
 						<li>
 							<button
-								class="w-full rounded px-1 py-0.5 text-left hover:bg-muted {point.picked
+								class="w-full rounded px-1 py-1 text-left hover:bg-muted {point.picked
 									? 'bg-amber-500/20 text-amber-300'
 									: ''}"
 								data-testid="spawn-point"
@@ -444,10 +497,13 @@
 				</p>
 			{/if}
 
-			<div class="mt-3 flex flex-wrap gap-2">
+			<!-- One row of buttons. The primary action stretches on a phone so it
+			     is the easy one to hit. -->
+			<div class="mt-3 flex gap-2">
 				{#if $hud.deployment}
 					<Button
 						size="sm"
+						class="flex-1 sm:flex-none"
 						disabled={!$hud.canCommit}
 						data-testid="commit-deployment"
 						onclick={() => submission.commit()}
@@ -458,16 +514,18 @@
 				{#if $hud.moving}
 					<Button
 						size="sm"
+						class="flex-1 sm:flex-none"
 						disabled={!$hud.canCommit}
 						data-testid="commit-move"
 						onclick={() => submission.commit()}
 					>
-						Commit move
+						Commit
 					</Button>
 				{/if}
 				{#if $hud.canPass}
 					<Button
 						size="sm"
+						variant="secondary"
 						data-testid="pass"
 						onclick={() => submission.commit()}
 					>
@@ -496,31 +554,15 @@
 				     still settling, which is why the label follows the flow. -->
 				<Button
 					size="sm"
-					variant="secondary"
+					variant="outline"
+					class="min-w-0 shrink truncate"
 					data-testid="acquire-more-stake"
 					disabled={$hud.acquiring !== undefined}
 					onclick={() => acquisition.buy()}
 				>
-					{$hud.acquiring ?? 'Add stake'}
+					{$hud.acquiring ?? '+ Stake'}
 				</Button>
 			</div>
-
-			<p class="mt-2 text-xs text-muted-foreground">
-				{#if $hud.deployment}
-					Pick an open spawn point (on the board or in the list) and deploy.
-					Nobody sees where until the reveal; two armies revealing the same
-					spawn point both fail.
-				{:else if $hud.moving}
-					Select one of your pieces, then one of the highlighted squares, for
-					each piece you move: up to the count shown, all at once, hidden until
-					the reveal; they land when the cycle ends. Click a planned square
-					again, or take back, to undo one. Squares tinted red are where an
-					enemy piece may move this cycle: a piece of yours there can be
-					captured, or collide.
-				{:else}
-					Your army acts from the cycle after it lands.
-				{/if}
-			</p>
 		{/if}
 	</div>
 </div>

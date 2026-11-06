@@ -32,10 +32,8 @@ describe('the payout labels at the current sale price', () => {
 			symbol: 'ETH',
 		});
 		expect(owed?.actionLabel).toBe('Collect 10 TOK (10 gwei)');
-		expect(owed?.headline).toBe('Your king left through an exit.');
-		expect(owed?.detail).toBe(
-			'It took 10 TOK with it, paid out as 10 gwei to your account.',
-		);
+		expect(owed?.headline).toBe('Your king exited!');
+		expect(owed?.detail).toBe('10 TOK pays out as 10 gwei.');
 	});
 
 	it('offer a table claim as its share in TOK and its value in gwei', () => {
@@ -46,7 +44,7 @@ describe('the payout labels at the current sale price', () => {
 			symbol: 'ETH',
 		});
 		expect(claim?.actionLabel).toBe('Collect 30 TOK (30 gwei)');
-		expect(claim?.headline).toBe('Your king is the last one standing.');
+		expect(claim?.headline).toBe('Last king standing!');
 	});
 
 	it('still name the claim when its share is not known yet', () => {

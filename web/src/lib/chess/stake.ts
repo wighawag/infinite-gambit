@@ -14,16 +14,16 @@ export const STAKE = {
 	},
 
 	/** The account's reserve cannot pay for a deployment. */
-	notEnough: 'Not enough in your reserve to deploy an army.',
+	notEnough: 'Not enough in reserve to deploy.',
 
 	/**
 	 * The setup gate's stake step: one transaction buys one army's stake and
 	 * funds the key this browser plays with.
 	 */
 	setup: {
-		headline: 'Buy a stake to deploy an army',
+		headline: 'Buy a stake to play',
 		detail:
-			'An army holds a fixed stake. One transaction buys it into your reserve, which only you can withdraw, and funds the key this browser plays with. Deploying moves the stake into the army, which keeps it until its king leaves through an exit or is captured.',
+			'One transaction buys an army\u2019s stake and gas for your play key. Your king leaves through an exit with it.',
 		/** The button, with the total the wallet is about to ask for. */
 		action(priceLabel?: string): string {
 			return priceLabel ? `Buy a stake for ${priceLabel}` : 'Buy a stake';
@@ -37,11 +37,11 @@ export const STAKE = {
 	 */
 	forfeited(forfeit: bigint): string {
 		return forfeit > 0n
-			? `${this.amount(forfeit)} is forfeit, and this army cannot commit again until you acknowledge it.`
-			: 'This army cannot commit again until you acknowledge it.';
+			? `${this.amount(forfeit)} is forfeit. Acknowledge to play on.`
+			: 'Acknowledge to play on.';
 	},
 
 	/** What the acquisition dialog says is being bought. */
 	acquireExplanation:
-		'One transaction puts one army\u2019s stake in your reserve and funds the key this browser plays with. Whoever pays, the reserve belongs to your account, and only your account can withdraw it.',
+		'One transaction: an army\u2019s stake into your reserve, plus gas for your play key. Only your account can withdraw the reserve.',
 };

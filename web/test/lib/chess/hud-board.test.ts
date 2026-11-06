@@ -154,14 +154,14 @@ describe('the phase countdown', () => {
 			clocked('timed', true, {commit: 4.2, reveal: 44.2}),
 		);
 		expect(commit).toEqual({
-			label: 'Commitments close in 5s',
+			label: 'Commits close in 5s',
 			secondsLeft: 5,
 		});
 		const reveal = describeCountdown(
 			clocked('timed', false, {commit: 0, reveal: 125}),
 		);
 		expect(reveal).toEqual({
-			label: 'Reveals must land within 2:05',
+			label: 'Reveals close in 2:05',
 			secondsLeft: 125,
 		});
 	});
@@ -170,7 +170,7 @@ describe('the phase countdown', () => {
 		expect(
 			describeCountdown(clocked('hybrid', true, {commit: 30, reveal: 70}))
 				?.label,
-		).toBe('Commitments close in 30s, sooner once every army has acted');
+		).toBe('Commits close in 30s (or sooner)');
 	});
 
 	it('has nothing to count without a clock', () => {

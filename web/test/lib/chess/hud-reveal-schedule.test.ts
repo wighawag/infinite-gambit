@@ -44,9 +44,7 @@ describe('what the HUD says about who reveals the turn', () => {
 	it('says the turn will be revealed for the player once scheduled', () => {
 		const line = describeRevealSchedule(scheduled(), committed(true));
 		expect(line?.step).toBe('scheduled');
-		expect(line?.label).toMatch(
-			/revealed for you, even if you close this page/i,
-		);
+		expect(line?.label).toMatch(/auto-reveal scheduled: safe to close/i);
 	});
 
 	it("shows fuzd's status in the reveal phase", () => {
@@ -55,7 +53,7 @@ describe('what the HUD says about who reveals the turn', () => {
 				scheduled({step: 'broadcast', sent: 1, total: 2}),
 				committed(true),
 			)?.label,
-		).toMatch(/1 of 2 sent/);
+		).toMatch(/1 of 2/);
 		expect(
 			describeRevealSchedule(scheduled({step: 'confirmed'}), {
 				step: 'Revealed',
@@ -67,7 +65,7 @@ describe('what the HUD says about who reveals the turn', () => {
 			committed(true),
 		);
 		expect(failed?.tone).toBe('bad');
-		expect(failed?.label).toMatch(/this browser is revealing it/);
+		expect(failed?.label).toMatch(/revealing here/);
 		expect(
 			describeRevealSchedule(scheduled({step: 'unreachable'}), committed(true))
 				?.step,

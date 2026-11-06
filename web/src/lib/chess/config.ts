@@ -62,6 +62,8 @@ export type ChessConfig = CommitRevealConfig & {
 	camera: {
 		/** How much board is visible on the first frame. */
 		initialVisible: {width: number; height: number};
+		/** The first frame's zoom floor on a phone: see `CameraConfig`. */
+		initialNarrow?: {maxWidth: number; minScale: number};
 		/** Zoom limits, as the smallest and largest slice of board on screen. */
 		limits: {
 			minWidth: number;
@@ -101,6 +103,11 @@ export function resolveChessConfig(deployments: TypedDeployments): ChessConfig {
 			// beyond them (four grid steps either way at the world's spacing of
 			// 9) on the first frame.
 			initialVisible: {width: 72, height: 72},
+			// On a phone 72 squares across is about 5px a square, too small to
+			// tap a piece. Below the HUD's `sm` breakpoint (640px) open at 20px a
+			// square instead: about 20 squares across, the played army and its
+			// neighbours (spawn points are 9 apart).
+			initialNarrow: {maxWidth: 640, minScale: 20},
 			limits: {minWidth: 12, minHeight: 12, maxWidth: 160, maxHeight: 160},
 		},
 	};

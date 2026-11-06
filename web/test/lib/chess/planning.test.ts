@@ -597,10 +597,18 @@ describe('a move, as the rest of the client sees it', () => {
 				{from: second.from, label: '(3, 0) to (3, 1)', colour: '#5ad1e6'},
 			],
 			countLabel: '2 of 3 piece-moves',
+			hint: 'Commit when ready, or plan another. Red squares may be attacked.',
 		});
 		expect(
 			describeMoving({army: deployed, moves: [], maxPieceMoves: 1}),
-		).toEqual({pieceMoves: [], countLabel: '0 of 1 piece-move'});
+		).toEqual({
+			pieceMoves: [],
+			countLabel: '0 of 1 piece-move',
+			hint: 'Tap a piece, then a square. Red squares may be attacked.',
+		});
+		expect(
+			describeMoving({army: deployed, moves: [move], maxPieceMoves: 1}),
+		).toMatchObject({hint: 'Commit when ready. Red squares may be attacked.'});
 		expect(
 			describeMoving({army: deployed, moves: [move], refusal: 'no'}),
 		).toMatchObject({refusal: 'no'});

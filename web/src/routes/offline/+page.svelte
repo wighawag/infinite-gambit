@@ -129,14 +129,13 @@
 	     occupant is you or the world; how many there are is the whole of what a
 	     player decides here. Which is why this renders a count and a table and
 	     asks the lobby for both. -->
-	<div class="container mx-auto max-w-2xl px-4 py-24 text-center">
-		<h1 class="text-lg font-semibold">How many at the table?</h1>
-		<p class="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-			A chain will be created in this browser and this game's own deploy scripts
-			run against it. Every seat is given a stake, which is what makes the cycle
-			wait for them. Nothing leaves the tab.
+	<div class="container mx-auto max-w-2xl px-4 py-10 text-center sm:py-24">
+		<h1 class="text-lg font-semibold">Play offline</h1>
+		<p class="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+			Runs in your browser. Nothing leaves this tab.
 		</p>
-		<div class="mt-6 flex flex-wrap justify-center gap-2">
+		<p class="mt-6 text-sm font-medium">Seats</p>
+		<div class="mt-2 flex flex-wrap justify-center gap-2">
 			{#each SEAT_CHOICES as choice (choice)}
 				<Button
 					size="sm"
@@ -149,7 +148,7 @@
 		{#if $offlineLobby.humansAtMost > 1}
 			<!-- HOTSEAT, when this game's world can play it: how many of the seats
 			     are people at this device, passing it between them. -->
-			<p class="mt-6 text-sm font-medium">How many of you, at this device?</p>
+			<p class="mt-6 text-sm font-medium">Players on this device</p>
 			<div class="mt-2 flex flex-wrap justify-center gap-2">
 				{#each $offlineLobby.humanChoices as choice (choice)}
 					<Button
@@ -164,7 +163,7 @@
 		{#if $offlineLobby.levelChoices.length > 0 && $offlineLobby.levels.length > 0}
 			<!-- A LEVEL PER WORLD SEAT, when this game's world offers levels: how each
 			     seat the world plays plays, fixed for this world once it is built. -->
-			<p class="mt-6 text-sm font-medium">How does each world seat play?</p>
+			<p class="mt-6 text-sm font-medium">World seats</p>
 			<div class="mt-2 flex flex-col items-center gap-2">
 				{#each $offlineLobby.levels as level, worldSeat (worldSeat)}
 					<div class="flex flex-wrap items-center justify-center gap-2">
@@ -207,7 +206,7 @@
 					$offlineLobby.seats,
 					$offlineLobby.humans,
 					$offlineLobby.levels,
-				)}>Sit down and play</Button
+				)}>Play</Button
 		>
 		<p class="mx-auto mt-4 max-w-md text-xs text-muted-foreground">
 			{THE_KEY_THIS_BROWSER_PLAYS_WITH}
@@ -225,7 +224,7 @@
 	/>
 {:else}
 	<div
-		class="container mx-auto flex max-w-2xl flex-col items-center gap-3 px-4 py-24 text-center"
+		class="container mx-auto flex max-w-2xl flex-col items-center gap-3 px-4 py-16 text-center sm:py-24"
 	>
 		<Spinner class="size-6" />
 		<p class="text-sm text-muted-foreground">
@@ -234,8 +233,7 @@
 				: 'starting a chain in this tab'}&hellip;
 		</p>
 		<p class="max-w-md text-xs text-muted-foreground">
-			A chain is being created in this browser and this game's own deploy
-			scripts are being run against it. Nothing leaves the tab.
+			Nothing leaves this tab.
 		</p>
 	</div>
 {/if}

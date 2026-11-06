@@ -29,7 +29,7 @@
 	{@const b = $minimap.bounds}
 	{@const mark = b.width / 50}
 	<div
-		class="pointer-events-auto w-fit rounded-lg bg-background/85 p-2 shadow-lg backdrop-blur"
+		class="pointer-events-auto w-fit rounded-lg bg-background/85 p-1.5 shadow-lg backdrop-blur sm:p-2"
 		data-testid="minimap"
 	>
 		<button
@@ -39,7 +39,7 @@
 			onclick={navigate}
 		>
 			<svg
-				class="block h-40 w-40"
+				class="block h-20 w-20 sm:h-40 sm:w-40"
 				viewBox="{b.x} {b.y} {b.width} {b.height}"
 				aria-hidden="true"
 			>
@@ -89,14 +89,12 @@
 		<Button
 			size="sm"
 			variant="outline"
-			class="mt-2 w-full"
+			class="mt-1.5 h-7 w-full px-1 text-xs sm:mt-2 sm:h-8 sm:text-sm"
 			data-testid="follow-army"
 			disabled={!$follow.hasTarget || $follow.following}
 			onclick={() => follow.recentre()}
 		>
-			{$follow.following && $follow.hasTarget
-				? 'Following your army'
-				: 'Back to your army'}
+			{$follow.following && $follow.hasTarget ? 'Following' : 'Recentre'}
 		</Button>
 	</div>
 {/if}

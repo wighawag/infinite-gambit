@@ -194,6 +194,5 @@ export async function takeTheWorldOver(): Promise<void> {
  * lobby is online would need a different sentence or none.
  */
 export const THE_KEY_THIS_BROWSER_PLAYS_WITH =
-	'Playing needs a key this browser holds, registered to your account and ' +
-	'funded with gas, so your moves cost no prompts. An offline world does ' +
-	'that for you. Online it is one transaction you sign and pay for, once.';
+	'Your browser holds a play key, so moves need no prompts. ' +
+	'Offline it is free; online it is one transaction, once.';

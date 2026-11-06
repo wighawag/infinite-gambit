@@ -191,7 +191,7 @@ describe('AI seats in the offline world', () => {
 		test.setTimeout(6 * 60_000);
 		await page.goto('/offline/');
 
-		await expect(page.getByText('How many at the table?')).toBeVisible({
+		await expect(page.getByText('Play offline')).toBeVisible({
 			timeout: 60_000,
 		});
 		await page.getByTestId('seats-3').click();
@@ -205,9 +205,9 @@ describe('AI seats in the offline world', () => {
 		await page.getByTestId('level-1-greedy').click();
 		await expect(page.getByText('The world (Greedy)')).toHaveCount(2);
 		await page.getByTestId('sit-down').click();
-		await expect(
-			page.getByText('Everything below runs against a chain inside this tab'),
-		).toBeVisible({timeout: 120_000});
+		await expect(page.getByText('Runs on a chain inside this tab')).toBeVisible(
+			{timeout: 120_000},
+		);
 
 		// CYCLE TWO: the seats decide on the opening board and store first.
 		const first = await greedySeatsDecided(page, 2);

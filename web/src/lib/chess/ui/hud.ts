@@ -161,6 +161,8 @@ export type HudModel = {
 		countLabel?: string;
 		/** Why the contract would refuse the move as planned: it is not committed. */
 		refusal?: string;
+		/** One line on what to tap next, given how many are planned. */
+		hint: string;
 	};
 	/**
 	 * What the last closed cycle did in view, once the board has read it: its
@@ -286,13 +288,13 @@ export function describeSubmission(state: SubmissionState<Move>): {
 } {
 	switch (state.step) {
 		case 'Idle':
-			return {label: 'Nothing planned', tone: 'idle'};
+			return {label: 'No move yet', tone: 'idle'};
 		case 'Planning':
-			return {label: 'Deployment picked, not yet committed', tone: 'idle'};
+			return {label: 'Picked, not sent', tone: 'idle'};
 		case 'Committing':
-			return {label: 'Sending commitment...', tone: 'busy'};
+			return {label: 'Sending...', tone: 'busy'};
 		case 'Committed':
-			return {label: 'Committed. Reveal is owed this cycle.', tone: 'busy'};
+			return {label: 'Committed, reveal pending', tone: 'busy'};
 		case 'Revealing':
 			// A TURN MAY BE BIGGER THAN A TRANSACTION, so a reveal may be several
 			// of them, and the player watches their submission arrive a part at a time
@@ -309,14 +311,14 @@ export function describeSubmission(state: SubmissionState<Move>): {
 			};
 		case 'Revealed':
 			return {
-				label: 'Revealed. It takes effect when the cycle ends.',
+				label: 'Revealed: lands at cycle end',
 				tone: 'good',
 			};
 		case 'Missed':
 			return {
 				// The one message that costs the player money, so it says what
 				// happened rather than just that something went wrong.
-				label: `Missed the reveal for cycle ${state.cycleNumber}.`,
+				label: `Missed reveal (cycle ${state.cycleNumber})`,
 				tone: 'bad',
 			};
 		case 'Error':
@@ -338,8 +340,8 @@ export function describeSubmission(state: SubmissionState<Move>): {
 					// Upstream names the failure; the game names whose it is.
 					label:
 						state.during === 'commit'
-							? 'Your moves could not be sent: no gas left to play with.'
-							: 'Your reveal could not be sent: no gas left to play with.',
+							? 'Move not sent: play key out of gas'
+							: 'Reveal not sent: play key out of gas',
 					tone: 'bad',
 				};
 			}
@@ -347,7 +349,7 @@ export function describeSubmission(state: SubmissionState<Move>): {
 				label:
 					state.during === 'commit'
 						? `Commit failed: ${state.message}`
-						: `Reveal failed: ${state.message}. Retry before the phase ends.`,
+						: `Reveal failed: ${state.message}. Retry now.`,
 				tone: 'bad',
 			};
 	}
@@ -378,7 +380,7 @@ export function describeMissedReveal(
 	if (state.step === 'Failed') {
 		return {
 			headline,
-			detail: `Could not acknowledge it: ${state.message}`,
+			detail: `Could not acknowledge: ${state.message}`,
 			busy: false,
 			canAcknowledge: true,
 		};
@@ -413,8 +415,8 @@ export function acquisitionBusyLabel(
 			// credential is simply handed back without a prompt, so sending it to a
 			// window that never opens is worse than saying nothing.
 			return opensAWallet(state.authorisation)
-				? 'Confirm in your wallet to authorise this browser...'
-				: 'Authorising this browser...';
+				? 'Confirm in your wallet...'
+				: 'Authorising...';
 		case 'Acquiring':
 			return 'Staking...';
 		case 'ChoosingPayer':
@@ -425,7 +427,7 @@ export function acquisitionBusyLabel(
 			// No prompt for this one: the signer sends it itself, out of the stipend
 			// the purchase just gave it. Unexplained it looks like a hang after the
 			// money has already gone.
-			return 'Setting up your play key...';
+			return 'Setting up play key...';
 		case 'Pending':
 			// A FOURTH kind of wait, and the one that needs saying most: this browser
 			// is not doing anything, and the player has no memory of starting it in
@@ -433,8 +435,8 @@ export function acquisitionBusyLabel(
 			// to play", which is what they would be told without this - and they
 			// would, for a second time, with their own money.
 			return state.landed
-				? 'Your stake is in. Getting it onto the board...'
-				: 'Finishing a purchase you already paid for...';
+				? 'Stake in. Placing your army...'
+				: 'Finishing your purchase...';
 		default:
 			return undefined;
 	}
@@ -450,7 +452,7 @@ export function acquisitionBusyLabel(
 export function phaseLabelOf(phase: CyclePhase): string {
 	switch (phase) {
 		case 'play':
-			return 'Plan your move';
+			return 'Your move';
 		case 'commit':
 			return 'Committing';
 		case 'reveal':
@@ -470,18 +472,17 @@ export function describeSetup(
 		case 'sign-in':
 			return {
 				headline: 'Sign in to play',
-				detail:
-					'Signing in gives the game a key of its own, so your moves are sent without a wallet prompt every turn.',
+				detail: 'Get a play key so moves need no wallet prompt.',
 			};
 		case 'authorise':
 			return {
-				headline: 'Let this browser play for you',
+				headline: 'Authorise this browser',
 				// Says what it does AND what it does not do, because "authorise" is
 				// the word every drainer uses. What is being granted is narrow and
 				// the contract enforces it: the key can commit and reveal, and it
 				// cannot withdraw the reserve, which only this account can do.
 				detail:
-					'Your moves are signed here by a key this browser made, so no turn needs a wallet prompt. Authorising lets it play as you and pays it some gas. It can never take your stake out, and you can withdraw the permission at any time.',
+					'A key in this browser signs your moves, so no wallet prompts. It can never withdraw your stake, and you can revoke it anytime.',
 				action: 'authorise',
 			};
 		case 'stake':
@@ -523,20 +524,20 @@ export function describeRecovery(
 	// called a submission a round. In a game "lose a turn" is an idiom for
 	// forfeiting your go, so the shorter wording announced exactly the thing the
 	// note above says this must not announce. MISLAID, not forfeited.
-	const headline = `This browser no longer has the turn you committed for cycle ${state.cycleNumber}.`;
+	const headline = `This browser no longer has the turn for cycle ${state.cycleNumber}.`;
 	if (state.step === 'Checking') {
 		return {headline, detail: 'Checking...', busy: true, canRecover: false};
 	}
 
 	const detail =
 		state.step === 'Refused'
-			? 'That is not the deployment that was committed. Try again: nothing is spent, and it can still be revealed until this cycle ends.'
+			? 'Not the committed deployment. Try again: nothing is spent, and it can still be revealed this cycle.'
 			: state.step === 'Failed'
 				? // NOT phrased as a wrong plan. The app could not ask, which is a
 					// different thing, and the remedy is to press again rather than to
 					// go looking for a misremembered turn.
-					`The turn could not be checked: ${state.message}. Nothing is lost yet - try again.`
-				: 'The commitment is still on chain and can still be revealed, but only this cycle. Pick the same spawn point you chose and recover the turn.';
+					`Could not check: ${state.message}. Nothing lost, try again.`
+				: 'It can still be revealed this cycle: pick the same spawn point and recover.';
 
 	return {headline, detail, busy: false, canRecover: plannedCount > 0};
 }
@@ -546,14 +547,14 @@ export function describeSavedTurn(state: SavedTurn): HudModel['savedTurn'] {
 	switch (state.status) {
 		case 'loading':
 			return {
-				headline: 'Loading your saved turn...',
-				detail: 'Planning opens once it is here.',
+				headline: 'Loading your turn...',
+				detail: 'Planning opens when it loads.',
 				tone: 'busy',
 			};
 		case 'error':
 			return {
-				headline: 'Your saved turn could not be loaded.',
-				detail: `${state.error.message}. Play is paused so nothing is planned over it; reload to try again.`,
+				headline: 'Could not load your turn.',
+				detail: `${state.error.message}. Play is paused: reload to retry.`,
 				tone: 'bad',
 			};
 		default:
@@ -580,8 +581,7 @@ export function describeRevealSchedule(
 		return owed && reveal.revealScheduled === false
 			? {
 					step: 'not-scheduled',
-					label:
-						'Not scheduled: keep this page open (or come back during the reveal phase) so this browser can reveal it.',
+					label: 'Not scheduled: keep this page open to reveal.',
 					tone: 'bad',
 				}
 			: undefined;
@@ -593,8 +593,7 @@ export function describeRevealSchedule(
 		case 'scheduled':
 			return {
 				step: 'scheduled',
-				label:
-					'Scheduled: this turn will be revealed for you, even if you close this page.',
+				label: 'Auto-reveal scheduled: safe to close.',
 				tone: 'good',
 			};
 		case 'broadcast':
@@ -602,8 +601,8 @@ export function describeRevealSchedule(
 				step: 'broadcast',
 				label:
 					status.total > 1
-						? `Being revealed for you (${status.sent} of ${status.total} sent)...`
-						: 'Being revealed for you...',
+						? `Revealing for you (${status.sent} of ${status.total})...`
+						: 'Revealing for you...',
 				tone: 'busy',
 			};
 		case 'confirmed':
@@ -611,14 +610,13 @@ export function describeRevealSchedule(
 		case 'failed':
 			return {
 				step: 'failed',
-				label: `The scheduled reveal failed (${status.reason}), so this browser is revealing it.`,
+				label: `Auto-reveal failed (${status.reason}): revealing here.`,
 				tone: 'bad',
 			};
 		case 'unreachable':
 			return {
 				step: 'unreachable',
-				label:
-					'The reveal service cannot be reached from here. If it has not revealed by half the phase, this browser will.',
+				label: 'Reveal service unreachable: this tab takes over at half-phase.',
 				tone: 'busy',
 			};
 	}
@@ -682,16 +680,16 @@ export function describeRevealDeadline(params: {
 	const secondsLeft = Math.max(0, Math.ceil(left));
 	const consequence =
 		spawnPointOf(submission.actions) !== undefined
-			? 'If it has not landed when the phase ends, the deployment is lost and its stake is burned.'
-			: 'If it has not landed when the phase ends, your army freezes for good: it never moves again and its king cannot exit.';
+			? 'Miss it and the stake is burned.'
+			: 'Miss it and your army freezes for good.';
 	const remedy =
 		failed && submission.error instanceof SignerOutOfFundsError
-			? 'The key that sends your reveal has run out of gas: top it up now and the reveal goes out by itself.'
+			? 'Play key out of gas: top up now.'
 			: failed
-				? 'Sending it failed: press Retry reveal to send it again.'
-				: 'Keep this page open while it is sent.';
+				? 'Sending failed: press Retry reveal.'
+				: 'Keep this page open.';
 	return {
-		headline: `Your reveal has not landed: ${secondsLeft}s left.`,
+		headline: `Reveal not landed: ${secondsLeft}s left`,
 		detail: `${remedy} ${consequence}`,
 		secondsLeft,
 	};
@@ -723,12 +721,11 @@ export function describeCountdown(cycle: CycleInfo): HudModel['countdown'] {
 		? cycle.timeLeftForCommitEnd
 		: cycle.timeLeftForRevealEnd;
 	const secondsLeft = Math.max(0, Math.ceil(left));
-	const sooner =
-		cycle.type === 'hybrid' ? ', sooner once every army has acted' : '';
+	const sooner = cycle.type === 'hybrid' ? ' (or sooner)' : '';
 	return {
 		label: cycle.isCommitPhase
-			? `Commitments close in ${formatCountdown(secondsLeft)}${sooner}`
-			: `Reveals must land within ${formatCountdown(secondsLeft)}${sooner}`,
+			? `Commits close in ${formatCountdown(secondsLeft)}${sooner}`
+			: `Reveals close in ${formatCountdown(secondsLeft)}${sooner}`,
 		secondsLeft,
 	};
 }
@@ -745,8 +742,7 @@ const NO_REVEAL_SCHEDULE: Readable<ScheduledReveal | undefined> =
  * hotseat handover's included): the submission takes no plan until it has, so a
  * click on the board then is not planned (`SubmissionStore.ready`).
  */
-export const LOADING_ACCOUNT =
-	"Loading your account's data: a spawn point clicked now is not picked.";
+export const LOADING_ACCOUNT = 'Loading your account...';
 
 /**
  * The registry entry the HUD words an army from. `capturedBy` tells a taken
@@ -770,7 +766,7 @@ export function describeArmy(army: ArmyWords | undefined): HudModel['army'] {
 	switch (army.status) {
 		case ARMY_STATUS.Deploying:
 			return {
-				label: 'Deploying: it stands on the board once this cycle ends.',
+				label: 'Deploying: on the board next cycle.',
 				stakeLabel,
 				tone: 'busy',
 			};
@@ -779,47 +775,44 @@ export function describeArmy(army: ArmyWords | undefined): HudModel['army'] {
 				label: 'On the board.',
 				// The registry's stake is already the total: its own and every
 				// stake it captured, which is what its king would exit with.
-				stakeLabel: `${stakeLabel} in all: its own and every stake it captured, what its king would exit with.`,
+				stakeLabel: `${stakeLabel} (incl. captures)`,
 				tone: 'good',
 			};
 		case ARMY_STATUS.Failed:
 			return {
-				label:
-					'Its deployment failed: another deployment revealed the same spawn point, or its squares were not clear. Its stake is refunded.',
+				label: 'Deployment failed (spawn point taken or blocked). Stake refunded.',
 				stakeLabel,
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Cancelled:
 			return {
-				label: 'Its deployment was cancelled. Its stake is refunded.',
+				label: 'Deployment cancelled. Stake refunded.',
 				stakeLabel,
 				tone: 'idle',
 			};
 		case ARMY_STATUS.Unrevealed:
 			return {
-				label: 'Its deployment was never revealed.',
+				label: 'Deployment never revealed.',
 				stakeLabel,
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Captured:
 			return {
 				label: isStoneArmy(army)
-					? 'Its king was taken by a piece whose own king fell the same cycle: its pieces left the board, and its king is a stone holding its stake, for whoever captures it.'
-					: 'Its king was taken: its pieces left the board, and its stake went to the army that took it.',
+					? 'King taken, but its captor fell too: now a stone holding its stake.'
+					: 'King taken: its stake went to the captor.',
 				stakeLabel,
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Exited:
 			return {
-				label:
-					'Its king left through an exit, with its stake and every stake it captured: its pieces left the board with it.',
+				label: 'King exited with its stake.',
 				stakeLabel,
 				tone: 'good',
 			};
 		case ARMY_STATUS.Frozen:
 			return {
-				label:
-					'It is frozen: a reveal was missed, so it never moves again and its king cannot exit. It stays on the board with its stake, and can still be captured.',
+				label: 'Army frozen (missed reveal). It can still be captured.',
 				stakeLabel,
 				tone: 'bad',
 			};
@@ -843,59 +836,55 @@ export function describeLastDeployment(params: {
 		case ARMY_STATUS.Failed:
 			return {
 				label:
-					'Your last deployment failed: another deployment revealed the same spawn point, or a piece stood on or moved onto its squares. Pick a spawn point to deploy again.',
+					'Last deployment failed (spawn point taken or blocked). Pick a spawn point to deploy again.',
 				stakeLabel:
 					last.stake > 0n
-						? `${STAKE.amount(last.stake)} refund pending: your next deployment or withdrawal collects it.`
-						: 'Its stake was refunded to your reserve.',
+						? `${STAKE.amount(last.stake)} refund pending, collected on your next deployment or withdrawal.`
+						: 'Stake refunded to your reserve.',
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Cancelled:
 			return {
-				label:
-					'Your last deployment was cancelled. Pick a spawn point to deploy again.',
-				stakeLabel: 'Its stake was refunded to your reserve.',
+				label: 'Last deployment cancelled. Pick a spawn point to deploy again.',
+				stakeLabel: 'Stake refunded to your reserve.',
 				tone: 'idle',
 			};
 		case ARMY_STATUS.Unrevealed:
 			return {
-				label:
-					'Your last deployment was never revealed. Pick a spawn point to deploy again.',
+				label: 'Last deployment never revealed. Pick a spawn point to deploy again.',
 				stakeLabel:
 					last.stake > 0n
-						? `Its stake of ${STAKE.amount(last.stake)} is lost: it is burned when the missed reveal is settled.`
-						: 'Its stake was burned.',
+						? `${STAKE.amount(last.stake)} lost: burned when settled.`
+						: 'Stake burned.',
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Captured:
 			return isStoneArmy(last)
 				? {
 						label:
-							'Your king was taken by a piece whose own king fell the same cycle: it is a stone now, and your pieces left the board. Pick a spawn point to deploy again.',
-						stakeLabel: `Its stake of ${STAKE.amount(last.stake)} stays on the board in the stone, for whoever captures it.`,
+							'Your king is a stone now (its captor fell too). Pick a spawn point to deploy again.',
+						stakeLabel: `${STAKE.amount(last.stake)} stays in the stone for whoever captures it.`,
 						tone: 'bad',
 					}
 				: {
-						label:
-							'Your king was taken: your pieces left the board. Pick a spawn point to deploy again.',
+						label: 'Your king was taken. Pick a spawn point to deploy again.',
 						stakeLabel: 'Your stake went to your captor.',
 						tone: 'bad',
 					};
 		case ARMY_STATUS.Exited:
 			return {
-				label:
-					'Your king left through an exit. Pick a spawn point to deploy again.',
+				label: 'Your king exited. Pick a spawn point to deploy again.',
 				stakeLabel:
 					last.stake > 0n
-						? `${STAKE.amount(last.stake)} is waiting to be paid out.`
-						: 'Its stake was paid out.',
+						? `${STAKE.amount(last.stake)} waiting to be paid out.`
+						: 'Stake paid out.',
 				tone: 'good',
 			};
 		case ARMY_STATUS.Frozen:
 			return {
 				label:
-					'Your army is frozen: its reveal was missed, so it never moves again and its king cannot exit. Pick a spawn point to deploy again.',
-				stakeLabel: `Its stake of ${STAKE.amount(last.stake)} stays on the board with it, for whoever captures it.`,
+					'Your army is frozen (missed reveal). Pick a spawn point to deploy again.',
+				stakeLabel: `${STAKE.amount(last.stake)} stays on the board with it.`,
 				tone: 'bad',
 			};
 		default:
@@ -920,8 +909,8 @@ export function describeExitPayout(params: {
 	const valueLabel = chainValueLabel(value, params.symbol);
 	return {
 		army: army.id,
-		headline: 'Your king left through an exit.',
-		detail: `It took ${STAKE.amount(army.stake)} with it, paid out as ${valueLabel} to your account.`,
+		headline: 'Your king exited!',
+		detail: `${STAKE.amount(army.stake)} pays out as ${valueLabel}.`,
 		actionLabel: payout.busy
 			? 'Paying out...'
 			: `Collect ${STAKE.amount(army.stake)} (${valueLabel})`,
@@ -951,12 +940,10 @@ export function describeTableClaim(params: {
 				)})`;
 	return {
 		army: claim.army,
-		headline: claim.winner
-			? 'Your king is the last one standing.'
-			: 'The table has played its last cycle.',
+		headline: claim.winner ? 'Last king standing!' : 'Table over.',
 		detail: claim.winner
-			? 'Every stake at the table is yours, paid out to your account.'
-			: 'The stakes are split by the material each army has left: pawn 1, knight and bishop 3, rook 5, queen 9.',
+			? 'Every stake at the table is yours.'
+			: 'Stakes split by material left: pawn 1, knight/bishop 3, rook 5, queen 9.',
 		actionLabel: payout.busy
 			? 'Paying out...'
 			: valueLabel
@@ -1020,7 +1007,17 @@ export function describeMoving(params: {
 				}
 			: {}),
 		...(refusal !== undefined ? {refusal} : {}),
+		hint: movingHint(moves.length, maxPieceMoves),
 	};
+}
+
+/** What to tap next while moving: a first piece, another, or just commit. */
+function movingHint(planned: number, maxPieceMoves?: number): string {
+	if (planned === 0)
+		return 'Tap a piece, then a square. Red squares may be attacked.';
+	if (maxPieceMoves !== undefined && planned >= maxPieceMoves)
+		return 'Commit when ready. Red squares may be attacked.';
+	return 'Commit when ready, or plan another. Red squares may be attacked.';
 }
 
 /** The last cycle's captures and collisions, when it had any. */
@@ -1188,7 +1185,7 @@ export function createHud(context: Context): Readable<HudModel> {
 				// backend-free. The knob is TARGET_STEP, which is code, not env.
 				walletSigningNotice: context.hasLocalSigner
 					? undefined
-					: "This build does not sign in, so there is no local signing key and every commit and reveal needs a wallet signature. Set TARGET_STEP to 'SignedIn' in core/connection/mode.ts to play with one.",
+					: "No local signing key: every move needs a wallet signature. Set TARGET_STEP to 'SignedIn' in core/connection/mode.ts.",
 
 				plannedCount: $count,
 				costLabel: STAKE.amount($cost),
@@ -1282,7 +1279,7 @@ export function createHud(context: Context): Readable<HudModel> {
 					$submission.error instanceof SignerOutOfFundsError
 						? {
 								detail:
-									'Moves are signed by a key held for you, and it has run out of gas. Top it up and this turn carries on by itself.',
+									'Your play key is out of gas. Top up and this turn carries on.',
 							}
 						: undefined,
 			};

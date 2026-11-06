@@ -117,7 +117,7 @@ export function lookAround(square: bigint): Rect {
  */
 export const CHESS_LEVELS: readonly AiLevel[] = [
 	{id: GREEDY_LEVEL, label: 'Greedy'},
-	{id: RANDOM_LEVEL, label: 'Deploys and passes'},
+	{id: RANDOM_LEVEL, label: 'Passive'},
 ];
 
 export function createChessStrategy(params: {

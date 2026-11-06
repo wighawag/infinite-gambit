@@ -76,7 +76,7 @@ describe('Playing offline', () => {
 		// into a world by provisioning, so how many seats there are has to be
 		// settled before a chain exists - which is why this press is not a gate in
 		// front of the game but the one decision the game needs.
-		await expect(page.getByText('How many at the table?')).toBeVisible({
+		await expect(page.getByText('Play offline')).toBeVisible({
 			timeout: 60_000,
 		});
 		await page.getByTestId('sit-down').click();
@@ -85,9 +85,9 @@ describe('Playing offline', () => {
 		// and the connection have all happened. It is now this surface's own CHROME
 		// rather than the route's first element, which changes where it comes from
 		// and not what it means.
-		await expect(
-			page.getByText('Everything below runs against a chain inside this tab'),
-		).toBeVisible({timeout: 120_000});
+		await expect(page.getByText('Runs on a chain inside this tab')).toBeVisible(
+			{timeout: 120_000},
+		);
 
 		// THE APP'S CHROME IS NOT HERE, AND THAT IS THE POINT OF THE SURFACE.
 		//
@@ -160,14 +160,12 @@ describe('Playing offline', () => {
 		// and meeting it for the first time there, unexplained, in front of a board
 		// they have already decided to play, is the experience this sentence exists
 		// to prevent.
-		await expect(
-			page.getByText('one transaction you sign and pay for'),
-		).toBeVisible();
+		await expect(page.getByText('one transaction, once')).toBeVisible();
 
 		// The membership this world was provisioned with, on screen, because it
 		// cannot be changed without starting a new one. In this world's own navbar
 		// now, next to the way out, which is the press that changes it.
-		await expect(page.getByText('3 seats at this table')).toBeVisible();
+		await expect(page.getByText('3 seats')).toBeVisible();
 		await expect(page.getByTestId('leave-the-table')).toBeVisible();
 
 		// A manual cycle starts at 2 and moves for no reason except a transaction:

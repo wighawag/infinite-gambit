@@ -51,7 +51,7 @@
 							size="sm"
 							variant="outline"
 							data-testid="leave-the-failed-table"
-							onclick={onLeave}>Leave this table</Button
+							onclick={onLeave}>Leave table</Button
 						>
 					{/if}
 				</div>

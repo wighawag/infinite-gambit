@@ -140,7 +140,7 @@ describe('Hotseat in the offline world', () => {
 		test.setTimeout(8 * 60_000);
 		await page.goto('/offline/');
 
-		await expect(page.getByText('How many at the table?')).toBeVisible({
+		await expect(page.getByText('Play offline')).toBeVisible({
 			timeout: 60_000,
 		});
 		await page.getByTestId('seats-3').click();

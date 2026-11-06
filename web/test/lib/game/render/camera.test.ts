@@ -24,6 +24,24 @@ describe('createCamera', () => {
 		expect(cameraControl.current.transform.scale).toBe(25);
 	});
 
+	it('opens a narrow surface at least as zoomed in as its floor', () => {
+		const narrow = {
+			...config,
+			initialVisible: {width: 72, height: 72},
+			initialNarrow: {maxWidth: 640, minScale: 20},
+			limits: {minWidth: 10, minHeight: 10, maxWidth: 200, maxHeight: 200},
+		};
+		const phone = createCamera(narrow).cameraControl;
+		phone.resize(390, 700);
+		// Fitting 72 units into 390px would be ~5.4px a unit.
+		expect(phone.current.transform.scale).toBe(20);
+
+		const desktop = createCamera(narrow).cameraControl;
+		desktop.resize(1280, 720);
+		// Wide enough: the ordinary fit, 72 units into 720px of height.
+		expect(desktop.current.transform.scale).toBe(10);
+	});
+
 	it('does not re-fit on later resizes', () => {
 		const {cameraControl} = createCamera(config);
 		cameraControl.resize(800, 600);

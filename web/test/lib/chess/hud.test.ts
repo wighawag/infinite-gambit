@@ -27,7 +27,7 @@ describe('the HUD', () => {
 		);
 		const captured = describeArmy({status: ARMY_STATUS.Captured, stake: 0n});
 		expect(captured?.tone).toBe('bad');
-		expect(captured?.label).toContain('king was taken');
+		expect(captured?.label).toContain('King taken');
 	});
 
 	it('says nothing of rocks or merges, and shows the total an army holds, the stakes it captured included', () => {
@@ -49,9 +49,9 @@ describe('the HUD', () => {
 			stake: 30n * 10n ** 18n,
 		});
 		expect(deployed?.stakeLabel).toContain('30');
-		expect(deployed?.stakeLabel).toContain('every stake it captured');
+		expect(deployed?.stakeLabel).toContain('incl. captures');
 		const exited = describeArmy({status: ARMY_STATUS.Exited, stake: 0n});
-		expect(exited?.label).toContain('its pieces left the board');
+		expect(exited?.label).toContain('King exited');
 	});
 
 	it('tells the player their king is a stone holding their stake, while nobody has captured it', () => {
@@ -141,14 +141,14 @@ describe('the HUD', () => {
 		expect(describeDeployment({needsDeployment: false, view})).toBeUndefined();
 	});
 
-	it('names a committed deployment for what it is', () => {
+	it('says a picked turn has not been sent yet', () => {
 		expect(
 			describeSubmission({
 				step: 'Planning',
 				cycleNumber: 3,
 				actions: [{from: 0n, to: 0n}],
 			} as never).label,
-		).toBe('Deployment picked, not yet committed');
+		).toBe('Picked, not sent');
 	});
 
 	it('says a frozen army stays on the board with its stake, and that the player deploys again', () => {

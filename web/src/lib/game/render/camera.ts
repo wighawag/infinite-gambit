@@ -52,6 +52,14 @@ export type CameraConfig = {
 	 * surface once it reports a size, then clamped by `limits`.
 	 */
 	initialVisible: {width: number; height: number};
+	/**
+	 * A floor on the first frame's zoom for a NARROW surface (a phone), in CSS
+	 * pixels per game unit. Fitting `initialVisible` into a phone's width makes
+	 * every unit a few pixels wide, far too small to tap, so a surface narrower
+	 * than `maxWidth` opens at least `minScale` zoomed in. Wider surfaces fit
+	 * `initialVisible` as before. Still clamped by `limits`.
+	 */
+	initialNarrow?: {maxWidth: number; minScale: number};
 	limits: ZoomLimits;
 	/** Where to look on the first frame, in game units. Defaults to the origin. */
 	initialCenter?: Point;
@@ -90,7 +98,7 @@ export function createCamera(config: CameraConfig): {
 	camera: CameraWatcher;
 	cameraControl: CameraControl;
 } {
-	const {initialVisible, limits} = config;
+	const {initialVisible, initialNarrow, limits} = config;
 
 	let screen: ScreenSize = {width: 0, height: 0};
 	let $transform: ViewTransform = {
@@ -149,10 +157,17 @@ export function createCamera(config: CameraConfig): {
 
 			if (needsInitialFit && width > 0 && height > 0) {
 				needsInitialFit = false;
+				const fit = fitScale(
+					screen,
+					initialVisible.width,
+					initialVisible.height,
+				);
+				const narrow =
+					initialNarrow !== undefined && width < initialNarrow.maxWidth;
 				publish({
 					...$transform,
 					scale: clampScale(
-						fitScale(screen, initialVisible.width, initialVisible.height),
+						narrow ? Math.max(fit, initialNarrow.minScale) : fit,
 						screen,
 						limits,
 					),
