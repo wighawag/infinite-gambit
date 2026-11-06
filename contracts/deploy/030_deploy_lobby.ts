@@ -47,6 +47,7 @@ export default deployScript(
 			{account: deployer},
 			[
 				{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
+				{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 				{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 				{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 				{

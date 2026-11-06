@@ -51,6 +51,16 @@ abstract contract UsingGameStore is
         uint64 kingFrom;
         /// @notice whether its deployment was cancelled in its commit phase
         bool cancelled;
+        // ---- third slot: whose army it merged into
+        /// @notice the army that took its king, once a later reveal has folded
+        ///         the square it was taken on; zero until then, and for an army
+        ///         whose king was never taken
+        /// @dev A CACHE OF A CLOSED CYCLE'S FACTS, written by `_touch` just
+        ///      before it overwrites them (`UsingGameBoard-_captureOf`). It is
+        ///      only ever written in a cycle after the capture, so it holds for
+        ///      every cycle anybody can still read, which is why the capture's
+        ///      cycle is not kept beside it.
+        uint256 capturedInto;
     }
 
     /// @notice What the reveals have recorded about one square.
@@ -64,8 +74,12 @@ abstract contract UsingGameStore is
     ///      cost nothing. A square no reveal ever touched has no record and
     ///      reads as the layout of the army deployed over it, if any.
     ///
-    ///      Three slots: the standing piece's army, everything small, and the
-    ///      arriver's army.
+    ///      Four slots: the standing piece's army, everything small, the
+    ///      arriver's army and the arriving king's army. The ARRIVER is the
+    ///      first piece other than a king to arrive, and the KING is kept apart
+    ///      from it, because the king rows of the collision table need both:
+    ///      who the king met when it met exactly one piece
+    ///      (`docs/adr/0003-collision-table-king-survives-a-crowd.md`).
     struct SquareRecord {
         uint256 army;
         uint64 cycle;
@@ -77,7 +91,9 @@ abstract contract UsingGameStore is
         bool kingArrived;
         PieceKind arriverKind;
         Direction arriverForward;
+        Direction kingForward;
         uint256 arriverArmy;
+        uint256 kingArmy;
     }
 
     /// @notice What the deployments revealed onto one spawn point add up to.
@@ -113,6 +129,15 @@ abstract contract UsingGameStore is
     uint256[] internal _armyIds;
     /// @notice How many armies each account has created; its next is one more.
     mapping(address owner => uint256 count) internal _armyCountOf;
+
+    /// @notice THE KINGS EACH ARMY MAY HAVE TAKEN, for its stake.
+    /// @dev A SUPERSET, written at reveal time by the reveal that could make
+    ///      the capture (see `UsingGameBoard-_noteCandidate`), and filtered when
+    ///      read: an entry counts only if the army it names really did merge
+    ///      into this one (`UsingGameBoard-_captureOf`). The ORDER of the
+    ///      entries can differ with the order of the reveals, and an army can be
+    ///      listed more than once; what they add up to cannot differ.
+    mapping(uint256 army => uint256[] victims) internal _capturesBy;
 
     /// @notice Deployments, by the spiral index of their spawn point.
     mapping(uint256 index => SpawnRecord) internal _spawns;

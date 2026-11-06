@@ -95,7 +95,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             kingMovedIn: 0,
             kingTo: 0,
             kingFrom: 0,
-            cancelled: false
+            cancelled: false,
+            capturedInto: 0
         });
         _armyIds.push(army);
         // Only a cycle that advances reads who it waits for, so only there is
@@ -145,14 +146,19 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     /// @notice THE ONE "DEAD" PREDICATE: whether `id` is an army that can never
     ///         act again, so that no cycle should wait for it.
     /// @dev Today: a deployment that failed, was cancelled, or was never
-    ///      revealed. Later rules extend it (a captured king, an exit, a
-    ///      freeze). An account is never dead by it: only armies can be.
+    ///      revealed, and an army whose king was taken, whose pieces its captor
+    ///      now moves with the captor's own one move per cycle. Later rules
+    ///      extend it (an exit, a freeze). An account is never dead by it: only
+    ///      armies can be.
     function _isDead(
         uint256 id,
         uint64 cycleNumber
     ) internal view returns (bool) {
         if (!_isArmyId(id)) return false;
         ArmyStatus status = _deploymentStatus(id, cycleNumber);
+        if (status == ArmyStatus.Deployed) {
+            return _armyOf(id, cycleNumber) != id;
+        }
         return
             status == ArmyStatus.Failed ||
             status == ArmyStatus.Cancelled ||
@@ -495,15 +501,26 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         view_.owner = army.owner;
         view_.deployedIn = army.deployCycle;
         view_.stake = _reserveOf(id);
+        view_.mergedInto = id;
         view_.status = _deploymentStatus(id, cycleNumber);
         if (army.spawnIndexPlusOne == 0) return view_;
         view_.spawnPoint = ChessRules.spawnPointAt(
             army.spawnIndexPlusOne - 1,
             SPAWN_SPACING
         );
-        if (view_.status == ArmyStatus.Deployed) {
-            view_.king = _kingAt(id, view_.spawnPoint, cycleNumber);
+        if (view_.status != ArmyStatus.Deployed) return view_;
+        // RESOLVED THROUGH THE MERGES, like its pieces: who plays it, and
+        // what it holds, whichever squares have been read or folded yet.
+        uint256 into = _armyOf(id, cycleNumber);
+        if (into != id) {
+            view_.status = ArmyStatus.Captured;
+            view_.mergedInto = into;
+            view_.owner = _armies[into].owner;
+            view_.stake = 0;
+            return view_;
         }
+        view_.stake = _stakeOf(id, cycleNumber);
+        view_.king = _kingAt(id, view_.spawnPoint, cycleNumber);
     }
 
     /// @notice Every piece on the squares from (`minX`,`minY`) to
@@ -541,7 +558,10 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
                 pieces,
                 n,
                 rect,
-                ChessRules.layout(spawnPoints[k], armies[k])
+                ChessRules.layout(
+                    spawnPoints[k],
+                    _armyOf(armies[k], cycleNumber)
+                )
             );
         }
         for (uint256 k = 0; k < touched.length; k++) {
@@ -586,8 +606,10 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             (Piece memory captured, uint256 died) = ChessRules.outcome(
                 standing,
                 record.departed,
-                record.arrivals
+                record.arrivals,
+                record.kingArrived
             );
+            captured.army = _armyOf(captured.army, cycleNumber);
             if (died == 0 && captured.kind == PieceKind.None) continue;
             outcomes[n++] = SquareOutcome({
                 position: touched[k],

@@ -306,6 +306,7 @@ export async function deployGameWith(
 
 	const routes = [
 		{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
+		{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 		{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 		{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 		{name: 'Simulation', artifact: artifacts.GameSimulation, args: [config]},
