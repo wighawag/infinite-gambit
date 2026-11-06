@@ -85,6 +85,9 @@ export function tableWorld(params: {
 					],
 				},
 			] as never,
+			// As the deploy scripts: the router that routes past 48 selectors
+			// (src/vendor/router/Router10X60.sol).
+			{routerContract: {type: 'custom', artifact: artifacts.Router10X60}},
 		);
 		const Factory = await f.env.deploy('TestTableFactory', {
 			account: f.env.namedAccounts.deployer,
