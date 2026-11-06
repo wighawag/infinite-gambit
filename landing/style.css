@@ -8,7 +8,8 @@
 :root {
 	--night: #16110d;
 	--walnut: #2a1d14;
-	--maple: #e9d6b4;
+	--maple: #e2cba0;
+	--rosewood: #7a4a2c;
 	--maple-dark: #b98a5a;
 	--ink: #f6efe4;
 	--muted: #b8a993;
@@ -58,45 +59,33 @@ a {
 
 .board {
 	position: absolute;
-	inset: -2px;
-	background:
-		conic-gradient(var(--maple-dark) 25%, transparent 0 50%, var(--maple-dark) 0 75%, transparent 0) calc(50% + var(--sq) / 2) calc(82% + var(--sq) / 2) / calc(var(--sq) * 2) calc(var(--sq) * 2),
-		var(--walnut);
-	opacity: 0.22;
-	-webkit-mask: radial-gradient(ellipse 75% 70% at 50% 82%, #000 15%, transparent 75%);
-	mask: radial-gradient(ellipse 75% 70% at 50% 82%, #000 15%, transparent 75%);
-	animation: drift 60s linear infinite;
-}
-
-@keyframes drift {
-	to {
-		background-position:
-			calc(50% + var(--sq) * 2.5) calc(82% + var(--sq) * 2.5),
-			0 0;
-	}
+	left: 0;
+	right: 0;
+	top: 38%;
+	height: 90%;
+	/* Conic quarters clockwise from 12 o'clock: the tile centre is a corner where
+	   four squares meet, top-right and bottom-left maple. */
+	background: conic-gradient(var(--maple) 25%, var(--rosewood) 0 50%, var(--maple) 0 75%, var(--rosewood) 0) 50% 50% / calc(var(--sq) * 2) calc(var(--sq) * 2);
+	opacity: 0.2;
+	-webkit-mask: radial-gradient(ellipse 60% 55% at 50% 50%, #000 15%, transparent 75%);
+	mask: radial-gradient(ellipse 60% 55% at 50% 50%, #000 15%, transparent 75%);
 }
 
 .inlay {
 	position: absolute;
 	left: 50%;
-	top: 82%;
+	top: 50%;
 	width: calc(var(--sq) * 2);
 	height: calc(var(--sq) * 2);
 	transform: translate(-50%, -50%);
-	display: grid;
-	place-items: center;
 }
 
-.inlay svg {
-	height: 80%;
-	fill: var(--gold);
-	opacity: 0.55;
+.inlay .maple {
+	fill: var(--maple);
 }
 
-@media (prefers-reduced-motion: reduce) {
-	.board {
-		animation: none;
-	}
+.inlay .rosewood {
+	fill: var(--rosewood);
 }
 
 .top {
@@ -250,7 +239,7 @@ main h2 {
 }
 
 .sq-d {
-	fill: var(--maple-dark);
+	fill: var(--rosewood);
 }
 
 .mini .p {

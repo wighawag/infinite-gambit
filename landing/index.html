@@ -18,9 +18,14 @@
 	<body>
 		<header class="hero">
 			<div class="board" aria-hidden="true">
-				<div class="inlay">
-					<svg viewBox="96 0 64 96"><path d="M128 4 L155 48 L128 63 L101 48 Z" /><path d="M101 55 L128 70 L155 55 L128 92 Z" /></svg>
-				</div>
+				<!-- The Devcon inlay: the Ethereum logo on its side across the four squares meeting at the
+				     board's centre, maple where it crosses rosewood and rosewood where it crosses maple. -->
+				<svg class="inlay" viewBox="-1 -1 2 2">
+					<clipPath id="onMaple"><rect x="0" y="-1" width="1" height="1" /><rect x="-1" y="0" width="1" height="1" /></clipPath>
+					<clipPath id="onRosewood"><rect x="-1" y="-1" width="1" height="1" /><rect x="0" y="0" width="1" height="1" /></clipPath>
+					<g clip-path="url(#onMaple)" class="rosewood"><g transform="rotate(90) scale(0.0205) translate(-128 -48)"><path d="M128 4 L155 48 L128 63 L101 48 Z" /><path d="M101 55 L128 70 L155 55 L128 92 Z" /></g></g>
+					<g clip-path="url(#onRosewood)" class="maple"><g transform="rotate(90) scale(0.0205) translate(-128 -48)"><path d="M128 4 L155 48 L128 63 L101 48 Z" /><path d="M101 55 L128 70 L155 55 L128 92 Z" /></g></g>
+				</svg>
 			</div>
 			<nav class="top">
 				<img src="brand/lockup-light.svg" alt="Infinite Gambit" class="lockup" />

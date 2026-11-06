@@ -20,7 +20,9 @@ TOPS = {
     'knight': ('<path fill-rule="evenodd" d="M168 152 C 174 116 168 80 150 58 L 154 34 L 140 50 '
                'L 132 46 L 98 6 L 116 56 C 100 66 84 84 70 104 C 64 114 66 126 76 130 '
                'C 86 134 96 128 104 120 L 112 116 C 104 128 96 140 90 152 Z '
-               'M126 74 a6 6 0 1 0 0.1 0 Z"/>'),
+               'M126 74 a6 6 0 1 0 0.1 0 Z '
+               'M150 72 C 158 92 160 116 156 140 L 152 140 C 155 116 153 94 146 76 Z '
+               'M138 86 C 146 104 148 124 144 146 L 140 146 C 143 124 141 106 134 90 Z"/>'),
     'pawn': '<circle cx="128" cy="112" r="30"/><path d="M104 136 L152 136 L160 152 L96 152 Z"/>',
 }
 def piece(kind):
@@ -38,7 +40,7 @@ if __name__ == '__main__':
 
     # ---- mock scene: 12 x 7 squares around the origin -------------------------
     S = 80; COLS, ROWS = 12, 7; W, H = COLS * S, ROWS * S
-    LIGHT, DARK = '#e9d6b4', '#b98a5a'
+    LIGHT, DARK = '#e2cba0', '#7a4a2c'  # maple and rosewood, sampled from the Devcon board
     # origin corner (where four squares meet) at column 6, row 4 boundary
     OX, OY = 6 * S, 4 * S
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
@@ -53,18 +55,35 @@ if __name__ == '__main__':
         for c in range(COLS):
             out.append(f'<rect x="{c*S}" y="{r*S}" width="{S}" height="{S}" fill="{LIGHT if (r+c)%2==0 else DARK}"/>')
     out.append(f'<rect width="{W}" height="{H}" filter="url(#grain)"/>')
-    # Ethereum inlay across the four centre squares, as on the Devcon board
-    out.append(f'<g transform="translate({OX} {OY}) scale(1.35) translate(-128 -48)" fill="#6b4a2e" opacity="0.55">'
-               '<path d="M128 4 L155 48 L128 63 L101 48 Z"/><path d="M101 55 L128 70 L155 55 L128 92 Z"/></g>')
-    YOU, THEM = '#ffd166', '#8fb8ff'
+    # The Devcon inlay: the Ethereum logo lying on its side across the four
+    # centre squares, in INVERTED marquetry: maple where it crosses rosewood,
+    # rosewood where it crosses maple. Drawn twice, each copy clipped to one
+    # colour of square around the origin corner.
+    LOGO = ('<path d="M128 4 L155 48 L128 63 L101 48 Z"/><path d="M128 4 L128 63 L101 48 Z" opacity="0.82"/>'
+            '<path d="M101 55 L128 70 L155 55 L128 92 Z"/><path d="M101 55 L128 70 L128 92 Z" opacity="0.82"/>')
+    place = f'translate({OX} {OY}) rotate(90) scale(1.7) translate(-128 -48)'
+    tl, tr = (OX - S, OY - S), (OX, OY - S)
+    bl, br = (OX - S, OY), (OX, OY)
+    def sq(p): return f'<rect x="{p[0]}" y="{p[1]}" width="{S}" height="{S}"/>'
+    # which of the four are light: (r+c) even, with c = x/S, r = y/S
+    def light(p): return ((p[0] // S) + (p[1] // S)) % 2 == 0
+    four = [tl, tr, bl, br]
+    out.append('<clipPath id="onLight">' + ''.join(sq(p) for p in four if light(p)) + '</clipPath>')
+    out.append('<clipPath id="onDark">' + ''.join(sq(p) for p in four if not light(p)) + '</clipPath>')
+    out.append(f'<g clip-path="url(#onLight)"><g transform="{place}" fill="{DARK}">{LOGO}</g></g>')
+    out.append(f'<g clip-path="url(#onDark)"><g transform="{place}" fill="{LIGHT}">{LOGO}</g></g>')
+    YOU, THEM = '#ffd166', '#8fb8ff'  # army colours, shown on the base rim
+    BOXWOOD, SHEESHAM = '#ecd8a4', '#5a2f1c'
     def put(kind, c, r, col, mine=False):
         x, y = c * S, r * S
         k = (S - 12) / 256
         ring = (f'<ellipse cx="{x+S/2}" cy="{y+S-10}" rx="{S*0.38}" ry="{S*0.12}" fill="{col}" opacity="0.95" stroke="#2a1d14" stroke-width="2"/>')
         prism_fill = '#f4f7ff'  # crystal on every army, so it never melts into a gold body
         body = piece(kind).replace('<g class="prism">', f'<g fill="{prism_fill}">')
-        return (ring + f'<g filter="url(#shadow)" transform="translate({x+6} {y+2}) scale({k})" fill="{col}" '
-                f'stroke="#2a1d14" stroke-width="12" stroke-linejoin="round" paint-order="stroke">{body}</g>')
+        wood = BOXWOOD if mine else SHEESHAM
+        edge = '#3a2414' if mine else '#1a0e08'
+        return (ring + f'<g filter="url(#shadow)" transform="translate({x+6} {y+2}) scale({k})" fill="{wood}" '
+                f'stroke="{edge}" stroke-width="10" stroke-linejoin="round" paint-order="stroke">{body}</g>')
     # your army (gold) bottom left, theirs (blue) top right; a few attacked squares
     for c, r in [(6, 2), (7, 3)]:
         out.append(f'<rect x="{c*S+4}" y="{r*S+4}" width="{S-8}" height="{S-8}" rx="8" fill="none" stroke="#c0392b" stroke-width="4" stroke-dasharray="10 8" opacity="0.8"/>')

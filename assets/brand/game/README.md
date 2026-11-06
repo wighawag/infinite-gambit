@@ -4,13 +4,19 @@
 
 ![mock](scene.png)
 
-The mock is built from the real piece set below (`./build.sh` regenerates it). It shows your army in gold (bottom left), another army in blue (top right), a planned queen move, two attacked squares, and the Ethereum inlay at the centre of the world.
+The mock is built from the real piece set below (`./build.sh` regenerates it). It shows your army in boxwood with gold rims (bottom left), another army in sheesham with blue rims (top right), a planned queen move, two attacked squares, and the Ethereum inlay at the centre of the world.
 
 ![pieces](pieces.png)
 
 ## Where it comes from
 
-The Devcon swag board: wood, knights that are unicorns, a king with the Ethereum prism on its head, and the Ethereum logo inlaid across the four centre squares. The pieces share the logo's construction (one base, stem and collar for the whole set, only the top changes), so the game and the brand read as one thing.
+The Devcon swag board (photographed at the event):
+
+- **Woods.** Maple light squares and reddish rosewood dark squares, in a darker rosewood frame with a thin maple stripe. The pieces are turned Staunton shapes in pale boxwood against dark sheesham.
+- **Unicorn knights**, with a carved mane. The king has a pointed, faceted finial: the prism.
+- **The inlay is the Ethereum logo lying on its side** (large facet pointing right, chevron pointing left) across the four centre squares, in **inverted marquetry**: maple where it crosses a rosewood square, rosewood where it crosses a maple one.
+
+The mock uses colours sampled from those photos. The pieces share the logo's construction (one base, stem and collar for the whole set, only the top changes), so the game and the brand read as one thing.
 
 ## Today
 
@@ -18,10 +24,10 @@ The Devcon swag board: wood, knights that are unicorns, a king with the Ethereum
 
 ## Proposed changes, in order of value per hour
 
-1. **The piece set** (about 2 hours). Replace `glyphOf` with the paths in `pieces.py` (also exported as `pieces/*.svg` and the `pieces.svg` sprite). Canvas 2D takes SVG path strings directly through `new Path2D(d)`, so there's no image loading. Draw each piece with the army colour as fill and a dark walnut outline (`#2a1d14`, `paint-order: stroke` equivalent: stroke first, then fill), and cache one bitmap per (kind, colour, zoom bucket) in an `OffscreenCanvas` so a crowded viewport costs one `drawImage` per piece. Keep the glyph as the fallback below `MIN_GLYPH_SCALE`, where a dot is enough anyway.
-2. **A wooden board** (about 1 hour). Maple `#e9d6b4` and walnut-brown `#b98a5a` squares instead of the 5% white grid, with a faint grain pattern (`createPattern` from a small noise tile) and a vignette at the screen edges. Highlights stay as they are, but the planned-move green and the collision red need checking for contrast on maple.
-3. **The Ethereum inlay at the centre of the world** (about 30 minutes). Squares are centred on integer coordinates, so the four squares (-1,-1), (0,-1), (-1,0) and (0,0) meet at the point (-0.5,-0.5). Draw the prism there in a darker wood tone, under the pieces, exactly like the Devcon board. On an infinite board it gives everyone a landmark, and the minimap can show it too.
-4. **Army colour on the base** (30 minutes). A coloured ellipse under each piece (in the mock) makes armies readable even when two hues are close, and lets the piece body stay light when a future theme wants it.
+1. **The piece set** (about 2 hours). Replace `glyphOf` with the paths in `pieces.py` (also exported as `pieces/*.svg` and the `pieces.svg` sprite). Canvas 2D takes SVG path strings directly through `new Path2D(d)`, so there's no image loading. Draw each piece in its wood (see 4) with a dark outline (stroke first, then fill), and cache one bitmap per (kind, colour, zoom bucket) in an `OffscreenCanvas` so a crowded viewport costs one `drawImage` per piece. Keep the glyph as the fallback below `MIN_GLYPH_SCALE`, where a dot is enough anyway.
+2. **A wooden board** (about 1 hour). Maple `#e2cba0` and rosewood `#7a4a2c` squares instead of the 5% white grid, with a faint grain pattern (`createPattern` from a small noise tile) and a vignette at the screen edges. Highlights stay as they are, but the planned-move green and the collision red need checking for contrast on maple.
+3. **The Ethereum inlay at the centre of the world** (about 30 minutes). Squares are centred on integer coordinates, so the four squares (-1,-1), (0,-1), (-1,0) and (0,0) meet at the point (-0.5,-0.5). Draw the logo there on its side, under the pieces, twice: once in maple clipped to the two rosewood squares and once in rosewood clipped to the two maple squares. That's the inverted marquetry of the Devcon board, and `pieces.py` does exactly this for the mock. On an infinite board it gives everyone a landmark, and the minimap can show it too.
+4. **Boxwood for you, sheesham for everyone else, army colour on the rim** (30 minutes). The question a player asks most is "is that mine?", and two woods answer it at a glance, exactly as on the real board. Which other army a piece belongs to is then a coloured ellipse under its base, which stays readable even when two army hues are close.
 5. **Kings that show their stake** (1 to 2 hours). The prism is crystal white on every king. Scale its size, or add a glow, with the stake the king holds (`_stakeOf`, which grows with every merge). A rich empire is then visible at a glance as a target. That's gameplay information, not decoration.
 6. **States that read as states** (1 to 2 hours).
    - *Committed*: a small wax seal with a `#` on the king of an army that has committed this cycle. It shows that a move exists without showing what it is.

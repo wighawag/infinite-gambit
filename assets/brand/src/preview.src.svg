@@ -17,11 +17,12 @@
   <rect width="1280" height="640" fill="#16110d"/>
   <rect width="1280" height="640" fill="url(#checker)" opacity="0.045" mask="url(#fadeMask)"/>
   <rect width="1280" height="640" fill="url(#glow)"/>
-  <!-- the Devcon board's centre: an Ethereum inlay across the four squares that meet at a corner -->
-  <g opacity="0.07" fill="#f6efe4" transform="translate(1080 480) scale(1.1) translate(-128 -48)">
-    <path d="M128 4 L155 48 L128 63 L101 48 Z"/>
-    <path d="M101 55 L128 70 L155 55 L128 92 Z"/>
-  </g>
+  <!-- the Devcon board's centre: the Ethereum logo lying on its side across the four squares that
+       meet at (1080, 480), in inverted marquetry (cream on the dark squares, night on the lit ones) -->
+  <clipPath id="onDark"><rect x="1000" y="400" width="80" height="80"/><rect x="1080" y="480" width="80" height="80"/></clipPath>
+  <clipPath id="onLit"><rect x="1080" y="400" width="80" height="80"/><rect x="1000" y="480" width="80" height="80"/></clipPath>
+  <g clip-path="url(#onDark)" opacity="0.075" fill="#f6efe4"><g transform="translate(1080 480) rotate(90) scale(1.7) translate(-128 -48)"><path d="M128 4 L155 48 L128 63 L101 48 Z"/><path d="M101 55 L128 70 L155 55 L128 92 Z"/></g></g>
+  <g clip-path="url(#onLit)" fill="#16110d"><g transform="translate(1080 480) rotate(90) scale(1.7) translate(-128 -48)"><path d="M128 4 L155 48 L128 63 L101 48 Z"/><path d="M101 55 L128 70 L155 55 L128 92 Z"/></g></g>
   <!-- mark: the geometry of logo.svg, scale 1.3 -->
   <g transform="translate(131.4 156.2) scale(1.3)">
     <g id="prism" fill="#f5b83d">
