@@ -209,5 +209,17 @@ if __name__ == '__main__':
         f'<g transform="translate(0 10)">{row("boxwood", 0)}</g><g transform="translate(0 280)">{row("sheesham", 0)}</g></svg>\n')
 
     open('scene.svg', 'w').write(scene('both'))
+
+    # The data a renderer needs, for the pixi spike (spikes/pixi-wood-board) and
+    # later the game: per kind, the parts back to front with their role.
+    import json
+    json.dump({
+        'viewBox': 256,
+        'finialTransform': FINIAL,
+        'parts': {k: [[r, d] for r, d in parts(k)] for k in TOPS},
+        'woods': {k: {'light': a, 'dark': b, 'edge': e} for k, (a, b, e) in WOODS.items()},
+        'inlay': INLAY,
+        'board': {'light': LIGHT, 'dark': DARK},
+    }, open('pieces.json', 'w'), indent=1)
     for m in ('band', 'both'):
         open(f'/tmp/markers-{m}.svg', 'w').write(scene(m))

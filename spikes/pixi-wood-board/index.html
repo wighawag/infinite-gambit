@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Spike: wooden board on pixi</title>
+		<style>
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				background: #16110d;
+				overflow: hidden;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: 100%;
+				touch-action: none;
+			}
+			#hud {
+				position: fixed;
+				left: 12px;
+				bottom: 10px;
+				color: #e2cba0;
+				font: 13px system-ui, sans-serif;
+				opacity: 0.8;
+				pointer-events: none;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="board"></canvas>
+		<div id="hud">drag to pan, wheel or pinch to zoom, <b>0</b> to return to the inlay</div>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>
