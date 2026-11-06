@@ -470,10 +470,12 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         // against the start-of-cycle board, so an account seated at a table,
         // which has no pieces, can only ever pass.
         // The cap and both refusals are {ChessRules-vacatedBy}, which the
-        // simulation route asks too.
+        // simulation route asks too. The cap is the table's choice, one bit
+        // of its options ({ChessRules-maxPieceMovesOf}, which never refuses:
+        // an unreadable table was refused at the seat).
         (bool oneMove, uint64[] memory vacated) = ChessRules.vacatedBy(
             moves,
-            ChessRules.MAX_PIECE_MOVES
+            ChessRules.maxPieceMovesOf(_gameOptions())
         );
         if (!oneMove || furtherActions != bytes24(0)) revert OneMovePerCycle();
         // SIMULTANEOUS: every piece-move is judged on the start-of-cycle board

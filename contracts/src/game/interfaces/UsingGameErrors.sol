@@ -33,6 +33,10 @@ interface UsingGameErrors is UsingCommitRevealErrors {
     /// @notice The exited army's stake was already paid.
     error AlreadyPaid(uint256 army);
 
+    /// @notice The table was created with `gameOptions` this game cannot read
+    ///         (a bit set other than `ChessRules.ONE_PIECE_MOVE`), so nobody
+    ///         may take a seat at it.
+    error UnreadableGameOptions(bytes32 gameOptions);
     /// @notice A table's seat is bought with exactly one stake.
     error WrongStake(uint256 amount, uint256 stake);
     /// @notice Only the account that owns an army may take its stake back.

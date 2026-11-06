@@ -60,6 +60,11 @@ contract GameGetters is IGameGetters, UsingGameInternal {
     }
 
     /// @inheritdoc IGameGetters
+    function getMaxPieceMoves() external view returns (uint256) {
+        return ChessRules.maxPieceMovesOf(_gameOptions());
+    }
+
+    /// @inheritdoc IGameGetters
     function getPieces(
         int32 minX,
         int32 minY,

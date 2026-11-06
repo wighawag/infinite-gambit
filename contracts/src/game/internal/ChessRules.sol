@@ -277,6 +277,32 @@ library ChessRules {
     ///         (`docs/adr/0016`).
     uint256 internal constant MAX_PIECE_MOVES = 3;
 
+    /// @notice The bit of a table's `gameOptions` that turns three piece-moves
+    ///         OFF: where it is set, a move is one piece-move (`docs/adr/0016`).
+    /// @dev A SET bit means off, so what reads zero (both worlds, which never
+    ///      open a roster, and a table created with no options) plays three.
+    ///      It is the ONLY bit this game reads: a table with any other is
+    ///      refused at the seat ({readsOptions}), never at the reveal. The
+    ///      client pins the same bit (`web/src/lib/chess/piece-moves.ts`).
+    bytes32 internal constant ONE_PIECE_MOVE = bytes32(uint256(1));
+
+    /// @notice The cap on a move's piece-moves under `gameOptions`: 1 where
+    ///         {ONE_PIECE_MOVE} is set, {MAX_PIECE_MOVES} otherwise.
+    /// @dev Reads that one bit and ignores every other, so it never refuses:
+    ///      the reveal asks it, and a reveal that reverted on the options
+    ///      would freeze armies that already staked (`docs/adr/0005`).
+    function maxPieceMovesOf(
+        bytes32 gameOptions
+    ) internal pure returns (uint256) {
+        return gameOptions & ONE_PIECE_MOVE != 0 ? 1 : MAX_PIECE_MOVES;
+    }
+
+    /// @notice Whether this game can read `gameOptions`: no bit set but
+    ///         {ONE_PIECE_MOVE}.
+    function readsOptions(bytes32 gameOptions) internal pure returns (bool) {
+        return gameOptions & ~ONE_PIECE_MOVE == 0;
+    }
+
     /// @notice Whether `moves` can be ONE army's move of at most
     ///         `maxPieceMoves` piece-moves: none moves one piece twice and no
     ///         two go to one square ({joins}). And the squares the move
