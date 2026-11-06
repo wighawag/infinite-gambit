@@ -255,6 +255,42 @@ describe('highlights', () => {
 		]);
 	});
 
+	it('border the attacked squares your own pieces stand on, and wash in every attacked square', () => {
+		const mine = {position: 1n, army: ME, kind: 1, position2d: {x: 4, y: 4}};
+		const theirs = {
+			position: 2n,
+			army: ME + 1n,
+			kind: 1,
+			position2d: {x: 6, y: 6},
+		};
+		const view = viewOf({
+			pieces: new Map([
+				[mine.position, mine],
+				[theirs.position, theirs],
+			]) as unknown as BoardView['pieces'],
+			kings: [
+				{
+					army: ME,
+					position2d: {x: 0, y: 0},
+					stake: 1n,
+					stakeLabel: '1',
+					frozen: false,
+				},
+			],
+			attacked: [
+				{x: 4, y: 4},
+				{x: 6, y: 6},
+				{x: 9, y: 9},
+			],
+		});
+		expect(attackedThatMatter(view)).toEqual([{x: 4, y: 4}]);
+		expect(overlayModel(view).threatened).toEqual([
+			{x: 4, y: 4},
+			{x: 6, y: 6},
+			{x: 9, y: 9},
+		]);
+	});
+
 	it('show every attacked square while you have no king on the board', () => {
 		const view = viewOf({attacked: [{x: 3, y: 3}]});
 		expect(attackedThatMatter(view)).toEqual([{x: 3, y: 3}]);
