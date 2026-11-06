@@ -14,7 +14,7 @@ The Devcon swag board (photographed at the event):
 
 - **Woods.** Maple light squares and reddish rosewood dark squares, in a darker rosewood frame with a thin maple stripe. The pieces are turned Staunton shapes in pale boxwood against dark sheesham.
 - **Unicorn knights**, with a carved mane. The king has a pointed, faceted finial: the prism.
-- **The inlay is the Ethereum logo lying on its side** (large facet pointing right, chevron pointing left) across the four centre squares, in **inverted marquetry**: maple where it crosses a rosewood square, rosewood where it crosses a maple one.
+- **The inlay is the Ethereum logo** across the four centre squares, in **inverted marquetry**: maple where it crosses a rosewood square, rosewood where it crosses a maple one. On the real board it's upright from each player's seat (they sit on either side). A screen has one viewpoint, so the game draws it upright.
 
 The mock uses colours sampled from those photos. The pieces share the logo's construction (one base, stem and collar for the whole set, only the top changes), so the game and the brand read as one thing.
 
@@ -26,7 +26,7 @@ The mock uses colours sampled from those photos. The pieces share the logo's con
 
 1. **The piece set** (about 2 hours). Turned Staunton shapes like the Devcon set: a domed foot, a bead ring, a concave stem and a collar shared by every piece, and only the top changes (the king's finial is the prism, the knight is the unicorn). Replace `glyphOf` with the paths in `pieces.py` (also exported as `pieces/*.svg` and the `pieces.svg` sprite). Each piece is a list of parts with a role (`wood`, `band`, `prism`), so the renderer fills `wood` with the wood's left-to-right gradient (it's what makes the pieces look turned), `band` with the army colour and `prism` with the crystal. Canvas 2D takes SVG path strings directly through `new Path2D(d)`, so there's no image loading. Draw each piece in its wood (see 4) with a dark outline (stroke first, then fill), and cache one bitmap per (kind, colour, zoom bucket) in an `OffscreenCanvas` so a crowded viewport costs one `drawImage` per piece. Keep the glyph as the fallback below `MIN_GLYPH_SCALE`, where a dot is enough anyway.
 2. **A wooden board** (about 1 hour). Maple `#e2cba0` and rosewood `#7a4a2c` squares instead of the 5% white grid, with a faint grain pattern (`createPattern` from a small noise tile) and a vignette at the screen edges. Highlights stay as they are, but the planned-move green and the collision red need checking for contrast on maple.
-3. **The Ethereum inlay at the centre of the world** (about 30 minutes). Squares are centred on integer coordinates, so the four squares (-1,-1), (0,-1), (-1,0) and (0,0) meet at the point (-0.5,-0.5). Draw the logo there on its side, under the pieces, twice: once in maple clipped to the two rosewood squares and once in rosewood clipped to the two maple squares. That's the inverted marquetry of the Devcon board, and `pieces.py` does exactly this for the mock. On an infinite board it gives everyone a landmark, and the minimap can show it too.
+3. **The Ethereum inlay at the centre of the world** (about 30 minutes). Squares are centred on integer coordinates, so the four squares (-1,-1), (0,-1), (-1,0) and (0,0) meet at the point (-0.5,-0.5). Draw the logo there upright, under the pieces, twice: once in maple clipped to the two rosewood squares and once in rosewood clipped to the two maple squares. That's the inverted marquetry of the Devcon board, and `pieces.py` does exactly this for the mock. On an infinite board it gives everyone a landmark, and the minimap can show it too.
 4. **Boxwood for you, sheesham for everyone else, the army colour painted on** (30 minutes). The question a player asks most is "is that mine?", and two woods answer it at a glance, exactly as on the real board. *Which* army a piece belongs to shows in three places, from the piece outwards:
    - a painted **collar band** (the `band` part of the collar),
    - the **felt pad** under the foot, as on real pieces (also a `band` part),
@@ -45,7 +45,7 @@ Items 1 to 4 are presentation only: no rule of the game is touched (ADR 0007 kee
 
 ## Accessibility
 
-Keep shape as the primary cue and colour as the second one: every kind has a distinct silhouette, and the base ellipse plus outline keep two similar hues apart. For colour-blind players, consider a pattern or a letter on the base as an option.
+Keep shape as the primary cue and colour as the second one: every kind has a distinct silhouette, and the collar band, felt pad and outline keep two similar hues apart. For colour-blind players, consider a pattern or a letter on the base as an option.
 
 ## Files
 

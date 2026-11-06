@@ -88,7 +88,7 @@
      height="640"
      fill="url(#glow)"
      id="rect7" />
-  <!-- the Devcon board's centre: the Ethereum logo lying on its side across the four squares that
+  <!-- the Devcon board's centre: the Ethereum logo, upright, across the four squares that
        meet at (1080, 480), in inverted marquetry (cream on the dark squares, night on the lit ones) -->
   <clipPath
      id="onDark">
@@ -126,7 +126,7 @@
      fill="#f6efe4"
      id="g13">
     <g
-       transform="translate(1080 480) rotate(90) scale(1.7) translate(-128 -48)"
+       transform="translate(1080 480) scale(1.7) translate(-128 -48)"
        id="g12">
       <path
          d="M128 4 L155 48 L128 63 L101 48 Z"
@@ -141,7 +141,7 @@
      fill="#16110d"
      id="g15">
     <g
-       transform="translate(1080 480) rotate(90) scale(1.7) translate(-128 -48)"
+       transform="translate(1080 480) scale(1.7) translate(-128 -48)"
        id="g14">
       <path
          d="M128 4 L155 48 L128 63 L101 48 Z"

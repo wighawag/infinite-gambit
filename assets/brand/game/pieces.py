@@ -128,7 +128,7 @@ def board(cols, rows, origin=None):
     if origin:
         OX, OY = origin
         LOGO = ''.join(f'<path d="{d}"/>' for d in PRISM)
-        place = f'translate({OX} {OY}) rotate(90) scale(1.7) translate(-128 -48)'
+        place = f'translate({OX} {OY}) scale(1.7) translate(-128 -48)'
         four = [(OX - S, OY - S), (OX, OY - S), (OX - S, OY), (OX, OY)]
         light = lambda p: ((p[0] // S) + (p[1] // S)) % 2 == 0
         sq = lambda p: f'<rect x="{p[0]}" y="{p[1]}" width="{S}" height="{S}"/>'

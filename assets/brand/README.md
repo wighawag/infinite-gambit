@@ -31,7 +31,7 @@ The build first checks that the prism and the king have the same path data in `l
 - **Crown points, not a cup.** A flared cup under the prism reads as a torch or a trophy (see `concepts/r1`). The three crown points are what make it a king.
 - **The wordmark is Cinzel 700, solved to an ink width of 620px on the card** (67.7px nominal) and outlined. The tagline is Cinzel 400 at 32px on two lines, one sentence per line. If you change the copy, re-solve the size against the ink width (see the branding notes in the build script history) rather than eyeballing it.
 - **`currentColor` is restored after outlining.** Inkscape resolves it to a hex while converting text to paths, and the build puts it back so one lockup serves light and dark.
-- **The card's background**: a checkerboard fading out to the edges (the board has no edges), a gold glow, and the Devcon board's inlay: the Ethereum logo **on its side** across the four squares meeting at (1080, 480), in **inverted marquetry** (light where it crosses a dark square and the reverse). The landing hero repeats it in the real woods (maple `#e2cba0`, rosewood `#7a4a2c`).
+- **The card's background**: a checkerboard fading out to the edges (the board has no edges), a gold glow, and the Devcon board's inlay: the Ethereum logo, upright, across the four squares meeting at (1080, 480), in **inverted marquetry** (light where it crosses a dark square and the reverse). The landing hero repeats it in the real woods (maple `#e2cba0`, rosewood `#7a4a2c`).
 
 ## Directions tried and dropped
 
