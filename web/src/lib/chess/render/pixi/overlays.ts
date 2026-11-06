@@ -122,7 +122,16 @@ export class Overlays {
 			}
 		}
 
-		// Attacked squares: a red inner border, without hiding the wood.
+		// Every square an enemy may reach: a faint red wash, light enough that
+		// the wood grain and the light/dark checker still read through it.
+		for (const a of state.threatened) {
+			g.rect(at(a.x - 0.5), at(a.y - 0.5), c, c).fill({
+				color: RED,
+				alpha: 0.16,
+			});
+		}
+
+		// The attacked squares that concern the player: a red inner border on top.
 		for (const a of state.attacked) {
 			const inset = c * 0.08;
 			g.roundRect(

@@ -6,7 +6,7 @@
  * NO RULE OF THE GAME IS HERE (`docs/adr/0007-rules-live-only-in-the-contract.md`):
  * destinations, attacked squares, outcomes and exit squares all arrive already
  * decided, and this module only chooses how they look. The one judgement it
- * makes is which attacked squares are worth showing, which changes nothing
+ * makes is which attacked squares are worth emphasising, which changes nothing
  * anyone may do.
  */
 import {PIECE_KIND, type PieceKind} from '../../board';
@@ -229,6 +229,9 @@ export type OverlayModel = {
 	spawns: Array<Square & {picked: boolean}>;
 	selected?: Square;
 	destinations: Array<Square & {capture: boolean}>;
+	/** Every square an enemy piece may move to this cycle: a faint wash. */
+	threatened: Square[];
+	/** The threatened squares that concern the player: a red border on top. */
 	attacked: Square[];
 	/** The planned piece-moves, each with its place in the move. */
 	planned: Array<{from: Square; to: Square; index: number}>;
@@ -243,10 +246,11 @@ export type OverlayModel = {
 };
 
 /**
- * The attacked squares worth showing: around the player's kings, on the
- * selection's destinations and on the planned targets. Shown everywhere they
- * are noise. With no king of the player's in view (before a deployment), all
- * of them, as the canvas renderer draws them.
+ * The attacked squares worth emphasising: under the player's own pieces,
+ * around the player's kings, on the selection's destinations and on the
+ * planned targets. Every attacked square is still washed in faintly
+ * (`threatened`); these get a border on top. With no king of the player's in
+ * view (before a deployment), all of them.
  */
 export function attackedThatMatter(view: BoardView): Square[] {
 	const attacked = view.attacked ?? [];
@@ -259,6 +263,9 @@ export function attackedThatMatter(view: BoardView): Square[] {
 		for (let dy = -1; dy <= 1; dy++) {
 			for (let dx = -1; dx <= 1; dx++) near.add(`${k.x + dx},${k.y + dy}`);
 		}
+	}
+	for (const piece of view.pieces.values()) {
+		if (piece.army === view.you) near.add(keyOf(piece.position2d));
 	}
 	for (const d of view.destinations ?? []) near.add(keyOf(d));
 	for (const move of view.plannedMoves ?? []) near.add(keyOf(move.to));
@@ -281,6 +288,7 @@ export function overlayModel(view: BoardView): OverlayModel {
 			...d,
 			capture: occupied.has(keyOf(d)),
 		})),
+		threatened: [...(view.attacked ?? [])],
 		attacked: attackedThatMatter(view),
 		planned: [...(view.plannedMoves ?? [])],
 		outcomes: view.outcomes.map((outcome) => {
