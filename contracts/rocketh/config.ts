@@ -117,29 +117,35 @@ export const CYCLE_POLICY = {
  * is bounded per transaction by this, and as a whole by `expectedActionsPerTurn`
  * below.
  *
- * The reveal's worst case is a move whose two resolved pieces (the mover and
- * its destination) each sit behind the longest chain of merges a read follows
- * (`MAX_CHAIN` in `UsingGameBoard.sol`, `chess-king-capture-merge`): about
- * 690,000, priced per merge in `GasBudget.test.ts`. Dearer still is a slider
- * whose own army is that far behind taking the king of a capture loop of
- * `MAX_CHAIN` armies (`chess-capture-loops`), which reads the whole loop and
- * folds it, writing every army of it: about 1,040,000, priced per army there.
- * Exits (`chess-exits-redeem`, `docs/adr/0011-...-leaves-rocks.md`) add what
- * the two touched squares' folds write (a captured reserve moved up into its
- * captor's, an exit kept) and an "exited?" read per occupied square: about
- * 1,220,000 in all, which is what raised this from 1,200,000 (and the
- * generosity ceiling of `GasBudget.test.ts`, three times the plainest reveal,
- * is what keeps it from going higher).
+ * The reveal's worst case used to come from merges: following chains of
+ * captured-into pointers and folding capture loops (about 1,220,000 with exits,
+ * which set this at 1,345,000). Merges, chains and loops are gone
+ * (`docs/adr/0013`, `docs/adr/0014`), so NO REVEAL WALKS A CHAIN, and what a
+ * capture adds is bounded by the two squares a move touches. Re-measured
+ * (`lean-rules-captures-without-merges-and-stones`):
+ *
+ *   a king's move (the dearest plain reveal)                    473,298
+ *   a 7-square slider over stale squares                        354,953
+ *   the two-victim square (the dearest capture measured)        476,961
+ *   folding a two-victim square (a plain step is 280,753)       407,989
+ *
+ * The worst reveal, put together in `GasBudget.test.ts`, is a king's move whose
+ * origin and destination each fold a two-victim square, which notes two
+ * candidates for a stake, and whose 8 neighbours each hold a piece of a
+ * different fallen army whose fall is not folded yet (the vanish check, cold):
+ * about 943,000. This keeps 16% over it, under the generosity ceiling (three
+ * times the plainest reveal, about 1,420,000). The tight figure comes with the
+ * one-slot square record (`lean-rules-one-slot-square-record-and-tight-gas-limits`).
  */
 const COMMIT_GAS = 430_000n;
-const REVEAL_GAS = 1_345_000n;
+const REVEAL_GAS = 1_100_000n;
 /**
  * A TABLE'S REVEAL: the world's, plus listing every zone a reveal touches first
  * (`UsingGameTable._tally` counts the material at the cap from that list).
- * About 67,000 at worst (two zones, a slot each), so a table's worst reveal is
- * about 1,265,000 and this keeps 10% over it; priced in `GasBudget.test.ts`.
+ * About 65,000 at worst (two zones, a slot each), so a table's worst reveal is
+ * about 1,008,000 and this keeps 14% over it; priced in `GasBudget.test.ts`.
  */
-const LOBBY_REVEAL_GAS = 1_400_000n;
+const LOBBY_REVEAL_GAS = 1_150_000n;
 
 /**
  * HOW MANY SPAWN POINTS THE OFFLINE WORLD OPENS (K), which is the one thing

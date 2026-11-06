@@ -118,7 +118,7 @@ function strategyOn(board: readonly Piece[]) {
 			spawnPoint: 0n,
 			king: squareAt(0, -2),
 			stake: 1n,
-			mergedInto: army,
+			capturedBy: 0n,
 		}),
 		readPieces: async () => board,
 		legalMoves: async (around, from) => {

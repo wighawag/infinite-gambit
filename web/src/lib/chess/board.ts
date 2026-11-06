@@ -31,6 +31,11 @@ export const PIECE_KIND = {
 	Rook: 4,
 	Queen: 5,
 	King: 6,
+	/**
+	 * A king taken by a piece whose own king fell the same cycle: it holds its
+	 * army's stake, never moves and attacks nothing (`docs/adr/0014`).
+	 */
+	Stone: 7,
 } as const;
 export type PieceKind = (typeof PIECE_KIND)[keyof typeof PIECE_KIND];
 

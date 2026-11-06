@@ -66,8 +66,9 @@ abstract contract UsingGameTable is UsingGameInternal {
             paid: false,
             frozen: false,
             atTable: true,
-            capturedInto: 0,
-            loopedIn: 0
+            fallen: false,
+            capturedBy: 0,
+            fellIn: 0
         });
         _armyIds.push(army);
         if (CYCLE_POLICY != CyclePolicy.Timed) {
@@ -143,7 +144,7 @@ abstract contract UsingGameTable is UsingGameInternal {
     ) internal view returns (bool) {
         return
             _deploymentStatus(army, cycleNumber) == ArmyStatus.Deployed &&
-            _armyOf(army, cycleNumber) == army;
+            _fellIn(army, cycleNumber) == 0;
     }
 
     /// @notice The cycle the cap's board is read at: the one after the last.
@@ -159,7 +160,9 @@ abstract contract UsingGameTable is UsingGameInternal {
     ///      footprints of the table's armies where no reveal ever touched them
     ///      (one step per square), then every zone a reveal touched
     ///      ({_tableZones}, one step per zone). A piece counts for the army it
-    ///      resolves to ({_squareAt}), so a rock (army zero) counts for nobody.
+    ///      is labelled with ({_squareAt}): a fallen army's pieces read as
+    ///      empty, a promoted queen counts 9 and a stone nothing
+    ///      ({ChessRules-materialOf}).
     ///      Kept in storage, so it can run over several transactions; nothing
     ///      changes the board after the cap, so the order of the steps and of
     ///      the transactions cannot change the count.
@@ -273,8 +276,9 @@ abstract contract UsingGameTable is UsingGameInternal {
     ///      Otherwise, at the cap, the material is counted first (the rest of
     ///      {_tally}, unbounded: a count too big for one transaction is
     ///      {IGameTable-tally}'d in parts beforehand). The pot is every army's
-    ///      reserve, debited: a captured army's reserve is its captor's, which
-    ///      is a standing army's, so every stake is in it, each once.
+    ///      reserve, debited, whether a fold has moved it up to its taker yet
+    ///      or not, a stone's included: every stake is in it, each once, and a
+    ///      stone's that nobody took is split with the rest.
     function _settleTable() internal {
         TableOutcome memory outcome = _tableOutcome();
         if (!outcome.over) revert TableNotOver();
@@ -312,10 +316,7 @@ abstract contract UsingGameTable is UsingGameInternal {
 
     /// @notice Pay `army`'s share, in ETH, to its current owner, through the
     ///         token's minter (`StakeSale.redeem`), as an exit pays.
-    /// @dev The owner is {UsingGameBoard-_ownerOf}: a capture loop may have
-    ///      handed the army to another account
-    ///      (`docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`).
-    ///      Marked paid before the external call.
+    /// @dev Marked paid before the external call.
     function _claim(uint256 army) internal returns (uint256 paid) {
         Roster memory roster = _roster();
         if (roster.seats == 0) revert NoRoster();
@@ -327,8 +328,7 @@ abstract contract UsingGameTable is UsingGameInternal {
         paid = _shareOf(army);
         if (paid == 0) revert NothingToClaim(army);
         record.paid = true;
-        (uint64 cycleNumber, ) = _cycleNumber();
-        address payable owner = payable(_ownerOf(army, cycleNumber));
+        address payable owner = payable(record.owner);
         IStakeRedeemer(IMintedToken(address(TOKENS)).minter()).redeem(
             paid,
             owner

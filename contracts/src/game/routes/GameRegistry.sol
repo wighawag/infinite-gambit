@@ -4,10 +4,9 @@ pragma solidity ^0.8.0;
 import "../internal/UsingGameInternal.sol";
 import "../interfaces/IGame.sol";
 
-/// @dev THE ARMY REGISTRY, RESOLVED: every army, who plays it and what it
-///      holds, through every capture and every chain of captures, whichever
-///      squares have been read or folded yet (`UsingGameBoard-_armyOf`,
-///      `UsingGameBoard-_stakeOf`).
+/// @dev THE ARMY REGISTRY, RESOLVED: every army, whether it stands and what
+///      it holds, through every capture, whichever squares have been read or
+///      folded yet (`UsingGameBoard-_fellIn`, `UsingGameBoard-_stakeOf`).
 contract GameRegistry is IGameRegistry, UsingGameInternal {
     constructor(Config memory config) UsingGameInternal(config) {}
 

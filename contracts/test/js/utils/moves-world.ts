@@ -42,7 +42,15 @@ const clock = cycleClock({
 export const SECRET =
 	'0x00000000000000000000000000000000000000000000000000000000000c0de1';
 
-export const KIND = ['.', 'P', 'N', 'B', 'R', 'Q', 'K'] as const;
+export const KIND = ['.', 'P', 'N', 'B', 'R', 'Q', 'K', 'S'] as const;
+
+/** The orders a cycle's reveals can land in, for the order-replay suites. */
+export type RevealOrder = 'forward' | 'reverse' | 'rotate';
+export const REVEAL_ORDERS: readonly RevealOrder[] = [
+	'forward',
+	'reverse',
+	'rotate',
+];
 const DIRECTION = ['N', 'E', 'S', 'W'] as const;
 
 export type Piece = {
@@ -237,7 +245,8 @@ export function movesWorld(params: {
 			},
 			/**
 			 * Play one cycle: commit every submission, reveal them in the order
-			 * given (or reversed), and move on to the next cycle.
+			 * given (reversed, or rotated by one: the first revealed last), and
+			 * move on to the next cycle.
 			 */
 			async play(
 				submissions: readonly {
@@ -245,12 +254,16 @@ export function movesWorld(params: {
 					army: bigint;
 					moves: readonly Move[];
 				}[],
-				order: 'forward' | 'reverse' = 'forward',
+				order: RevealOrder = 'forward',
 			) {
 				for (const s of submissions) await w.commit(s.owner, s.army, s.moves);
 				await w.toRevealPhase();
 				const reveals =
-					order === 'forward' ? submissions : [...submissions].reverse();
+					order === 'forward'
+						? submissions
+						: order === 'reverse'
+							? [...submissions].reverse()
+							: [...submissions.slice(1), ...submissions.slice(0, 1)];
 				for (const s of reveals) await w.reveal(s.owner, s.army, s.moves);
 				await w.toNextCycle();
 			},
@@ -287,7 +300,7 @@ export function movesWorld(params: {
 						status: number;
 						king: bigint;
 						stake: bigint;
-						mergedInto: bigint;
+						capturedBy: bigint;
 					}[],
 					bigint,
 				];
@@ -297,7 +310,7 @@ export function movesWorld(params: {
 					status: a.status,
 					king: xyOf(a.king),
 					stake: a.stake,
-					mergedInto: a.mergedInto,
+					capturedBy: a.capturedBy,
 				}));
 			},
 			async legalMoves(from: [number, number]): Promise<string[]> {

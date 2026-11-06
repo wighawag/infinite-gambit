@@ -72,3 +72,13 @@ keep. The previous run produced no code: a single reply spent the whole 16,384-t
 ### q1: 'task:lean-rules-captures-without-merges-and-stones' was bounced — how should we proceed?
 
 keep. Retry after raising the build model's output limit from 16,384 to 64,000 tokens (both earlier runs died on hidden reasoning in one reply before writing any file). The small-steps handoff applied earlier still stands: act early, keep each reply's edits small, and `git commit -am "wip: <step>"` after each step so a truncation never loses work.
+
+## Decisions
+
+- **`ArmyView.mergedInto` renamed to `capturedBy`**: it is the army that took this army's stake, zero for a stone nobody has taken and for an army that was not captured. A captured army's `owner` is now its own creator. I considered keeping the old name, but there are no merges any more. This touches the web `ArmyView` decoding and 7 web test fixtures; no web code read the field.
+- **Two-victim square where the captor's king fell the same cycle**: a square can hold only one stone. So the king or stone that stood there becomes the stone, and the moving king's stake goes into that stone's army. The alternative was a stone with no stake, which would strand a stake. This edge case is untested on a board because it needs a third king falling the same cycle; the ADR 0014 owner may want to ratify it.
+- **Stone value is 7, at the end of `PieceKind`**: existing kind values don't change for the client.
+- **Stake view bound**: `STAKE_VIEW_DEPTH = 8`, a depth cap on `_treeStake`. Past it the view reports a lower bound. Exit collection and the table pot are unbounded and take every stake whole.
+- **Army record layout**: a `fallen` flag sits in the king's slot so the check on a live army costs one army slot plus its king's square. `fellIn` and `capturedBy` take over the slots `loopedIn` and `capturedInto` used. The one-slot task will repack these anyway.
+- **`getOutcomes` for the moving-king row** reports `died=1` (the king) and what stood there as captured. Whether something became a stone shows only in what stands on the square now; the client task can refine this.
+- **Not noted as a stake candidate**: the moving king whose stake goes into a standing stone's army. That capture is always folded by the same touch that comes before any capture of the stone, so it never needs to be found from the list.

@@ -1,5 +1,7 @@
 # A merge is resolved through per-army "captured into" pointers, and no reserve moves
 
+> Superseded by `docs/adr/0013-no-merges-a-captured-army-vanishes-and-its-captor-is-promoted.md`: there are no merges, no `capturedInto` chains and no `MAX_CHAIN`.
+
 > Amended by `docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`: a fold now moves the captured army's reserve up into its captor's, and a piece more than `MAX_CHAIN` captures from its root is a rock for good rather than read as the army the walk stopped at.
 
 Capturing a king (`docs/adr/0001-one-move-per-army-merge-on-capture.md`) changes who plays every piece of the captured army and what the captor holds, but nothing is rewritten when it happens. Each army keeps the army that took its king, and a piece's army is followed through those pointers when it is read (`UsingGameBoard._armyOf`). Whether a capture happened is only known once its cycle is over, from the square's facts (`ChessRules.kingCapture`, the king rows of the collision table), so until a later reveal touches that square the pointer is read from the facts, and the touch then copies it onto the army record (`capturedInto`). Both sources give the same answer, which is what keeps lazy resolution order-free (`docs/adr/0002-order-free-lazy-resolution.md`): no read order can change who owns a piece or what an army holds.

@@ -1,5 +1,7 @@
 # An exit removes only the exiting army's own pieces, every piece no army can play again is a rock, and a fold moves the captured reserve up
 
+> Its merged-army part (rocks, `MAX_CHAIN`) is superseded by `docs/adr/0013-no-merges-a-captured-army-vanishes-and-its-captor-is-promoted.md`: an exited army's pieces leave the board, there are no rocks, and the exit still collects every unfolded victim's stake, in parts, except a stone's. A fold still moves the captured reserve up.
+
 Amends `docs/adr/0009-merges-resolve-through-captured-into-pointers.md`.
 
 A king that lands alone on an exit square has left the world at the close of that cycle (`docs/adr/0006-stake-erc20-reserve-exit-only.md`). Removing every piece of its EMPIRE (its own pieces and those of every army it merged) would make every read of a piece ask "is this piece's root exited?", which is the bounded walk of captured-into pointers that `docs/adr/0009-merges-resolve-through-captured-into-pointers.md` keeps to the mover and its destination only. The path squares, a king's neighbours and the footprint squares read only the KIND (`_rawSquareAt`), and the reveal budget depends on that. So we decided:

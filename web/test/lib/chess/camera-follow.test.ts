@@ -111,7 +111,7 @@ describe('what the camera follows', () => {
 		spawnPoint: 0n,
 		king: squareAt(x, y),
 		stake: 1n,
-		mergedInto: id,
+		capturedBy: 0n,
 	});
 
 	it("is the played army's king, read off the board's registry", () => {

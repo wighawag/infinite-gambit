@@ -2,13 +2,13 @@ import {expect} from 'earl';
 import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not support vitest
 import {network} from 'hardhat';
 import {zeroAddress} from 'viem';
-import {DEFAULT_STAKE, CYCLE_POLICY, setupFixtures} from './utils/index.js';
-import {artifacts} from '../../rocketh/environment.js';
+import {DEFAULT_STAKE, setupFixtures} from './utils/index.js';
 import {movesWorld, move, type Piece} from './utils/moves-world.js';
 
 /**
- * EXITS (stories 32 to 35, `docs/adr/0006-stake-erc20-reserve-exit-only.md`,
- * `docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`).
+ * EXITS (stories 32 to 35, `docs/adr/0006-stake-erc20-reserve-exit-only.md`):
+ * an exited army's pieces leave the board, and its exit pays its whole stake,
+ * the stakes of the armies it took included (`docs/adr/0013`).
  *
  * On the tight grid (spacing 6) the exits are at (6i+3, 6j+3). alice's king,
  * deployed at (0,0), stands at (-2,0) and reaches the exit (-3,3) in three
@@ -72,7 +72,7 @@ async function armyView(w: World, army: bigint) {
 	})) as {
 		status: number;
 		stake: bigint;
-		mergedInto: bigint;
+		capturedBy: bigint;
 		owner: string;
 		king: bigint;
 	};
@@ -159,8 +159,8 @@ describe('exits', function () {
 
 	it('does not let a king whose arrival on an exit collides leave: the collision table decides', async function () {
 		// carol's knight reaches the exit in four moves, the cycle alice's king
-		// lands there: a king and a single piece arriving together both die,
-		// and alice's army goes to carol's (story 27).
+		// lands there: a king meeting a single piece dies, and that piece lands
+		// as a queen with its stake (`docs/adr/0013`).
 		const w = await world();
 		const [a, , c] = await w.deploy([
 			[w.alice, [0, 0]],
@@ -181,10 +181,10 @@ describe('exits', function () {
 			]);
 		}
 		expect(await isExited(w, a)).toEqual(false);
-		expect(await w.pieceAt(-3, 3)).toEqual(undefined);
+		expect(await w.pieceAt(-3, 3)).toEqual(`Q@-3,3#${c}:N*`);
 		const view = await armyView(w, a);
 		expect(view.status).toEqual(CAPTURED);
-		expect(view.mergedInto).toEqual(c);
+		expect(view.capturedBy).toEqual(c);
 		await expect(exit(w, a, w.alice)).toBeRejectedWith(/NotExited/);
 	});
 
@@ -218,11 +218,11 @@ describe('exits', function () {
 			return {
 				paid: (await ethOf(w.alice)) - aliceBefore,
 				board: await w.board(),
-				carol: (({status, stake, king, mergedInto}) => ({
+				carol: (({status, stake, king, capturedBy}) => ({
 					status,
 					stake,
 					king,
-					mergedInto,
+					capturedBy,
 				}))((await armyView(w, c)) as any),
 				knight: await w.pieceAt(-3, 3),
 			};
@@ -235,9 +235,10 @@ describe('exits', function () {
 		expect(before.carol.stake).toEqual(DEFAULT_STAKE);
 	});
 
-	it("pays a merged army's whole stake, leaves the pieces it merged as rocks, and gives the same payout whether the capture was folded first", async function () {
-		// The chain of `KingCapture.test.ts` without carol: dave's queen takes
-		// bob's king on (6,1) while dave's king has stepped to (3,7).
+	it('pays the stake of the army it took too, collected in parts if asked, and the same whether the capture was folded first', async function () {
+		// dave's queen takes bob's king on (6,1); dave's king then walks to the
+		// exit (3,9). Folding bob's capture (a move off its square) moves bob's
+		// reserve up into dave's; not folding it leaves the exit to collect it.
 		async function run(fold: boolean) {
 			const w = await world();
 			const [, b, , d] = await w.deploy([
@@ -249,46 +250,39 @@ describe('exits', function () {
 			const daveMoves = [
 				move([7, 5], [8, 4]),
 				move([8, 4], [8, 3]),
-				move([4, 6], [3, 7]),
 				move([8, 3], [6, 1]),
 			];
 			if (fold) daveMoves.push(move([6, 1], [7, 2]));
-			daveMoves.push(move([3, 7], [3, 8]), move([3, 8], [3, 9]));
-			let folded: {bob: bigint; dave: bigint; stake: bigint} | undefined;
-			for (const [k, m] of daveMoves.entries()) {
-				if (fold && k === 4) {
-					folded = {
-						bob: await reserveOf(w, b),
-						dave: await reserveOf(w, d),
-						stake: (await armyView(w, d)).stake,
-					};
-				}
+			daveMoves.push(
+				move([4, 6], [3, 7]),
+				move([3, 7], [3, 8]),
+				move([3, 8], [3, 9]),
+			);
+			for (const m of daveMoves) {
 				await w.play([{owner: w.dave, army: d, moves: [m]}]);
-				if (fold && k === 4) {
-					// THE FOLD MOVES THE RESERVE UP, and the stake does not change.
-					expect(folded).toEqual({
-						bob: DEFAULT_STAKE,
-						dave: DEFAULT_STAKE,
-						stake: 2n * DEFAULT_STAKE,
-					});
-					expect(await reserveOf(w, b)).toEqual(0n);
-					expect(await reserveOf(w, d)).toEqual(2n * DEFAULT_STAKE);
-					expect((await armyView(w, d)).stake).toEqual(2n * DEFAULT_STAKE);
-				}
 			}
+			expect(await reserveOf(w, b)).toEqual(fold ? 0n : DEFAULT_STAKE);
+			expect((await armyView(w, d)).stake).toEqual(2n * DEFAULT_STAKE);
 			expect(await isExited(w, d)).toEqual(true);
+			// Every piece of both armies has left the board.
 			const pieces = await w.pieces();
-			// dave's own pieces left; bob's (but its king) stay, nobody's.
 			expect(piecesOf(pieces, d)).toEqual([]);
 			expect(piecesOf(pieces, b)).toEqual([]);
-			const rocks = piecesOf(pieces, 0n);
-			expect(rocks.length).toEqual(19);
-			expect(rocks.every((p) => p.kind !== 6)).toEqual(true);
+			expect(pieces.length).toEqual(40);
+			// One army per call: dave's own reserve, then bob's.
+			const collect = () =>
+				w.env.execute(w.Game, {
+					account: w.alice,
+					functionName: 'collect',
+					args: [d, 1n],
+				});
+			await collect();
+			expect(await reserveOf(w, d)).toEqual(0n);
+			await collect();
+			expect(await reserveOf(w, b)).toEqual(0n);
 			const daveBefore = await ethOf(w.dave);
 			await exit(w, d, w.alice);
-			expect(await reserveOf(w, b)).toEqual(0n);
-			expect(await reserveOf(w, d)).toEqual(0n);
-			return {paid: (await ethOf(w.dave)) - daveBefore, rocks: rocks.length};
+			return {paid: (await ethOf(w.dave)) - daveBefore};
 		}
 		const unfolded = await run(false);
 		const folded = await run(true);
@@ -325,88 +319,6 @@ describe('exits', function () {
 				args: [w.alice],
 			}),
 		).toEqual(DEFAULT_STAKE);
-	});
-});
-
-describe('a merged tree deeper than MAX_CHAIN', function () {
-	const MAX_CHAIN = 8;
-	async function harness() {
-		const f = await networkHelpers.loadFixture(deployAll);
-		const deployed = await f.env.deploy(`GameTreeHarness_${Math.random()}`, {
-			account: f.namedAccounts.deployer,
-			artifact: artifacts.GameTreeHarness,
-			args: [
-				{
-					startTime: 0n,
-					commitPhaseDuration: 3600n,
-					revealPhaseDuration: 3600n,
-					time: zeroAddress,
-					tokens: f.GameToken.address,
-					stake: DEFAULT_STAKE,
-					spawnSpacing: 6,
-					openSpawnPoints: 8,
-					actionsPerReveal: 1n,
-					cyclePolicy: CYCLE_POLICY.Timed,
-				},
-			],
-		});
-		const call = (functionName: string, args: unknown[]) =>
-			f.env.execute(
-				deployed as any,
-				{
-					account: f.namedAccounts.deployer,
-					functionName,
-					args,
-				} as any,
-			);
-		const read = (functionName: string, args: unknown[]) =>
-			f.env.read(deployed as any, {functionName, args} as any) as Promise<any>;
-		// A chain of 12 captures below the root, each army taken by the one
-		// before it, and a second victim of the root: armies 1<<160 + k.
-		const id = (k: number) => (1n << 160n) + BigInt(k);
-		const depth = 12;
-		for (let k = 0; k <= depth + 1; k++)
-			await call('setArmy', [id(k), BigInt(k + 1)]);
-		for (let k = 1; k <= depth; k++)
-			await call('setCapture', [id(k), id(k - 1)]);
-		await call('setCapture', [id(depth + 1), id(0)]);
-		const total = BigInt(((depth + 2) * (depth + 3)) / 2);
-		return {call, read, id, depth, total};
-	}
-
-	it("reads a piece more than MAX_CHAIN captures from its root as a rock, nobody's", async function () {
-		const h = await harness();
-		expect(await h.read('armyOf', [h.id(MAX_CHAIN)])).toEqual(h.id(0));
-		expect(await h.read('armyOf', [h.id(MAX_CHAIN + 1)])).toEqual(0n);
-		expect(await h.read('armyOf', [h.id(h.depth)])).toEqual(0n);
-		// And every piece of an exited root's tree is a rock.
-		await h.call('setExited', [h.id(0)]);
-		expect(await h.read('armyOf', [h.id(1)])).toEqual(0n);
-		expect(await h.read('armyOf', [h.id(0)])).toEqual(0n);
-	});
-
-	it('collects the whole tree for the exit, incrementally, and never twice', async function () {
-		const h = await harness();
-		await expect(h.call('collect', [h.id(0), 100n])).toBeRejectedWith(
-			/NotExited/,
-		);
-		await h.call('setExited', [h.id(0)]);
-		// Five armies per transaction: not done until every one is collected.
-		let rounds = 0;
-		for (;;) {
-			rounds++;
-			const done = (await h.read('collected', [h.id(0)])) === h.total;
-			if (done) break;
-			await h.call('collect', [h.id(0), 5n]);
-			expect(rounds).toBeLessThan(10);
-		}
-		expect(rounds).toEqual(4);
-		for (let k = 0; k <= h.depth + 1; k++) {
-			expect(await h.read('reserveOf', [h.id(k)])).toEqual(0n);
-		}
-		// Collecting again finds nothing more.
-		await h.call('collect', [h.id(0), 100n]);
-		expect(await h.read('collected', [h.id(0)])).toEqual(h.total);
 	});
 });
 

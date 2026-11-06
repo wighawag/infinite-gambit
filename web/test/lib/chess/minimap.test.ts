@@ -21,7 +21,7 @@ const army = (
 	spawnPoint: squareAt(...opts.spawn),
 	king: squareAt(...opts.king),
 	stake: 1n,
-	mergedInto: id,
+	capturedBy: 0n,
 });
 
 const camera = {x: 0, y: 0, width: 24, height: 12};

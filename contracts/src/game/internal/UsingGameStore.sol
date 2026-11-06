@@ -36,10 +36,7 @@ abstract contract UsingGameStore is
     ///      (its status, its king) or is the base's (its reserve, which is its
     ///      stake).
     struct ArmyRecord {
-        /// @notice who plays it, as last folded: the account that created it,
-        ///         until a capture loop hands it to its captor's owner (see
-        ///         `docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`;
-        ///         resolved by `UsingGameBoard-_ownerOf`)
+        /// @notice who plays it: the account that created it
         address owner;
         /// @notice the cycle its deployment was committed in
         uint64 deployCycle;
@@ -74,27 +71,28 @@ abstract contract UsingGameStore is
         ///         end (`UsingGameTable`); in this slot so that every read of
         ///         `exited` sees it for free
         bool atTable;
-        // ---- third slot: whose army it merged into
-        /// @notice the army that took its king, once a later reveal has folded
-        ///         the square it was taken on; zero until then, and for an army
-        ///         whose king was never taken
+        /// @notice whether its king has been TAKEN (it is then dead, and its
+        ///         pieces other than a stone read as empty), once a later
+        ///         reveal has folded the square it was taken on; false until
+        ///         then (`UsingGameBoard-_fellIn` reads those facts meanwhile)
+        /// @dev In this slot so that the vanish check of a live army costs
+        ///      this slot and its king's square, nothing more.
+        bool fallen;
+        // ---- third slot: who holds its stake
+        /// @notice the army its stake went to once a later reveal has folded
+        ///         the capture: the army that took its king, or that took its
+        ///         stone; zero until then, for an army whose king was never
+        ///         taken, and for a stone nobody has taken
+        ///         (`docs/adr/0013`, `docs/adr/0014`)
         /// @dev A CACHE OF A CLOSED CYCLE'S FACTS, written by `_touch` just
-        ///      before it overwrites them (`UsingGameBoard-_captureOf`). It is
-        ///      only ever written in a cycle after the capture, so it holds for
-        ///      every cycle anybody can still read, which is why the capture's
-        ///      cycle is not kept beside it.
-        uint256 capturedInto;
-        // ---- fourth slot: the last capture loop it was in
-        /// @notice the cycle of the last capture LOOP its king was in, once a
-        ///         later reveal has folded it; zero until then
-        ///         (`docs/adr/0004-capture-loops-rotate-ownership.md`)
-        /// @dev A CACHE OF A CLOSED CYCLE'S FACTS, like `capturedInto`, but
-        ///      written for EVERY army of the loop at once, together with its
-        ///      new `owner` (`UsingGameBoard-_foldLoop`), so a loop is either
-        ///      folded for all its armies or for none. Its cycle is kept, unlike
-        ///      `capturedInto`'s, because an army survives a loop and its
-        ///      king's square later holds the facts of other cycles.
-        uint64 loopedIn;
+        ///      before it overwrites them (`UsingGameBoard-_captureOf`), or by
+        ///      an exit's collection (`UsingGameInternal-_collect`).
+        uint256 capturedBy;
+        // ---- fourth slot: when its king fell
+        /// @notice the cycle its king was taken in, once `fallen` is written;
+        ///         read only to decide whether a capture by this army leaves a
+        ///         stone (`docs/adr/0014`)
+        uint64 fellIn;
     }
 
     /// @notice What the reveals have recorded about one square.
@@ -164,17 +162,18 @@ abstract contract UsingGameStore is
     /// @notice How many armies each account has created; its next is one more.
     mapping(address owner => uint256 count) internal _armyCountOf;
 
-    /// @notice THE KINGS EACH ARMY MAY HAVE TAKEN, for its stake.
+    /// @notice THE KINGS AND STONES EACH ARMY MAY HAVE TAKEN, for its stake.
     /// @dev A SUPERSET, written at reveal time by the reveal that could make
     ///      the capture (see `UsingGameBoard-_noteCandidate`), and filtered when
-    ///      read: an entry counts only if the army it names really did merge
-    ///      into this one (`UsingGameBoard-_captureOf`). The ORDER of the
+    ///      read: an entry counts only if the stake of the army it names really
+    ///      went to this one (`UsingGameBoard-_captureOf`), which a stone's
+    ///      did not. The ORDER of the
     ///      entries can differ with the order of the reveals, and an army can be
     ///      listed more than once; what they add up to cannot differ.
     mapping(uint256 army => uint256[] victims) internal _capturesBy;
 
-    /// @notice AN EXIT'S PAYOUT IN PROGRESS: the armies of the exited army's
-    ///         merged tree still to collect, and what has been collected.
+    /// @notice AN EXIT'S PAYOUT IN PROGRESS: the armies whose stakes the
+    ///         exited army took, down the tree of captures, still to collect, and what has been collected.
     /// @dev See `UsingGameInternal-_collect`. Only ever written by an exit's
     ///      own transactions, never by a reveal.
     mapping(uint256 army => uint256[] armies) internal _toCollect;
