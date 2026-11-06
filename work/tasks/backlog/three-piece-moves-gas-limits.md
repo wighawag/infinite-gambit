@@ -8,6 +8,8 @@ covers: [11]
 
 ## What to build
 
+> FORWARD-NOTE (conductor, after PR #30 and PR #31 merged): the reveal now runs `ChessRules.vacatedBy` (cap and refusals) and `ChessRules.vacate` (the legality-only mask, a no-op for fewer than two piece-moves), so the mask's cost only shows in multi-piece reveals: measure those. Routers are now the VENDORED `contracts/src/vendor/router/Router10X60.sol` (fixed past 48 selectors), compiled optimised through a per-file override in `contracts/hardhat.config.ts` so its fallback costs what the package's did; keep that in mind if the profile moves. The figures before this task: `COMMIT_GAS` 410,000, `REVEAL_GAS` 770,000, `LOBBY_REVEAL_GAS` 840,000. The unoptimised `Reveal` route is 24,544 of 24,576 bytes (32 left): this task should add tests and figures, not reveal code. `three-piece-moves-table-toggle` adds a `gameOptions` read to every reveal next, so leave the window some room if you can and say how much in the Decisions block.
+
 Price the reveal on what a three-piece-move reveal really costs, measured, not estimated (`three-piece-moves` spec).
 
 - **Profile it.** Add three-piece-move scenes to `contracts/test/js/GasProfile.test.ts` (three plain piece-moves, fresh and touched, a mix of pawn, slider and king) and update `docs/gas.md` with the new breakdown on the test and production builds, as `lean-rules-one-slot-square-record-and-tight-gas-limits` did.
