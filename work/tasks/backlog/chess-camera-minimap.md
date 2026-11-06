@@ -4,7 +4,7 @@ slug: chess-camera-minimap
 spec: infinite-chess
 blockedBy: [chess-collisions]
 covers: [44, 45]
-needsAnswers: false
+needsAnswers: true
 ---
 
 ## What to build
