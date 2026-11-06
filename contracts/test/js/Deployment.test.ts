@@ -6,6 +6,7 @@ import {
 	idOf,
 	armyIdOf,
 	fundAccount,
+	mintTokens,
 	commitDeployment,
 	revealDeployment,
 	commitmentChain,
@@ -363,11 +364,7 @@ describe('Deploying an army', function () {
 	it('refuses to credit an army id through addToReserve', async function () {
 		const w = await world();
 		const future = armyIdOf(w.alice, 1);
-		await w.env.execute(w.GameToken, {
-			account: w.bob,
-			functionName: 'mint',
-			args: [w.bob, w.stake],
-		});
+		await mintTokens(w, w.bob, w.stake);
 		await w.env.execute(w.GameToken, {
 			account: w.bob,
 			functionName: 'approve',
@@ -606,6 +603,8 @@ describe('Deploying an army', function () {
 				],
 			});
 			await w.toRevealPhase();
+			// Through either entry point: `reveal` forwards a deployment to
+			// `revealDeployment`, on a route of its own.
 			await expect(
 				revealTurn(w, {
 					account: w.alice,
@@ -613,6 +612,16 @@ describe('Deploying an army', function () {
 					moves,
 					secret: SECRET_A,
 					actionsPerReveal: w.actionsPerReveal,
+				}),
+			).toBeRejectedWith(error);
+			await expect(
+				revealTurn(w, {
+					account: w.alice,
+					identity: army,
+					moves,
+					secret: SECRET_A,
+					actionsPerReveal: w.actionsPerReveal,
+					deployment: true,
 				}),
 			).toBeRejectedWith(error);
 			await snapshot.restore();

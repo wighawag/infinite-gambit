@@ -27,4 +27,8 @@ interface UsingGameErrors is UsingCommitRevealErrors {
     /// @notice A submission after an army's deployment is a pass (nothing) or
     ///         exactly one move, in one chunk.
     error OneMovePerCycle();
+    /// @notice The army has not left the board through an exit (yet).
+    error NotExited(uint256 army);
+    /// @notice The exited army's stake was already paid.
+    error AlreadyPaid(uint256 army);
 }

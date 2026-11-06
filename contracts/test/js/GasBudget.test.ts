@@ -375,13 +375,28 @@ describe('the declared gas budget', function () {
 		// taking a king notes a capture, as in the case above. A king never
 		// reaches another king's square: kings never stand side by side.
 		const note = 2n * 22_100n + 1_000n;
+		// EXITS AND THE RESERVE MOVE-UP
+		// (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`),
+		// priced like `note` since no measured case hits them all at once. Each
+		// of the two squares a reveal touches may fold a capture, which moves
+		// the victim's reserve into its captor's (two reserve slots, the second
+		// written from zero at worst, and an event), and may fold an exit (one
+		// army record written). And every occupied square the move reads asks
+		// whether its army has exited: one cold army record each, plus the
+		// cold facts of the exit square its king last moved to, for each of the
+		// 7 squares of a slider's path (a king reads 8 neighbours, but only
+		// their army records: a king's path is its destination).
+		const foldUps = 2n * (2n * 22_100n + 2_000n + 22_100n);
+		const exitReads = 7n * (2_100n + 2_100n);
 		const worst =
 			measured.slider! +
 			MAX_CHAIN * measured.perMerge! +
 			note +
-			loopOf(MAX_CHAIN);
+			loopOf(MAX_CHAIN) +
+			foldUps +
+			exitReads;
 		console.log(
-			`gas budget: folding a loop: of two ${loopOf(2n)}, per army ${perArmy}, of ${MAX_CHAIN} ${loopOf(MAX_CHAIN)}; worst looped reveal ${worst}, declared ${declaredReveal}`,
+			`gas budget: folding a loop: of two ${loopOf(2n)}, per army ${perArmy}, of ${MAX_CHAIN} ${loopOf(MAX_CHAIN)}; exits and reserve move-ups ${foldUps + exitReads}; worst looped reveal ${worst}, declared ${declaredReveal}`,
 		);
 		assert.ok(
 			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,

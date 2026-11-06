@@ -93,6 +93,7 @@ import {mergeBoardView, type BoardView} from './view';
 import {createDeploymentPreview, withPreview} from './preview';
 import {createBytecodeSandbox} from '$lib/game/simulation';
 import {createGameRenderer, type GameSurface} from './render';
+import {createExitPayout, type ExitPayoutStore} from './exits';
 import {
 	ARMY_STATUS,
 	createArmies,
@@ -147,6 +148,8 @@ export type Game = {
 	reserve: ReserveStore;
 	acquisition: AcquisitionStore;
 	missedReveal: MissedRevealStore;
+	/** Paying an army that left through an exit (`exit(army)`). */
+	exitPayout: ExitPayoutStore;
 	recovery: RecoveryStore<Move>;
 	/** What the planned submission will cost the account's reserve. */
 	cost: Readable<bigint>;
@@ -273,6 +276,13 @@ export function createGameContext(core: CoreServices): GameContext {
 	);
 
 	const refreshStake = () => Promise.all([reserve.update(), armies.update()]);
+	// The exit's payout: an army that left through an exit is paid by a call
+	// anyone may make, and this client makes it for its own account's.
+	const exitPayout = createExitPayout({
+		deps: core,
+		contract,
+		onPaid: () => void refreshStake(),
+	});
 
 	// Keyed by WHO PLAYS (an army), in the account data. Typed with the layers'
 	// extensions (`with/fuzd`'s schedule); the format is this game's.
@@ -467,7 +477,12 @@ export function createGameContext(core: CoreServices): GameContext {
 		hold: holdResolvingCycle,
 		holdPlan: holdPlanUntilBoardReleases,
 		merge: mergeBoardView,
-		renderer: ({viewState}) => createGameRenderer({viewState}),
+		renderer: ({viewState}) =>
+			createGameRenderer({
+				viewState,
+				// A table has no exits (`chess-tables`).
+				spawnSpacing: core.table ? undefined : config.spawnSpacing,
+			}),
 		// The canvas reports WHERE, in squares and unsnapped; which spawn point or
 		// square that picks is this game's. Rounded because squares are centred
 		// on their integer coordinate.
@@ -538,6 +553,7 @@ export function createGameContext(core: CoreServices): GameContext {
 			activeIdentity,
 			armies,
 			reserve,
+			exitPayout,
 			cost,
 			needsDeployment,
 			revealSchedule,

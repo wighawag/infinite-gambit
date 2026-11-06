@@ -22,6 +22,8 @@
 	const submission = game.submission;
 	const planning = game.planning;
 	const missedReveal = game.missedReveal;
+	// An army that left through an exit is paid by a call anyone may make.
+	const exitPayout = game.exitPayout;
 	// A commitment the chain holds that this browser has no submission for. The
 	// planned deployment is offered as the candidate and the hash decides;
 	// nothing is sent either way. See $lib/game/core/recovery.
@@ -188,6 +190,30 @@
 				<p class="mt-1 text-xs text-muted-foreground">
 					{$hud.savedTurn.detail}
 				</p>
+			</div>
+		{/if}
+
+		{#if $hud.exitPayout}
+			<div
+				class="mb-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2"
+			>
+				<p class="text-sm font-semibold text-emerald-400">
+					{$hud.exitPayout.headline}
+				</p>
+				<p class="mt-1 text-xs text-muted-foreground">
+					{$hud.exitPayout.detail}
+				</p>
+				<Button
+					size="sm"
+					class="mt-2"
+					disabled={$hud.exitPayout.busy}
+					onclick={() => exitPayout.claim($hud.exitPayout!.army)}
+				>
+					{$hud.exitPayout.actionLabel}
+				</Button>
+				{#if $hud.exitPayout.error}
+					<p class="mt-1 text-xs text-red-400">{$hud.exitPayout.error}</p>
+				{/if}
 			</div>
 		{/if}
 

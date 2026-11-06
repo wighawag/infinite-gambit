@@ -131,7 +131,12 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         /// @notice its king was taken: its pieces and its stake are now those
         ///         of the army in `mergedInto`, which its owner plays
         ///         (`docs/adr/0001-one-move-per-army-merge-on-capture.md`)
-        Captured
+        Captured,
+        /// @notice its king landed alone on an exit in a cycle that is over:
+        ///         its own pieces left the board, those of the armies it had
+        ///         merged are rocks, and its whole stake is paid out by
+        ///         {IGameExit-exit} (`stake` is what is still to be paid)
+        Exited
     }
 
     /// @notice One entry of the army registry, resolved.

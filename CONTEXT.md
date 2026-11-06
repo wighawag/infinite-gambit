@@ -161,7 +161,7 @@ chess-battleground is an onchain infinite-board chess game. Players stake to dep
 Everything above this heading is the framework's and stays game-neutral. The words below are this game's own. The full rule set is in `work/specs/`, and the decisions behind it are in `docs/adr/`.
 
 **Army**:
-One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit (a capture does not move it: the captor's stake counts the reserves of every army merged into it), while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
+One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit (a capture moves it into the captor's reserve only once the capture is folded, and until then the captor's stake counts the reserves of every army merged into it), while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
 _Avoid_: player, faction, team, side
 
 **Move**:
@@ -181,12 +181,16 @@ The twenty squares a deployment's layout puts a piece on (the 6 by 4 rectangle w
 _Avoid_: base, area, zone (a zone is the board read's 16 by 16 index)
 
 **Dead army**:
-An army that can never act again, so no cycle waits for it: today a deployment that failed, was cancelled or was never revealed, or an army whose king was taken (later an exited or frozen army). One predicate in the contract (`_isDead`); an advance stops waiting for every dead army first.
+An army that can never act again, so no cycle waits for it: today a deployment that failed, was cancelled or was never revealed, an army whose king was taken, or an army whose king exited (later a frozen army). One predicate in the contract (`_isDead`); an advance stops waiting for every dead army first.
 _Avoid_: eliminated, gone, inactive
 
 **Exit**:
-A square where a king may leave the world with its stake. It is the only way a stake leaves.
+A square where a king may leave the world with its stake, at the centre of each spawn-grid cell (half the spacing off a spawn point on both axes). It is the only way a stake leaves. A king that lands on one ALONE has left at the close of that cycle: its army's own pieces leave the board with it, the pieces of the armies it had merged stay as rocks, and `exit(army)`, which anyone may call afterwards, pays the whole merged stake in ETH to the army's owner (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`). A king that arrives with others follows the collision table.
 _Avoid_: withdraw, cash out, escape
+
+**Rock**:
+A piece no army can ever play again: one of an army merged into an army that has exited, or one more than eight captures from the army that holds it. It stays on its square, blocks paths and footprints like any piece, never moves, can be captured by anyone, and capturing it gives nothing. Drawn greyed out; nobody's (army zero) on the board read.
+_Avoid_: obstacle, wall, neutral piece
 
 **Capture**:
 Taking a piece that stayed put: by being the only piece to arrive on its square, or by being a moving king that survives a crowd of arrivals there (`docs/adr/0003-collision-table-king-survives-a-crowd.md`). Capturing a king takes its stake and merges its army.

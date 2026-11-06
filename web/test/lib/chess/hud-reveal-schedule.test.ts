@@ -135,7 +135,9 @@ describe('what the HUD says about who reveals the turn', () => {
 					activeArmy: writable(undefined),
 					lastOutcome: writable(undefined),
 					pendingRefund: writable(0n),
+					unpaidExit: writable(undefined),
 				},
+				exitPayout: writable({busy: false}),
 			},
 			viewState: writable({step: 'Unloaded'}),
 		} as unknown as Context;

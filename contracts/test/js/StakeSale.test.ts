@@ -213,3 +213,127 @@ describe('StakeSale', function () {
 		).toBeRejected();
 	});
 });
+
+describe('StakeSale.redeem', function () {
+	/** Buy one stake for `buyer`, and take it out of the game as tokens. */
+	async function buyTokens(
+		f: Awaited<ReturnType<typeof deployAll>>,
+		buyer: `0x${string}`,
+	): Promise<bigint> {
+		const {price, amount} = saleConfig(f.StakeSale);
+		await f.env.execute(f.StakeSale, {
+			account: buyer,
+			functionName: 'purchase',
+			args: [buyer, zeroAddress, 0n],
+			value: price,
+		});
+		await f.env.execute(f.Game, {
+			account: buyer,
+			functionName: 'withdrawFromReserve',
+			args: [amount],
+		});
+		return amount;
+	}
+
+	it('keeps the ETH a purchase pays, and pays it back at the same price', async function () {
+		const f = await networkHelpers.loadFixture(deployAll);
+		const {price} = saleConfig(f.StakeSale);
+		const [buyer, payee] = f.unnamedAccounts;
+		const saleBefore = await balanceOf(provider, f.StakeSale.address);
+		const amount = await buyTokens(f, buyer);
+		// The sale KEEPS the payment: it is what backs the redemption.
+		expect(await balanceOf(provider, f.StakeSale.address)).toEqual(
+			saleBefore + price,
+		);
+
+		const payeeBefore = await balanceOf(provider, payee);
+		await f.env.execute(f.StakeSale, {
+			account: buyer,
+			functionName: 'redeem',
+			args: [amount, payee],
+		});
+		expect(await balanceOf(provider, payee)).toEqual(payeeBefore + price);
+		expect(await balanceOf(provider, f.StakeSale.address)).toEqual(saleBefore);
+		// The tokens are burned, not kept.
+		expect(
+			await f.env.read(f.GameToken, {functionName: 'balanceOf', args: [buyer]}),
+		).toEqual(0n);
+		expect(
+			await f.env.read(f.GameToken, {functionName: 'totalSupply'}),
+		).toEqual(0n);
+	});
+
+	it('cannot be drained: nobody but the sale mints, and nobody redeems more than they hold', async function () {
+		const f = await networkHelpers.loadFixture(deployAll);
+		const [buyer, attacker] = f.unnamedAccounts;
+		const amount = await buyTokens(f, buyer);
+		const {price} = saleConfig(f.StakeSale);
+
+		// No free mint, for anyone, the deployer included.
+		for (const account of [attacker, f.namedAccounts.deployer]) {
+			await expect(
+				f.env.execute(f.GameToken, {
+					account,
+					functionName: 'mint',
+					args: [account, amount],
+				}),
+			).toBeRejectedWith(/NotMinter/);
+			await expect(
+				f.env.execute(f.GameToken, {
+					account,
+					functionName: 'burnFrom',
+					args: [buyer, amount],
+				}),
+			).toBeRejectedWith(/NotMinter/);
+		}
+		// The minter is set once: not even the owner can name another.
+		for (const account of [attacker, f.namedAccounts.deployer]) {
+			await expect(
+				f.env.execute(f.GameToken, {
+					account,
+					functionName: 'setMinter',
+					args: [account],
+				}),
+			).toBeRejectedWith(/NotOwner|MinterAlreadySet/);
+		}
+		// Redeeming tokens one does not hold reverts, so the ETH backing the
+		// buyer's tokens stays there.
+		await expect(
+			f.env.execute(f.StakeSale, {
+				account: attacker,
+				functionName: 'redeem',
+				args: [amount, attacker],
+			}),
+		).toBeRejected();
+		await expect(
+			f.env.execute(f.StakeSale, {
+				account: buyer,
+				functionName: 'redeem',
+				args: [amount + 1n, buyer],
+			}),
+		).toBeRejected();
+		// Tokens passed on are still the ones bought: whoever holds them redeems
+		// exactly what was paid for them, once.
+		await f.env.execute(f.GameToken, {
+			account: buyer,
+			functionName: 'transfer',
+			args: [attacker, amount],
+		});
+		const before = await balanceOf(provider, f.StakeSale.address);
+		await f.env.execute(f.StakeSale, {
+			account: attacker,
+			functionName: 'redeem',
+			args: [amount, attacker],
+		});
+		expect(await balanceOf(provider, f.StakeSale.address)).toEqual(
+			before - price,
+		);
+		await expect(
+			f.env.execute(f.StakeSale, {
+				account: attacker,
+				functionName: 'redeem',
+				args: [1n, attacker],
+			}),
+		).toBeRejected();
+	});
+});

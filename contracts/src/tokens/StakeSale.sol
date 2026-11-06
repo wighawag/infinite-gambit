@@ -25,12 +25,12 @@ import "./GameToken.sol";
 ///      up a stranger's reserve is a gift rather than an attack, because only
 ///      its owner can ever withdraw it.
 ///
-///      MINTING FOR FREE IS THIS TEMPLATE'S ANSWER, not the framework's. The
-///      token is a faucet so that a fresh deployment is playable immediately; a
-///      real game replaces this contract with whatever actually gates entry
-///      (selling a token, minting an NFT into custody, checking a pass), and
-///      the client rail above it does not change, because all it needs is one
-///      call that carries a value and forwards a stipend.
+///      THE SALE KEEPS THE ETH, and it is the token's only minter
+///      (`GameToken.setMinter`), so every token in circulation was paid for
+///      at `PRICE` per `AMOUNT` and {redeem} buys tokens back at that same
+///      price from that ETH: ETH in, ETH out
+///      (`docs/adr/0006-stake-erc20-reserve-exit-only.md`). Tokens burned by an
+///      unrevealed deployment leave their ETH here as surplus.
 contract StakeSale {
     /// @notice `msg.value` minus the stipend was not the price.
     /// @dev Exact rather than a minimum: a client that sizes the value from the
@@ -57,12 +57,18 @@ contract StakeSale {
     uint256 public immutable PRICE;
     /// @notice How much stake one purchase credits.
     uint256 public immutable AMOUNT;
-    address payable public immutable RECIPIENT;
+
+    /// @notice `amount` tokens of `sender` bought back, paid to `to`.
+    event Redeemed(
+        address indexed sender,
+        address indexed to,
+        uint256 amount,
+        uint256 paid
+    );
 
     struct Config {
         uint256 price;
         uint256 amount;
-        address payable recipient;
     }
 
     constructor(GameToken tokens, IGameCommit game, Config memory config) {
@@ -70,7 +76,19 @@ contract StakeSale {
         GAME = game;
         PRICE = config.price;
         AMOUNT = config.amount;
-        RECIPIENT = config.recipient;
+    }
+
+    /// @notice Sell `amount` of the caller's tokens back at the fixed price,
+    ///         paid in ETH to `to`, from the ETH the purchases left here.
+    /// @dev The tokens are BURNED, so the supply and the ETH backing it fall
+    ///      together and the sale stays solvent whoever redeems first. Rounded
+    ///      down, which can only leave the sale more solvent. What the game's
+    ///      `exit` calls with an exiting army's stake.
+    function redeem(uint256 amount, address payable to) external {
+        uint256 paid = (amount * PRICE) / AMOUNT;
+        TOKENS.burnFrom(msg.sender, amount);
+        if (paid != 0) _send(to, paid);
+        emit Redeemed(msg.sender, to, amount, paid);
     }
 
     /// @notice Stake for `owner`, and fund the key that will play for them.
@@ -135,10 +153,8 @@ contract StakeSale {
             revert WrongPaymentAmount(paymentAmount, PRICE);
         }
 
-        // Effects before the transfers below. This contract keeps no storage at
-        // all, so there is nothing a re-entrant call could corrupt, but the
-        // ordering costs nothing and a game that copies this shape may well add
-        // some.
+        // Effects before the transfer below. This contract keeps no storage at
+        // all, so there is nothing a re-entrant call could corrupt.
         TOKENS.mint(address(this), AMOUNT);
         TOKENS.approve(address(game), AMOUNT);
         // THE ADDRESS GAME'S IDENTITY, spelled out at the one place that knows
@@ -148,16 +164,14 @@ contract StakeSale {
         if (stipendTo != address(0) && stipend != 0) {
             _send(stipendTo, stipend);
         }
-        if (paymentAmount != 0) {
-            _send(RECIPIENT, paymentAmount);
-        }
+        // The payment STAYS HERE: it is what backs {redeem}.
 
         emit Staked(msg.sender, owner, AMOUNT, stipendTo, stipend);
     }
 
     /// @dev `call` rather than `transfer`: the 2300 gas stamp is not enough for
-    ///      a contract account, and both recipients here can be one - a smart
-    ///      account playing the game, or a treasury.
+    ///      a contract account, and every recipient here can be one (a smart
+    ///      account playing the game).
     function _send(address payable to, uint256 amount) internal {
         (bool success, ) = to.call{value: amount}("");
         if (!success) {

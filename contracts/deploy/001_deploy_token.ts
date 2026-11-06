@@ -11,7 +11,10 @@ export default deployScript(
 			{
 				account: deployer,
 				artifact: artifacts.GameToken,
-				args: [],
+				// THE OWNER, who names the minter once the sale exists
+				// (020_deploy_stake_sale.ts). An argument, because under CREATE2
+				// `msg.sender` is the factory.
+				args: [deployer],
 			},
 			{deterministic: true},
 		);

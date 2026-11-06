@@ -51,6 +51,12 @@ export default deployScript(
 				{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 				{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 				{
+					name: 'DeploymentReveal',
+					artifact: artifacts.GameDeploymentReveal,
+					args: [config],
+				},
+				{name: 'Exit', artifact: artifacts.GameExit, args: [config]},
+				{
 					name: 'Simulation',
 					artifact: artifacts.GameSimulation,
 					args: [config],

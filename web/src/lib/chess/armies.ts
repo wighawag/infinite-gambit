@@ -20,6 +20,11 @@ export const ARMY_STATUS = {
 	Cancelled: 5,
 	/** Its king was taken: its pieces and stake are `mergedInto`'s now. */
 	Captured: 6,
+	/**
+	 * Its king landed alone on an exit: its own pieces left the board, those it
+	 * merged are rocks, and `stake` is what `exit(army)` still has to pay.
+	 */
+	Exited: 7,
 } as const;
 export type ArmyStatus = (typeof ARMY_STATUS)[keyof typeof ARMY_STATUS];
 
@@ -122,6 +127,20 @@ export function pendingRefund(
 	return last?.status === ARMY_STATUS.Failed ? last.stake : 0n;
 }
 
+/**
+ * The account's most recent army that has exited and is still owed a payout
+ * (the registry reports what is still to be paid as its stake).
+ */
+export function unpaidExit<T extends Pick<ArmyView, 'status' | 'stake'>>(
+	armies: readonly T[],
+): T | undefined {
+	for (let i = armies.length - 1; i >= 0; i--) {
+		const army = armies[i];
+		if (army.status === ARMY_STATUS.Exited && army.stake > 0n) return army;
+	}
+	return undefined;
+}
+
 export type ArmiesState =
 	| {step: 'Unloaded'}
 	| {
@@ -142,6 +161,8 @@ export type ArmiesStore = Readable<ArmiesState> & {
 	lastOutcome: Readable<ArmyView | undefined>;
 	/** The refund the account's next deployment or withdrawal writes. */
 	pendingRefund: Readable<bigint>;
+	/** The account's army that has exited and is still owed its payout. */
+	unpaidExit: Readable<ArmyView | undefined>;
 	/** Read the account's armies again. */
 	update(): Promise<void>;
 };
@@ -213,6 +234,9 @@ export function createArmies(params: {
 		activeArmy,
 		lastOutcome,
 		pendingRefund: refund,
+		unpaidExit: derived(state, ($armies) =>
+			$armies.step === 'Loaded' ? unpaidExit($armies.armies) : undefined,
+		),
 		update,
 	};
 }

@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "./UsingGameStore.sol";
 import "../../utils/PositionUtils.sol";
 import {ChessRules} from "./ChessRules.sol";
+import {CommitReveal} from "../../commit-reveal/CommitReveal.sol";
 
 /// @dev THE BOARD, RESOLVED FROM FACTS
 ///      (`docs/adr/0002-order-free-lazy-resolution.md`). Two kinds of fact put
@@ -197,9 +198,8 @@ abstract contract UsingGameBoard is UsingGameStore {
         SquareRecord storage record = _squares[position];
         uint64 touched = record.cycle;
         if (touched == 0) {
-            if (deployed) return laid;
-            piece.position = position;
-            return piece;
+            if (deployed && !_exited(laid.army, cycleNumber)) return laid;
+            return _emptyAt(position);
         }
 
         piece = _standingOf(record, position);
@@ -216,6 +216,16 @@ abstract contract UsingGameBoard is UsingGameStore {
         if (deployed && laidIn > touched) {
             piece = laid;
         }
+        // AN EXITED ARMY'S OWN PIECES HAVE LEFT THE BOARD: one comparison on
+        // the label the facts hold (`docs/adr/0011`). The pieces of the
+        // armies it merged keep their own label, and stay, as rocks.
+        if (piece.kind != PieceKind.None && _exited(piece.army, cycleNumber)) {
+            return _emptyAt(position);
+        }
+    }
+
+    function _emptyAt(uint64 position) private pure returns (Piece memory e) {
+        e.position = position;
     }
 
     /// @dev The piece that stood on `position` at the start of `record`'s
@@ -281,7 +291,10 @@ abstract contract UsingGameBoard is UsingGameStore {
             _touchedSquares[PositionUtils.getZone(position)] |=
                 uint256(1) << PositionUtils.zoneLocalIndex(position);
         }
-        if (touched != 0) _foldCapture(record, cycleNumber);
+        if (touched != 0) {
+            _foldCapture(record, cycleNumber);
+            _foldExit(record, position);
+        }
         Piece memory standing = _squareAt(position, cycleNumber);
         record.army = standing.army;
         record.cycle = cycleNumber;
@@ -324,7 +337,69 @@ abstract contract UsingGameBoard is UsingGameStore {
             _foldLoop(victim, captor, cycle, cycleNumber);
         } else {
             army.capturedInto = captor;
+            _moveReserveUp(victim, captor);
         }
+    }
+
+    /// @notice Move `victim`'s whole reserve into `captor`'s, once its capture
+    ///         is a folded fact (`docs/adr/0011`).
+    /// @dev The captor's stake counts the victim's reserve either way
+    ///      ({_treeStake}), so no stake changes, whatever the order; the tree
+    ///      only gets flatter. Credited without a seat: the captor is already
+    ///      a member, or dead.
+    function _moveReserveUp(uint256 victim, uint256 captor) internal {
+        uint256 amount = CommitReveal.debit(victim, type(uint256).max);
+        if (amount != 0) CommitReveal.deposit(captor, amount);
+    }
+
+    // ------------------------------------------------------------------------
+    // EXITS (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`)
+    // ------------------------------------------------------------------------
+
+    /// @notice Whether `position` is an exit: the centre of a spawn-grid
+    ///         cell, half the spacing off a spawn point on both axes.
+    function _isExit(uint64 position) internal view returns (bool) {
+        (int32 x, int32 y) = PositionUtils.toXY(position);
+        int256 s = int256(uint256(SPAWN_SPACING));
+        int256 h = s / 2;
+        return (int256(x) - h) % s == 0 && (int256(y) - h) % s == 0;
+    }
+
+    /// @notice Whether `record`'s facts are of a king that landed ALONE on
+    ///         the exit `position`: it left the board at the close of that
+    ///         cycle. A king that arrived with others follows the collision
+    ///         table and stays.
+    function _exitIn(
+        SquareRecord storage record,
+        uint64 position
+    ) private view returns (bool) {
+        return record.kingArrived && record.arrivals == 1 && _isExit(position);
+    }
+
+    /// @notice Whether `army` has left the board through an exit before
+    ///         `cycleNumber`.
+    /// @dev ORDER-FREE, from closed-cycle facts only, and O(1): the cycle and
+    ///      square of its king's last move ({ArmyRecord-kingMovedIn}), and the
+    ///      facts of that square while they are still that cycle's. A touch
+    ///      that folds them keeps the answer first ({_foldExit}), so both
+    ///      sources give the same answer.
+    function _exited(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal view returns (bool) {
+        ArmyRecord storage record = _armies[army];
+        if (record.exited) return true;
+        uint64 movedIn = record.kingMovedIn;
+        if (movedIn == 0 || movedIn >= cycleNumber) return false;
+        uint64 to = record.kingTo;
+        SquareRecord storage facts = _squares[to];
+        return facts.cycle == movedIn && _exitIn(facts, to);
+    }
+
+    /// @notice Before an exit square's facts are folded away, keep that the
+    ///         king which landed alone on it has exited.
+    function _foldExit(SquareRecord storage record, uint64 position) private {
+        if (_exitIn(record, position)) _armies[record.kingArmy].exited = true;
     }
 
     // ------------------------------------------------------------------------
@@ -448,10 +523,11 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///      at most twice this many merges, and `GasBudget.test.ts` prices that
     ///      against the declared reveal gas. Chains stay short without it: a
     ///      touched square keeps its piece's army resolved as of then, so a hop
-    ///      is a merge since the square was last touched. A chain longer than
-    ///      this ends at the army reached, a dead one, which is what the board
-    ///      shows too (every read is bounded alike), until a reveal touching the
-    ///      square writes that army down and the next read walks on from it.
+    ///      is a merge since the square was last touched. A piece more than this
+    ///      many captures from its root is a ROCK, nobody's, for good: every
+    ///      read says so alike, and a touch writes it down as army zero
+    ///      (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`,
+    ///      replacing 0009's "walks on after a touch").
     uint256 internal constant MAX_CHAIN = 8;
 
     /// @notice The army `army` plays for at the start of `cycleNumber`: itself,
@@ -467,6 +543,10 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 cycleNumber
     ) internal view returns (uint256 into) {
         (into, ) = _walk(army, cycleNumber);
+        // A ROCK: a piece of an army merged into one that has exited, which
+        // nobody can ever play again. An exited army itself resolves to
+        // nobody too, which is what makes it dead ({_isDead}).
+        if (into != 0 && _exited(into, cycleNumber)) return 0;
     }
 
     /// @notice {_armyOf}, and whether the walk came back to `army` itself:
@@ -492,7 +572,10 @@ abstract contract UsingGameBoard is UsingGameStore {
             }
             at = captor;
         }
-        return (at, false);
+        // Exactly MAX_CHAIN captures reached the root; more is a rock: nobody's,
+        // for good (`docs/adr/0011`). A touch writes it down as army zero.
+        if (_rawCaptureOf(at, cycleNumber) == 0) return (at, false);
+        return (0, false);
     }
 
     /// @notice The army that took `army`'s king before `cycleNumber`, as it
@@ -680,28 +763,28 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 cycleNumber
     ) internal view returns (uint256) {
         if (_armyOf(army, cycleNumber) != army) return 0;
-        return _treeStake(army, army, cycleNumber, MAX_CHAIN);
+        return _treeStake(army, cycleNumber, MAX_CHAIN);
     }
 
     /// @dev `army`'s reserve plus the trees of the armies that merged into it,
     ///      each counted once: an army has one captor, and is counted in its
-    ///      list only, and only if it resolves to `root`. An army of a capture
+    ///      list only. An army of a capture
     ///      loop is no one's victim, so it keeps its own stake, which goes with
     ///      it to its new owner ({_ownerOf}).
     function _treeStake(
-        uint256 root,
         uint256 army,
         uint64 cycleNumber,
         uint256 depth
-    ) private view returns (uint256 stake) {
+    ) internal view returns (uint256 stake) {
         stake = _reserveOf(army);
         if (depth == 0) return stake;
         uint256[] storage victims = _capturesBy[army];
         uint256 n = victims.length;
         for (uint256 k = 0; k < n; k++) {
             uint256 victim = victims[k];
+            // Reached from `root` through real captures only, so it resolves
+            // to `root`: no walk up is needed to check it.
             if (_captureOf(victim, cycleNumber) != army) continue;
-            if (_armyOf(victim, cycleNumber) != root) continue;
             bool seen = false;
             for (uint256 j = 0; j < k; j++) {
                 if (victims[j] == victim) {
@@ -710,7 +793,7 @@ abstract contract UsingGameBoard is UsingGameStore {
                 }
             }
             if (!seen) {
-                stake += _treeStake(root, victim, cycleNumber, depth - 1);
+                stake += _treeStake(victim, cycleNumber, depth - 1);
             }
         }
     }
