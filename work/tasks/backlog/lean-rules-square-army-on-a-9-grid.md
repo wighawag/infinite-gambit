@@ -33,6 +33,10 @@ The third slice of the `lean-rules` spec, and the decision in `docs/adr/0015-a-s
 
 Capture rules and stakes are NOT changed here. **Gas:** `GasBudget.test.ts` holds each declared figure between the measured worst case plus `MINIMUM_HEADROOM_PERCENT` and `GENEROSITY_CEILING` (3) times it; removing the facing and moving the scenes to spacing 9 moves the measurements, so re-measure and adjust the declared figures in `contracts/rocketh/config.ts` if (and only if) they fall outside that window. The tight figures are `lean-rules-one-slot-square-record-and-tight-gas-limits`.
 
+## Requeue 2026-11-06
+
+Gate-3 BLOCK on PR #27 (one fix, keep the rest as is): main gained Sepolia (chain 11155111) entries in contracts/rocketh/config.ts in #26 after this branch was cut, with Game spawnSpacing 16n and Lobby spawnSpacing 10n. Set BOTH to spawnSpacing: 9n, as Game.default and Lobby.default are, and fix any comment there that still says tables use a tighter grid or the world uses 16. Spawn points are 9 apart everywhere, including Sepolia. Do not change anything else.
+
 ## Acceptance criteria
 
 - [ ] A deployment lays out the 5 by 5 army above on its spawn point, the same layout everywhere; `layout`, `layoutAt` and `kingOf` agree.
