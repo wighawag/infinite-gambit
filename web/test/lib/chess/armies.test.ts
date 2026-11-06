@@ -54,6 +54,14 @@ describe('choosing the army to play', () => {
 		expect(isLive({status: ARMY_STATUS.Failed})).toBe(false);
 		expect(isLive({status: ARMY_STATUS.Deployed})).toBe(true);
 	});
+
+	it('deploys again once its army froze: a frozen army never acts again', () => {
+		expect(isLive({status: ARMY_STATUS.Frozen})).toBe(false);
+		expect(chooseArmy([entry(1, ARMY_STATUS.Frozen)], army(2))).toBe(army(2));
+		expect(lastDeploymentOutcome([entry(1, ARMY_STATUS.Frozen)])?.status).toBe(
+			ARMY_STATUS.Frozen,
+		);
+	});
 });
 
 describe('what became of the last deployment', () => {

@@ -46,6 +46,14 @@ describe('how close the nearest armies are', () => {
 		expect(point.nearest).toEqual([]);
 		expect(nearestLabel(point.nearest)).toBe('no army on the board yet');
 	});
+
+	it('counts a frozen army, which stays on the board with its stake', () => {
+		const [point] = describeSpawnPoints({
+			spawnPoints: [squareAt(0, 0)],
+			armies: [king(3, 3, ARMY_STATUS.Frozen)],
+		});
+		expect(point.nearest).toEqual([3]);
+	});
 });
 
 describe('picking a spawn point by clicking the board', () => {

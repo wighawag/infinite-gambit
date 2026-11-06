@@ -41,6 +41,11 @@ interface UsingGameEvents is UsingGameTypes, UsingCommitRevealEvents {
     /// @notice A deployment that was never revealed had its stake burned.
     event StakeBurned(uint256 indexed army, uint256 amount);
 
+    /// @notice An army's missed reveal of a move was settled, which froze it
+    ///         for good. It was frozen already from the close of that reveal
+    ///         window (`IGameRegistry-isFrozen`); this is only the settling.
+    event ArmyFrozen(uint256 indexed army);
+
     /// @notice An exited army's whole stake was paid, in ETH, to its owner.
     event ExitPaid(uint256 indexed army, address indexed owner, uint256 amount);
 }

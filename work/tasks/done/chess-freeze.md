@@ -62,3 +62,13 @@ git fetch <remote> && git switch -c work/chess-freeze <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-freeze.md work/tasks/done/chess-freeze.md
 ```
+
+## Decisions
+
+- **A freeze takes nothing from the reserve on either settlement path**, even when `forfeitMissedReveal` hands `_forfeit` a bond. This keeps story 37's "stakes stay on the board as prey". The alternative was the base's default, which takes the bond out of the reserve and leaves it in the contract; that would shrink the prey. Moves bond zero today, so this only matters if a client bonds more. It touches only `_forfeit`.
+- **Frozen requires a revealed deployment** (`spawnIndexPlusOne != 0`), so `isFrozen` is false for an unrevealed deployment, which stays `Unrevealed` and is burned. This follows ADR 0005 ("no army to freeze yet").
+- **New `ArmyStatus.Frozen = 8`, appended**, so existing numbers keep their meaning. A frozen army that is then captured reads `Captured`, because the capture check comes first. I also added an `ArmyFrozen(army)` event on settlement, the counterpart of `StakeBurned`.
+- **No explicit frozen-exit guard in `_exited` or `exit()`:** freeze and exit cannot both happen (see the argument above). A check in `_exited` would add a cold storage read per square read on the reveal path, which has no gas slack. The argument is written next to `_isFrozen` and tested.
+- **The client stops playing a frozen army** (`isLive` is false for `Frozen`). The player is sent back to deployment and `lastDeployment` explains what happened. The alternative was to keep showing the frozen army as the active one. This is user-visible and touches `chooseArmy`, `needsDeployment` and the HUD.
+- **Deadline warning threshold:** it fires in the last half of a timed reveal phase (`REVEAL_DEADLINE_WARNING_SHARE = 0.5`), or immediately on a failed reveal. The half matches the existing fuzd fallback, where this browser takes over a scheduled reveal at half the phase. "Not landed" means the submission still owes the reveal (committed, revealing, or failed) and fuzd does not report it confirmed, so a quiet revealer or a key with no gas warns the same way. There is no warning without a clock. The alternative was a fixed number of seconds, which would not scale between a 30-second phase and a one-hour one.
+- **Committing an illegal move now freezes the army,** because it can never be revealed. This follows from ADR 0005, and the client already only offers legal moves through the simulation route.

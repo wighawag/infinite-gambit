@@ -87,18 +87,36 @@ export function movesWorld(params: {
 	 * test-only way (`mintTokens`), which no ETH backs.
 	 */
 	buyStakes?: boolean;
+	/**
+	 * A TABLE's clock: timed, with unanimity able to bring the next phase
+	 * forward (`TimedWithEarlyAdvance`). The helpers still move by the clock,
+	 * so a test that advances early does so by hand, last.
+	 */
+	earlyAdvance?: boolean;
 }) {
-	const {deployAll, loadFixture, manual = false, buyStakes = false} = params;
+	const {
+		deployAll,
+		loadFixture,
+		manual = false,
+		buyStakes = false,
+		earlyAdvance = false,
+	} = params;
 
 	async function deployMovesWorld() {
 		const f = await deployAll();
 		const Game = await deployGameWith(f, {
 			name: manual
 				? 'Game_moves_manual'
-				: buyStakes
-					? 'Game_moves_bought'
-					: 'Game_moves',
-			cyclePolicy: manual ? CYCLE_POLICY.Manual : CYCLE_POLICY.Timed,
+				: earlyAdvance
+					? 'Game_moves_early'
+					: buyStakes
+						? 'Game_moves_bought'
+						: 'Game_moves',
+			cyclePolicy: manual
+				? CYCLE_POLICY.Manual
+				: earlyAdvance
+					? CYCLE_POLICY.TimedWithEarlyAdvance
+					: CYCLE_POLICY.Timed,
 			commitPhaseDuration: manual ? 0n : COMMIT_PHASE,
 			revealPhaseDuration: manual ? 0n : REVEAL_PHASE,
 			spawnSpacing: 6n,

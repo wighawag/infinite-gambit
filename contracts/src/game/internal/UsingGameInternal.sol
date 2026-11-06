@@ -113,6 +113,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             exited: false,
             collecting: false,
             paid: false,
+            frozen: false,
             capturedInto: 0,
             loopedIn: 0
         });
@@ -163,12 +164,12 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
 
     /// @notice THE ONE "DEAD" PREDICATE: whether `id` is an army that can never
     ///         act again, so that no cycle should wait for it.
-    /// @dev Today: a deployment that failed, was cancelled, or was never
-    ///      revealed, an army whose king was taken, whose pieces its captor
-    ///      now moves with the captor's own one move per cycle, and an army
-    ///      whose king has exited, which resolves to nobody ({_armyOf}), so the
-    ///      same comparison covers it. Later rules extend it (a freeze). An account is never dead by it: only
-    ///      armies can be.
+    /// @dev A deployment that failed, was cancelled, or was never revealed,
+    ///      an army whose king was taken, whose pieces its captor now moves
+    ///      with the captor's own one move per cycle, an army whose king has
+    ///      exited, which resolves to nobody ({_armyOf}), so the same
+    ///      comparison covers it, and a FROZEN army ({_isFrozen}), which never
+    ///      commits again. An account is never dead by it: only armies can be.
     function _isDead(
         uint256 id,
         uint64 cycleNumber
@@ -176,12 +177,46 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         if (!_isArmyId(id)) return false;
         ArmyStatus status = _deploymentStatus(id, cycleNumber);
         if (status == ArmyStatus.Deployed) {
-            return _armyOf(id, cycleNumber) != id;
+            return _isFrozen(id, cycleNumber) || _armyOf(id, cycleNumber) != id;
         }
         return
             status == ArmyStatus.Failed ||
             status == ArmyStatus.Cancelled ||
             status == ArmyStatus.Unrevealed;
+    }
+
+    /// @notice THE ONE "FROZEN" DEFINITION: whether `army` is an army on the
+    ///         board that a missed reveal has frozen for good at the start of
+    ///         `cycleNumber` (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
+    /// @dev A FLAG OR A FACT. The base only runs {_forfeit} when somebody
+    ///      settles the missed reveal, which sets the flag; until then the
+    ///      unrevealed commitment of a cycle that is over says the same, so the
+    ///      army is frozen from the moment its reveal window closes, whoever
+    ///      settles it and whenever. A commitment of the current cycle can
+    ///      still be revealed, so it freezes nothing yet. Only an army whose
+    ///      deployment was revealed can be frozen: one never revealed has no
+    ///      army to freeze, and its stake is burned instead.
+    ///
+    ///      Every check that cares reads this: a commitment ({_isDead}, so it
+    ///      reverts `NotInGame`), the waited-for set (the advance's sweep and
+    ///      {_effectiveAttendance}, through {_isDead}), and the registry
+    ///      ({_armyView}, `isFrozen`).
+    ///
+    ///      A FROZEN KING NEVER EXITS, and nothing has to check it on the hot
+    ///      path: a king moves only by its army's reveals, and an army that
+    ///      missed the reveal of cycle C revealed nothing in C or after. An
+    ///      exit by a move of an earlier cycle would have made it dead before
+    ///      C, and a dead army's commitment in C reverts, so no army is ever
+    ///      both frozen and exited (`test/js/Freeze.test.ts`).
+    function _isFrozen(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal view returns (bool) {
+        ArmyRecord storage record = _armies[army];
+        if (record.spawnIndexPlusOne == 0) return false;
+        if (record.frozen) return true;
+        uint64 committedIn = _commitmentOf(army).cycleNumber;
+        return committedIn != 0 && committedIn < cycleNumber;
     }
 
     /// @notice Write the refund of `army`'s failed deployment, if it is due:
@@ -240,12 +275,18 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     }
 
     /// @notice WHAT NOT REVEALING COSTS, for an army.
-    /// @dev THE BASE'S SEAM. A missed DEPLOYMENT costs its whole stake,
-    ///      whatever the settlement path and whatever was bonded, and the stake
-    ///      is BURNED: a real burn that reduces the supply, not tokens left in
-    ///      the contract (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
-    ///      There is no army to freeze, so nothing returns and the army is no
-    ///      longer waited for. Anything else is the base's default.
+    /// @dev THE BASE'S SEAM (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
+    ///      A missed DEPLOYMENT costs its whole stake, whatever the settlement
+    ///      path and whatever was bonded, and the stake is BURNED: a real burn
+    ///      that reduces the supply, not tokens left in the contract. There is
+    ///      no army to freeze, so nothing returns and the army is no longer
+    ///      waited for.
+    ///
+    ///      ANY OTHER MISSED REVEAL OF AN ARMY FREEZES IT, and takes NOTHING:
+    ///      whatever was bonded stays in its reserve, which is its stake, on
+    ///      the board as prey for whoever captures it. It was frozen already
+    ///      ({_isFrozen}); settling writes it down for good and stops waiting
+    ///      for it. An account's (a table's member) is the base's default.
     function _forfeit(
         uint256 player,
         uint256 amount
@@ -261,6 +302,10 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
                 emit StakeBurned(player, forfeited);
                 return forfeited;
             }
+            army.frozen = true;
+            _stopWaitingFor(player);
+            emit ArmyFrozen(player);
+            return 0;
         }
         return super._forfeit(player, amount);
     }
@@ -648,6 +693,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         }
         view_.stake = _stakeOf(id, cycleNumber);
         view_.king = _kingAt(id, view_.spawnPoint, cycleNumber);
+        // Frozen, it stays on the board with its stake (story 37).
+        if (_isFrozen(id, cycleNumber)) view_.status = ArmyStatus.Frozen;
     }
 
     /// @notice Every piece on the squares from (`minX`,`minY`) to

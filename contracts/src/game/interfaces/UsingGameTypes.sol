@@ -136,7 +136,15 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         ///         its own pieces left the board, those of the armies it had
         ///         merged are rocks, and its whole stake is paid out by
         ///         {IGameExit-exit} (`stake` is what is still to be paid)
-        Exited
+        Exited,
+        /// @notice on the board, FROZEN for good by a missed reveal: it never
+        ///         moves again and its king cannot exit, but it can still be
+        ///         captured (then it is `Captured`), and its whole stake stays
+        ///         on the board as prey
+        ///         (`docs/adr/0005-missed-reveal-freezes-the-army.md`). Frozen
+        ///         as soon as its reveal window closed, before anybody settles
+        ///         the missed reveal ({IGameRegistry-isFrozen})
+        Frozen
     }
 
     /// @notice One entry of the army registry, resolved.

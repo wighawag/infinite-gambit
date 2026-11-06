@@ -50,4 +50,10 @@ contract GameRegistry is IGameRegistry, UsingGameInternal {
     function getNextArmy(address owner) external view returns (uint256 army) {
         return _armyIdOf(owner, _armyCountOf[owner] + 1);
     }
+
+    /// @inheritdoc IGameRegistry
+    function isFrozen(uint256 army) external view returns (bool) {
+        (uint64 cycleNumber, ) = _cycleNumber();
+        return _isFrozen(army, cycleNumber);
+    }
 }

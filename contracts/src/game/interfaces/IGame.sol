@@ -264,6 +264,17 @@ interface IGameRegistry is UsingGameTypes {
 
     /// @notice The id `owner`'s next deployment creates.
     function getNextArmy(address owner) external view returns (uint256 army);
+
+    /// @notice Whether `army` is FROZEN by a missed reveal: it never moves
+    ///         again and its king cannot exit, but it can still be captured
+    ///         (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
+    /// @dev A DEFINITION, NOT JUST A FLAG: an army landed on the board whose
+    ///      missed reveal has been settled, OR which holds an unrevealed
+    ///      commitment from a cycle that is over, so it is frozen from the
+    ///      moment its reveal window closes, before anybody settles it. A
+    ///      deployment never revealed is not frozen: it has no army to freeze,
+    ///      and its stake is burned instead.
+    function isFrozen(uint256 army) external view returns (bool);
 }
 
 interface IGameSimulation is UsingGameTypes {

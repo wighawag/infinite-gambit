@@ -3,8 +3,11 @@ import {
 	describeArmy,
 	describeDeployment,
 	describeLastDeployment,
+	describeRevealDeadline,
 	describeSubmission,
+	REVEAL_DEADLINE_WARNING_SHARE,
 } from '$lib/chess/ui/hud';
+import {SignerOutOfFundsError} from '$lib/game/core/commit-reveal/errors';
 import {ARMY_STATUS} from '$lib/chess/armies';
 import {squareAt} from '$lib/chess/squares';
 
@@ -109,5 +112,125 @@ describe('the HUD', () => {
 				actions: [{from: 0n, to: 0n}],
 			} as never).label,
 		).toBe('Deployment picked, not yet committed');
+	});
+
+	it('says a frozen army stays on the board with its stake, and that the player deploys again', () => {
+		const frozen = describeArmy({status: ARMY_STATUS.Frozen, stake: 10n});
+		expect(frozen?.tone).toBe('bad');
+		expect(frozen?.label).toContain('frozen');
+		const last = describeLastDeployment({
+			needsDeployment: true,
+			last: {status: ARMY_STATUS.Frozen, stake: 10n},
+		});
+		expect(last?.label).toContain('frozen');
+		expect(last?.label).toContain('deploy again');
+		expect(last?.stakeLabel).toContain('stays on the board');
+	});
+});
+
+describe('the reveal deadline warning', () => {
+	const move = {from: 1n, to: 2n};
+	const deployment = {from: 3n, to: 3n};
+	const committed = (actions = [move]) =>
+		({step: 'Committed', cycleNumber: 5, actions}) as const;
+	const clock = (secondsToRevealEnd: number, isCommitPhase = false) => ({
+		currentCycleNumber: 5,
+		isCommitPhase,
+		revealPhaseDuration: 60,
+		secondsToRevealEnd,
+	});
+
+	it('says nothing while there is still time, or nothing is owed', () => {
+		expect(
+			describeRevealDeadline({cycle: clock(50), submission: committed()}),
+		).toBeUndefined();
+		// The commit phase: the reveal is not due yet.
+		expect(
+			describeRevealDeadline({cycle: clock(5, true), submission: committed()}),
+		).toBeUndefined();
+		// Revealed, or a turn of another cycle.
+		expect(
+			describeRevealDeadline({
+				cycle: clock(5),
+				submission: {step: 'Revealed', cycleNumber: 5},
+			}),
+		).toBeUndefined();
+		expect(
+			describeRevealDeadline({
+				cycle: clock(5),
+				submission: {step: 'Committed', cycleNumber: 4, actions: [move]},
+			}),
+		).toBeUndefined();
+		// Revealed for the player by the reveal service.
+		expect(
+			describeRevealDeadline({
+				cycle: clock(5),
+				submission: committed(),
+				revealSchedule: 'confirmed',
+			}),
+		).toBeUndefined();
+	});
+
+	it('says nothing without a clock: a manual cycle waits for every reveal', () => {
+		expect(
+			describeRevealDeadline({
+				cycle: {
+					currentCycleNumber: 5,
+					isCommitPhase: false,
+					revealPhaseDuration: 0,
+					secondsToRevealEnd: undefined,
+				},
+				submission: committed(),
+			}),
+		).toBeUndefined();
+	});
+
+	it('warns loudly once the deadline is close and the reveal has not landed', () => {
+		const at = 60 * REVEAL_DEADLINE_WARNING_SHARE;
+		const warning = describeRevealDeadline({
+			cycle: clock(at - 0.4),
+			submission: committed(),
+		});
+		expect(warning?.secondsLeft).toBe(Math.ceil(at - 0.4));
+		expect(warning?.headline).toContain('not landed');
+		expect(warning?.detail).toContain('freezes');
+		// Still being sent counts too.
+		expect(
+			describeRevealDeadline({
+				cycle: clock(3),
+				submission: {step: 'Revealing', cycleNumber: 5, actions: [move]},
+			})?.headline,
+		).toContain('not landed');
+		// A deployment is not frozen: its stake is burned.
+		expect(
+			describeRevealDeadline({
+				cycle: clock(3),
+				submission: committed([deployment]),
+			})?.detail,
+		).toContain('burned');
+	});
+
+	it('warns as soon as the reveal failed, and names the empty gas tank', () => {
+		const failed = (error: unknown) =>
+			({
+				step: 'Error',
+				cycleNumber: 5,
+				during: 'reveal',
+				message: 'nope',
+				error,
+				actions: [move],
+			}) as const;
+		const outOfGas = describeRevealDeadline({
+			cycle: clock(55),
+			submission: failed(new SignerOutOfFundsError('no gas')),
+		});
+		expect(outOfGas?.detail).toContain('gas');
+		expect(outOfGas?.detail).toContain('freezes');
+		expect(
+			describeRevealDeadline({
+				cycle: clock(55),
+				submission: failed(new Error('nope')),
+			})?.detail,
+		).toContain('Retry reveal');
 	});
 });

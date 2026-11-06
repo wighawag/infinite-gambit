@@ -51,6 +51,16 @@ const MARGIN = 8;
 const LANDED: ReadonlySet<number> = new Set([
 	ARMY_STATUS.Deployed,
 	ARMY_STATUS.Captured,
+	ARMY_STATUS.Frozen,
+]);
+
+/**
+ * Statuses of an army whose king stands on the board: a frozen one stays
+ * there, with its stake, as loot (story 37).
+ */
+const ON_THE_BOARD: ReadonlySet<number> = new Set([
+	ARMY_STATUS.Deployed,
+	ARMY_STATUS.Frozen,
 ]);
 
 export function minimapOf(params: {
@@ -72,7 +82,7 @@ export function minimapOf(params: {
 		taken.push({...positionOf(army.spawnPoint), open: false});
 	}
 	const armies = params.armies
-		.filter((army) => army.status === ARMY_STATUS.Deployed)
+		.filter((army) => ON_THE_BOARD.has(army.status))
 		.map((army) => ({
 			id: army.id,
 			...positionOf(army.king),

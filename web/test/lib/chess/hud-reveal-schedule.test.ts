@@ -104,6 +104,9 @@ describe('what the HUD says about who reveals the turn', () => {
 
 	it('reaches the HUD model from the game context', () => {
 		const revealSchedule = writable<ScheduledReveal | undefined>(scheduled());
+		const cycleInfo = writable<Record<string, unknown>>({
+			currentCycleNumber: 3,
+		});
 		const context = {
 			hasLocalSigner: true,
 			deployments: {
@@ -123,7 +126,7 @@ describe('what the HUD says about who reveals the turn', () => {
 				planning: {count: writable(0), move: writable(undefined)},
 				cost: writable(0n),
 				reserve: writable({step: 'Loaded', amount: 100n}),
-				cycleInfo: writable({currentCycleNumber: 3}),
+				cycleInfo,
 				missedReveal: writable({step: 'Clear'}),
 				setup: writable(undefined),
 				acquisition: writable({step: 'Idle'}),
@@ -145,5 +148,20 @@ describe('what the HUD says about who reveals the turn', () => {
 		expect(get(hud).revealSchedule?.step).toBe('scheduled');
 		revealSchedule.set(scheduled({step: 'confirmed'}));
 		expect(get(hud).revealSchedule?.step).toBe('confirmed');
+		// No clock in that cycle, so no deadline to warn about.
+		expect(get(hud).revealDeadline).toBeUndefined();
+
+		// Near the end of a timed reveal phase: confirmed is landed, anything
+		// else is warned about (`describeRevealDeadline`).
+		cycleInfo.set({
+			type: 'timed',
+			currentCycleNumber: 3,
+			isCommitPhase: false,
+			timeLeftForRevealEnd: 2,
+			config: {revealPhaseDuration: 10},
+		});
+		expect(get(hud).revealDeadline).toBeUndefined();
+		revealSchedule.set(scheduled({step: 'unreachable'}));
+		expect(get(hud).revealDeadline?.secondsLeft).toBe(2);
 	});
 });
