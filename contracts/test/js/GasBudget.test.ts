@@ -376,7 +376,10 @@ describe('the declared gas budget', function () {
 		]);
 		// THE WORST, put together: the dearest plain move of the first case
 		// whose origin AND destination each fold a two-victim square, which
-		// notes two candidates (a king and an arriver already there), and
+		// notes three candidates (a king and an arriver meeting on a king or
+		// stone that stayed: the arriver's, the standing army's, for the stone
+		// that holds the king's stake if the captor falls, and the mover's,
+		// each a fresh list: its length and its first slot), and
 		// whose every square read meets a piece of a fallen army not yet
 		// folded, a distinct one each, cold: its record's two slots, the four
 		// slots of its king's square, and finding that square. A slider reads
@@ -385,7 +388,7 @@ describe('the declared gas budget', function () {
 		const fold = foldingTwo > plainStep ? foldingTwo - plainStep : 0n;
 		const note = 2n * 22_100n + 1_000n;
 		const vanish = 6n * 2_100n + 3_000n;
-		const extras = 2n * fold + 2n * note;
+		const extras = 2n * fold + 3n * note;
 		const slider = measured.slider! + extras + 7n * vanish;
 		const king = measured.king! + extras + 8n * vanish;
 		const worst = slider > king ? slider : king;
