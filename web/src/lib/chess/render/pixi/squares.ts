@@ -22,17 +22,18 @@ export type VisibleCells = {
 };
 
 /**
- * Below this many screen pixels per square the grain is invisible anyway and
- * the square pool would be tens of thousands of sprites: draw the board as one
- * low-contrast tiling checker instead.
+ * Screen pixels per square below which an exit stops glowing (`exitLook`).
+ * The board is always wood (there is no flat fallback, and the camera's
+ * `minScale` keeps it at or above this), but should a config let the camera
+ * pull further back, a field of glowing inlays would be the brightest thing on
+ * screen.
  */
-export const FLAT_BELOW = 18;
+export const EXIT_QUIET_BELOW = 18;
 
 /**
  * Screen pixels per square below which pieces are no longer turned pieces but
  * the canvas board's disc with a glyph: at about 28 px a turned knight and
- * bishop were already hard to tell apart, so this sits above the board's own
- * switch to the flat checker (`FLAT_BELOW`).
+ * bishop were already hard to tell apart.
  */
 export const TURNED_BELOW = 30;
 
@@ -50,20 +51,16 @@ export function pieceMode(scale: number): PieceMode {
 	return scale >= GLYPHS_BELOW ? 'glyphs' : 'dots';
 }
 
-export function isFlat(scale: number): boolean {
-	return scale < FLAT_BELOW;
-}
-
 /**
- * How an exit is drawn at a zoom. On the wood it glows and breathes. Once the
- * board goes flat (`isFlat`) the pieces are discs and the squares a few pixels,
- * and a glowing inlay became the brightest thing on screen: it drops its glow
- * and breath and takes the board's tint, so it marks the exit without taking
- * the eye.
+ * How an exit is drawn at a zoom. Normally it glows and breathes. Below
+ * `EXIT_QUIET_BELOW` the pieces are discs and the squares a few pixels, and a
+ * glowing inlay became the brightest thing on screen: it drops its glow and
+ * breath and takes the board's tint, so it marks the exit without taking the
+ * eye.
  */
 export function exitLook(scale: number): {glow: boolean; dimmed: boolean} {
-	const flat = isFlat(scale);
-	return {glow: !flat, dimmed: flat};
+	const quiet = scale < EXIT_QUIET_BELOW;
+	return {glow: !quiet, dimmed: quiet};
 }
 
 export function isLight(x: number, y: number): boolean {
@@ -78,26 +75,6 @@ export function cellHash(x: number, y: number, salt: number): number {
 		Math.imul(salt, 83492791);
 	h = Math.imul(h ^ (h >>> 15), 2246822519);
 	return (h ^ (h >>> 13)) >>> 0;
-}
-
-/**
- * Where the flat checker's tiling sprite goes, in squares. Its texture's pixel
- * (0, 0) is a light square, so it starts on the first light square at or left
- * of the view's top-left, half a square up and left of that square's centre.
- */
-export function flatChecker(view: VisibleCells): {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-} {
-	const x0 = view.left - ((((view.left + view.top) % 2) + 2) % 2);
-	return {
-		x: x0 - 0.5,
-		y: view.top - 0.5,
-		width: view.right - x0 + 2,
-		height: view.bottom - view.top + 2,
-	};
 }
 
 /** An exit is 1 square (today's rule) or a 2 x 2 block (ADR 0015). */

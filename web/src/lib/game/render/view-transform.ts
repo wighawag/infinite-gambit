@@ -42,6 +42,14 @@ export type ZoomLimits = {
 	minHeight: number;
 	maxWidth: number;
 	maxHeight: number;
+	/**
+	 * A floor on the scale, in CSS pixels per world unit, whatever the screen.
+	 * For a renderer whose art stops reading below some size per unit: the
+	 * extents above are relative to the screen, so on a large display
+	 * `maxWidth` alone lets the camera pull back further than the art allows.
+	 * Like `minWidth`, it wins over the `max*` extents when they disagree.
+	 */
+	minScale?: number;
 };
 
 /** How much world fits on screen at this transform. */
@@ -129,6 +137,7 @@ export function scaleLimits(
 	const min = Math.max(
 		screen.width / limits.maxWidth,
 		screen.height / limits.maxHeight,
+		limits.minScale ?? 0,
 	);
 	const max = Math.min(
 		screen.width / limits.minWidth,

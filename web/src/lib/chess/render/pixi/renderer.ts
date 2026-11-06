@@ -404,15 +404,12 @@ export function createChessPixiRenderer(params: {
 		if (!board || !exits) return;
 		const scale = frame.transform.scale;
 		const cells = visibleCells(frame.transform, frame.screen);
-		board.update(
-			{
-				left: cells.minX,
-				top: cells.minY,
-				right: cells.maxX,
-				bottom: cells.maxY,
-			},
-			scale,
-		);
+		board.update({
+			left: cells.minX,
+			top: cells.minY,
+			right: cells.maxX,
+			bottom: cells.maxY,
+		});
 		if (params.spawnSpacing) {
 			// a margin of 2, so a block cut by the view's edge keeps its top-left
 			const around = {

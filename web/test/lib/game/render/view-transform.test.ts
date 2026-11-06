@@ -107,6 +107,19 @@ describe('zoom limits', () => {
 		expect(clampScale(0.001, wide, impossible)).toBe(result.min);
 	});
 
+	it('never zooms out past `minScale`, whatever the screen', () => {
+		const floored = {...limits, minScale: 18};
+		// 800px / 100 units is 8px a unit: the floor takes over.
+		expect(scaleLimits(screen, floored).min).toBe(18);
+		expect(clampScale(1, screen, floored)).toBe(18);
+		// A small screen whose extents already ask for more keeps them.
+		const small = {width: 400, height: 300};
+		expect(scaleLimits(small, {...limits, minScale: 2}).min).toBe(4);
+		// Above the zoom-in limit the floor still wins (60 at most on `screen`).
+		const high = scaleLimits(screen, {...limits, minScale: 100});
+		expect(high).toEqual({min: 100, max: 100});
+	});
+
 	it('imposes no limit before the surface has a size', () => {
 		const result = scaleLimits({width: 0, height: 0}, limits);
 		expect(result).toEqual({min: 0, max: Infinity});

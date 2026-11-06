@@ -70,6 +70,8 @@ export type ChessConfig = CommitRevealConfig & {
 			minHeight: number;
 			maxWidth: number;
 			maxHeight: number;
+			/** The furthest out, in CSS pixels per square, on any screen. */
+			minScale: number;
 		};
 	};
 };
@@ -108,7 +110,17 @@ export function resolveChessConfig(deployments: TypedDeployments): ChessConfig {
 			// square instead: about 20 squares across, the played army and its
 			// neighbours (spawn points are 9 apart).
 			initialNarrow: {maxWidth: 640, minScale: 20},
-			limits: {minWidth: 12, minHeight: 12, maxWidth: 160, maxHeight: 160},
+			// `minScale`: never below 18px a square, whatever the screen. Further
+			// out the wooden board's grain is lost and the square pool grows to tens
+			// of thousands of sprites; on a large display `maxWidth` alone allowed
+			// it (2560px / 160 squares is 16px a square).
+			limits: {
+				minWidth: 12,
+				minHeight: 12,
+				maxWidth: 160,
+				maxHeight: 160,
+				minScale: 18,
+			},
 		},
 	};
 }

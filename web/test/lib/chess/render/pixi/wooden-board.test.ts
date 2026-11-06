@@ -2,14 +2,12 @@ import {describe, expect, it} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {MAPLE, ROSEWOOD, woodPixels} from '$lib/chess/render/pixi/wood';
 import {
-	FLAT_BELOW,
+	EXIT_QUIET_BELOW,
 	GLYPHS_BELOW,
 	TURNED_BELOW,
 	cellHash,
 	exitInlay,
-	flatChecker,
 	exitLook,
-	isFlat,
 	pieceMode,
 	isLight,
 } from '$lib/chess/render/pixi/squares';
@@ -42,44 +40,24 @@ describe('the squares', () => {
 });
 
 describe('low zoom', () => {
-	it('switches the board to the flat checker below the threshold', () => {
-		expect(isFlat(FLAT_BELOW - 0.1)).toBe(true);
-		expect(isFlat(FLAT_BELOW)).toBe(false);
-	});
-
 	it('draws pieces turned, then as glyphs on discs, then as dots', () => {
 		expect(pieceMode(TURNED_BELOW)).toBe('pieces');
 		expect(pieceMode(TURNED_BELOW - 0.1)).toBe('glyphs');
 		expect(pieceMode(GLYPHS_BELOW)).toBe('glyphs');
 		expect(pieceMode(GLYPHS_BELOW - 0.1)).toBe('dots');
-		// The turned pieces hold on at least until the wood goes flat.
-		expect(TURNED_BELOW).toBeGreaterThanOrEqual(FLAT_BELOW);
 		// The glyphs reach as far down as the canvas board draws them.
 		expect(GLYPHS_BELOW).toBe(6);
 	});
 
-	it('quiets the exits to the board once the wood goes flat', () => {
-		// On the wood: the inlay glows and breathes, at full colour.
-		expect(exitLook(FLAT_BELOW)).toEqual({glow: true, dimmed: false});
-		// On the flat checker a glowing inlay took the board's focus: no glow,
-		// no breath, tinted like the board.
-		expect(exitLook(FLAT_BELOW - 0.1)).toEqual({glow: false, dimmed: true});
-	});
-
-	it('starts the checker on a light square covering the whole view', () => {
-		for (const view of [
-			{left: 0, top: 0, right: 10, bottom: 5},
-			{left: -3, top: 0, right: 4, bottom: 2},
-			{left: -4, top: -7, right: 9, bottom: 1},
-		]) {
-			const tile = flatChecker(view);
-			const x0 = tile.x + 0.5;
-			expect(isLight(x0, tile.y + 0.5)).toBe(true);
-			expect(x0).toBeLessThanOrEqual(view.left);
-			expect(x0).toBeGreaterThan(view.left - 2);
-			expect(tile.x + tile.width).toBeGreaterThanOrEqual(view.right + 0.5);
-			expect(tile.y + tile.height).toBeGreaterThanOrEqual(view.bottom + 0.5);
-		}
+	it('quiets the exits when zoomed far out', () => {
+		// Normally the inlay glows and breathes, at full colour.
+		expect(exitLook(EXIT_QUIET_BELOW)).toEqual({glow: true, dimmed: false});
+		// Further out a glowing inlay took the board's focus: no glow, no
+		// breath, tinted like the board.
+		expect(exitLook(EXIT_QUIET_BELOW - 0.1)).toEqual({
+			glow: false,
+			dimmed: true,
+		});
 	});
 });
 

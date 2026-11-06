@@ -1,7 +1,9 @@
 /**
  * The infinite wooden board: a pool of square sprites reused as the camera
- * moves, the joins between squares, and a flat fallback for low zoom. Ported
- * from `spikes/pixi-wood-board/src/board.ts`.
+ * moves and the joins between squares. Ported from
+ * `spikes/pixi-wood-board/src/board.ts`. It is wood at every zoom: there is no
+ * flat fallback. What bounds the square pool is the camera's `minScale`
+ * (`$lib/chess/config.ts`), not a switch here.
  *
  * Each square samples one of FRAMES windows of one shared texture per wood,
  * rather than having its own texture or the board being one tiled texture: all
@@ -18,16 +20,9 @@ import {
 	Rectangle,
 	Sprite,
 	Texture,
-	TilingSprite,
 } from 'pixi.js';
 import {MAPLE, ROSEWOOD, woodCanvas} from './wood';
-import {
-	cellHash,
-	flatChecker,
-	isFlat,
-	isLight,
-	type VisibleCells,
-} from './squares';
+import {cellHash, isLight, type VisibleCells} from './squares';
 
 /** Windows cut from each wood texture: enough that neighbours rarely repeat. */
 const FRAMES = 24;
@@ -59,30 +54,10 @@ function framesOf(canvas: HTMLCanvasElement, seed: number): Texture[] {
 	return frames;
 }
 
-/**
- * A 2 x 2 checker, one texture pixel per square, for the flat fallback. Lower
- * contrast than the wood: at a few pixels per square a full-contrast checker
- * shimmers. `nearest` on purpose: each texel IS a square.
- */
-function checkerTexture(): Texture {
-	const canvas = document.createElement('canvas');
-	canvas.width = canvas.height = 2;
-	const c = canvas.getContext('2d')!;
-	c.fillStyle = '#a88660';
-	c.fillRect(0, 0, 2, 2);
-	c.fillStyle = '#8c6442';
-	c.fillRect(1, 0, 1, 1);
-	c.fillRect(0, 1, 1, 1);
-	return new Texture({
-		source: new CanvasSource({resource: canvas, scaleMode: 'nearest'}),
-	});
-}
-
 export class WoodBoard {
 	readonly container = new Container();
 	private readonly squares = new Container();
 	private readonly joins = new Graphics();
-	private readonly flat: TilingSprite;
 	private readonly pool: Sprite[] = [];
 	private readonly maple: Texture[];
 	private readonly rosewood: Texture[];
@@ -95,13 +70,7 @@ export class WoodBoard {
 		this.rosewoodCanvas = woodCanvas(ROSEWOOD, 512, 11);
 		this.maple = framesOf(this.mapleCanvas, 1);
 		this.rosewood = framesOf(this.rosewoodCanvas, 2);
-		this.flat = new TilingSprite({
-			texture: checkerTexture(),
-			width: 1,
-			height: 1,
-		});
-		this.flat.tileScale.set(cellSize);
-		this.container.addChild(this.flat, this.squares, this.joins);
+		this.container.addChild(this.squares, this.joins);
 		this.container.tint = BOARD_DIM;
 	}
 
@@ -112,23 +81,11 @@ export class WoodBoard {
 	}
 
 	/**
-	 * Lay out the squares the camera can see, `scale` being screen pixels per
-	 * square. Call it on every view change; it allocates only when the visible
-	 * area grows.
+	 * Lay out the squares the camera can see. Call it on every view change; it
+	 * allocates only when the visible area grows.
 	 */
-	update(view: VisibleCells, scale: number): void {
+	update(view: VisibleCells): void {
 		const {cellSize} = this;
-		const flat = isFlat(scale);
-		this.flat.visible = flat;
-		this.squares.visible = !flat;
-		this.joins.visible = !flat;
-		if (flat) {
-			const tile = flatChecker(view);
-			this.flat.position.set(tile.x * cellSize, tile.y * cellSize);
-			this.flat.width = tile.width * cellSize;
-			this.flat.height = tile.height * cellSize;
-			return;
-		}
 
 		let used = 0;
 		for (let y = view.top; y <= view.bottom; y++) {
