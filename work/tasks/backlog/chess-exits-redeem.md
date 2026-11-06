@@ -4,7 +4,7 @@ slug: chess-exits-redeem
 spec: infinite-chess
 blockedBy: [chess-capture-loops]
 covers: [32, 33, 34, 35]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -80,3 +80,15 @@ keep. The human decided (2026-11-06). Build the task whole, with these decisions
 (3) DEPTH: the exit must pay the WHOLE merged stake, never a truncated one: no reserve may stay stranded beyond MAX_CHAIN (test a tree deeper than MAX_CHAIN), and if a tree is too deep for one transaction, provide a permissionless incremental way to collect it first. Pay `_ownerOf(army)` (loops rotate owners, ADR 0010).
 (4) MINIMAP: out of scope here. Mark exits on the board only; the minimap markers become a follow-up after this task and chess-camera-minimap have both landed.
 Everything else in the task stands (only StakeSale mints, the sale keeps its ETH, redeem at the fixed price, guarded setters, deterministic deploys, test helpers buy through the sale, exit claimable once by anyone after the landing cycle closes). Work in small steps (one decision, then act and run a test), since earlier builds died on the 16,384-token output limit.
+
+## Applied answers 2026-11-06
+
+### q1: 'task:chess-exits-redeem' was bounced — how should we proceed?
+
+keep. The human chose a variant of (C), call it C-prime (2026-11-06). It REPLACES decision (2a) of the previous answer; decisions (1) route split, (2b) reserve move-up, (3) full payout and (4) no minimap markers still stand. Build the task whole:
+- ROCKS. A piece whose controlling army can never act again (its root exited, or its walk of captured-into pointers exceeds MAX_CHAIN) is an OWNERLESS ROCK: it stays on the board, blocks paths and footprints like any piece, never moves, can be captured by anyone, and capturing it gives nothing. The client draws rocks greyed out.
+- EXIT REMOVES ONLY THE ROOT ARMY'S OWN PIECES. When a king exits, its army is marked exited (resolved lazily from closed-cycle facts: a king that landed alone on an exit square has left at the close of that cycle). Pieces whose square-recorded army IS the exited army vanish (an O(1) check on the label). Pieces of armies it had merged become rocks, and need no walk to be treated as obstacles. So path squares, a king's neighbours and footprint squares keep reading only the KIND (`_rawSquareAt`) and reveal gas does not grow for this; the mover and its destination keep the bounded walk to decide ownership, where a rock is never yours.
+- DEEP CHAINS: make "more than MAX_CHAIN captures from its root" a permanent, read-order-independent rock rule, replacing the current behaviour where a later touch of the square can revive the piece (ADR 0009). Test it.
+- STAKE: unchanged from the previous answer: move a captured army's reserve up into its captor's when the capture is folded (`_foldCapture`); the exit pays the WHOLE merged stake to `_ownerOf(army)`, debiting every reserve it pays (no double claim), in its own transaction (not the reveal budget), with a permissionless incremental `collect` if a tree is too big for one transaction; never a truncated payout; test a tree deeper than MAX_CHAIN. Collecting is never a precondition for exiting.
+- Record this in a new ADR (next free number) amending 0009, and update story 34's meaning in CONTEXT.md if it names it ("own pieces removed, merged pieces left as rocks"); add "rock" to CONTEXT.md's "This game" words.
+Everything else in the task stands. Work in small steps (one decision, then act and run a test): earlier builds died on the 16,384-token output limit.
