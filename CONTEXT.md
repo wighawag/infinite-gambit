@@ -201,7 +201,7 @@ Two or more pieces arriving on the same square in the same cycle. Who survives d
 _Avoid_: clash, conflict, bounce
 
 **Capture loop**:
-Kings capturing each other in a ring within one cycle (A takes B while B takes A, or longer). The king-capturing pieces die, every king survives, and each owner takes over the army they captured.
+Kings capturing each other in a ring within one cycle (A takes B while B takes A, or longer). The king-capturing pieces die, every king survives where it stood, and each owner takes over the army they captured. Nothing merges: every army of the ring keeps its pieces and its stake and changes owner, so an owner of every army of a ring gains nothing.
 _Avoid_: mutual capture, swap, draw
 
 **Freeze**:
