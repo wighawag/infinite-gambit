@@ -350,3 +350,13 @@ html {
 [data-layer='progress'] {
 	z-index: var(--z-layer-progress);
 }
+
+/* Netlify injects a "Powered by Netlify" badge (and, for the site owner, a
+   toolbar) on every page it serves: an iframe fixed to the bottom-right corner,
+   over the game's own panel there. Its styles are inline but not !important,
+   so this wins. The ids come from Netlify's /.netlify/scripts/hud, not from us,
+   so a change on their side can bring the badge back. */
+#nl-badge-frame,
+#nl-hud-frame {
+	display: none !important;
+}
