@@ -28,6 +28,8 @@ import type {ExitPayoutState} from '../exits';
 import type {TableClaim} from '../table-payout';
 import {nearestLabel, type SpawnPointView} from '../spawn-points';
 import {positionOf} from '../squares';
+import {pieceMoveLabel} from '../planning';
+import {plannedMoveColour} from '../render/style';
 import type {BoardView} from '../view';
 import {describeOutcomes, type OutcomeLine} from '../outcomes';
 import type {ViewStateValue} from '$lib/game/core/seams';
@@ -150,9 +152,16 @@ export type HudModel = {
 	};
 	/**
 	 * Set while the army this client plays stands on the board and may move:
-	 * the one move planned this cycle, if any.
+	 * the piece-moves planned this cycle, each with a way to take it back.
 	 */
-	moving?: {planned?: string};
+	moving?: {
+		/** In the order picked, each named and in the colour it is drawn in. */
+		pieceMoves: readonly {from: bigint; label: string; colour: string}[];
+		/** How many are planned of how many the game allows, once it is read. */
+		countLabel?: string;
+		/** Why the contract would refuse the move as planned: it is not committed. */
+		refusal?: string;
+	};
 	/**
 	 * What the last closed cycle did in view, once the board has read it: its
 	 * captures and collisions, as the contract resolved them. Absent when it
@@ -987,22 +996,31 @@ export function describeDeployment(params: {
 	};
 }
 
-/** A square's coordinates, as a player reads them. */
-function squareLabel(square: bigint): string {
-	const {x, y} = positionOf(square);
-	return `(${x}, ${y})`;
-}
-
-/** The planned move, while the army stands on the board and may move. */
+/** The planned piece-moves, while the army stands on the board and may move. */
 export function describeMoving(params: {
 	army: Pick<ArmyView, 'status'> | undefined;
-	move: Move | undefined;
+	moves: readonly Move[];
+	maxPieceMoves?: number;
+	refusal?: string;
 }): HudModel['moving'] {
 	if (params.army?.status !== ARMY_STATUS.Deployed) return undefined;
-	const {move} = params;
-	return move
-		? {planned: `${squareLabel(move.from)} to ${squareLabel(move.to)}`}
-		: {};
+	const {moves, maxPieceMoves, refusal} = params;
+	return {
+		pieceMoves: moves.map((move, index) => ({
+			from: move.from,
+			label: pieceMoveLabel(move),
+			colour: plannedMoveColour(index),
+		})),
+		...(maxPieceMoves !== undefined
+			? {
+					countLabel:
+						maxPieceMoves === 1
+							? `${moves.length} of 1 piece-move`
+							: `${moves.length} of ${maxPieceMoves} piece-moves`,
+				}
+			: {}),
+		...(refusal !== undefined ? {refusal} : {}),
+	};
 }
 
 /** The last cycle's captures and collisions, when it had any. */
@@ -1059,7 +1077,9 @@ export function createHud(context: Context): Readable<HudModel> {
 			game.needsDeployment,
 			game.armies.activeArmy,
 			context.viewState,
-			game.planning.move,
+			game.planning.pieceMoves,
+			game.planning.maxPieceMoves,
+			game.planning.refusal,
 			game.armies.lastOutcome,
 			game.armies.pendingRefund,
 			game.armies.unpaidExit,
@@ -1084,7 +1104,9 @@ export function createHud(context: Context): Readable<HudModel> {
 			$needsDeployment,
 			$army,
 			$view,
-			$move,
+			$pieceMoves,
+			$maxPieceMoves,
+			$refusal,
 			$lastOutcome,
 			$refund,
 			$unpaidExit,
@@ -1190,7 +1212,9 @@ export function createHud(context: Context): Readable<HudModel> {
 				}),
 				moving: describeMoving({
 					army: $army as ArmyView | undefined,
-					move: $move as Move | undefined,
+					moves: $pieceMoves as readonly Move[],
+					maxPieceMoves: $maxPieceMoves as number | undefined,
+					refusal: $refusal as string | undefined,
 				}),
 				lastCycle: describeLastCycle($view as ViewStateValue<BoardView>),
 
@@ -1231,6 +1255,8 @@ export function createHud(context: Context): Readable<HudModel> {
 						($submission.step === 'Error' &&
 							$submission.during === 'commit')) &&
 					$count > 0 &&
+					// The contract would refuse it: committed, its reveal would revert.
+					$refusal === undefined &&
 					playable,
 				// A pass: an empty submission, for a deployed army whose cycle waits
 				// for everyone. Nothing pending this cycle, so it is not a re-commit.

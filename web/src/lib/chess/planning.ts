@@ -1,16 +1,22 @@
 /**
  * Turning clicks into a plan: the spawn point a deployment commits to, or the
- * one move a deployed army makes this cycle.
+ * move a deployed army makes this cycle, which is up to three piece-moves,
+ * each by a different piece (one at a table that turns three off,
+ * `docs/adr/0016-an-army-moves-up-to-three-pieces-a-cycle-simultaneously.md`).
  *
  * The plan itself lives in the framework's submission (it is what gets hashed,
  * and it has to survive a reload), so this keeps no second copy of it. What it
  * keeps is the SELECTION, which is not part of any plan: the piece the player
  * clicked, whose legal destinations are highlighted until they pick one.
  *
- * Which destinations are legal is the CONTRACT's rule, run from the Simulation
- * route's own bytecode in the sandbox (`legalMoves`), never a TypeScript copy
- * of it (`docs/adr/0007-rules-live-only-in-the-contract.md`). This file only
- * asks, and draws nothing from the answer but the squares it names.
+ * Which destinations are legal, and whether a whole move is, is the CONTRACT's
+ * rule, run from the Simulation route's own bytecode in the sandbox (the
+ * whole-move route, `./piece-moves.ts`: `legalMovesAlongside` and
+ * `isLegalWholeMove`, at the cap the game reports), never a TypeScript copy
+ * of it (`docs/adr/0007-rules-live-only-in-the-contract.md`). This file keeps
+ * no rule of its own: not the cap, not "two to one square", not "one piece
+ * twice", not "own movers count as gone". It only asks, and draws nothing
+ * from the answers but the squares and verdicts they name.
  */
 import {derived, get, writable, type Readable} from 'svelte/store';
 import type {SubmissionState, SubmissionStore} from '$lib/game/core/submission';
@@ -18,7 +24,17 @@ import type {OnchainStateValue} from '$lib/game/core/seams';
 import type {GameIdentity} from '$lib/game/identity';
 import {latestResult} from '$lib/game/simulation';
 import {PIECE_KIND, type BoardState, type Piece, type PieceKind} from './board';
-import {deploymentAt, moveOf, spawnPointOf, type Move} from './commit-reveal';
+import {
+	deploymentAt,
+	pieceMovesOf,
+	spawnPointOf,
+	type Move,
+} from './commit-reveal';
+import {
+	wholeMoveRoute,
+	type WholeMoveCall,
+	type WholeMoveRoute,
+} from './piece-moves';
 import {kingDistance, positionOf, type Position} from './squares';
 import type {LocalPlan} from './view';
 
@@ -69,17 +85,19 @@ export function spawnPointNear(
 export const MOVE_REACH = 8;
 
 /**
- * The pieces within {@link MOVE_REACH} of `from`: what `legalMoves` is handed,
- * so the sandbox is asked about the neighbourhood rather than the whole view.
+ * The pieces within {@link MOVE_REACH} of `from` (or of any of several
+ * squares): what the route is handed, so the sandbox is asked about the
+ * neighbourhood of the piece-moves rather than the whole view.
  */
 export function piecesAround(
 	pieces: ReadonlyMap<bigint, Piece>,
-	from: bigint,
+	from: bigint | readonly bigint[],
 ): Piece[] {
-	const centre = positionOf(from);
+	const centres = (typeof from === 'bigint' ? [from] : from).map(positionOf);
 	const around: Piece[] = [];
 	for (const piece of pieces.values()) {
-		if (kingDistance(centre, positionOf(piece.position)) <= MOVE_REACH) {
+		const at = positionOf(piece.position);
+		if (centres.some((centre) => kingDistance(centre, at) <= MOVE_REACH)) {
 			around.push(piece);
 		}
 	}
@@ -127,10 +145,143 @@ export function boardClick(params: {
 	return {kind: 'deselect'};
 }
 
-type HighlightInput = {from: bigint; pieces: Piece[]; key: string};
+/** A square's coordinates, as a player reads them. */
+function squareLabel(square: bigint): string {
+	const {x, y} = positionOf(square);
+	return `(${x}, ${y})`;
+}
+
+/** A piece-move, as a player reads it: `(0, 0) to (1, 0)`. */
+export function pieceMoveLabel(move: Move): string {
+	return `${squareLabel(move.from)} to ${squareLabel(move.to)}`;
+}
+
+/**
+ * The piece-moves a piece's destinations are judged alongside: every planned
+ * one but its own. With a cap of one there is no "alongside", the new
+ * piece-move REPLACES the planned one, as a move always did before
+ * `docs/adr/0016`, so none.
+ */
+export function othersThan(
+	moves: readonly Move[],
+	from: bigint,
+	maxPieceMoves: number,
+): Move[] {
+	return maxPieceMoves <= 1 ? [] : moves.filter((move) => move.from !== from);
+}
+
+/**
+ * The move once a piece-move of the piece on `move.from` is picked: on the
+ * square it is already planned to, it is taken back; otherwise it replaces
+ * that piece's planned piece-move where it stands in the list, or joins the
+ * end. With a cap of one it replaces whatever is planned. Whether the result
+ * is legal is the route's to say, and the destinations offered came from it.
+ */
+export function withPieceMove(
+	moves: readonly Move[],
+	move: Move,
+	maxPieceMoves: number,
+): Move[] {
+	const own = moves.find((planned) => planned.from === move.from);
+	if (own?.to === move.to) return moves.filter((m) => m !== own);
+	if (maxPieceMoves <= 1) return [move];
+	return own
+		? moves.map((planned) => (planned === own ? move : planned))
+		: [...moves, move];
+}
+
+/**
+ * Why the contract would refuse `moves` for `army`, or undefined when it
+ * accepts them (a pass always is).
+ *
+ * THE VERDICT IS THE ROUTE'S (`isLegalWholeMove`). When it refuses, the reason
+ * names the piece-moves it is about, again by asking the route: a piece-move
+ * whose destination `legalMovesAlongside` no longer offers it alongside the
+ * others. Nothing here knows WHY, so the words say what to do, not which rule.
+ */
+export async function refusalOf(params: {
+	route: Pick<WholeMoveRoute, 'isLegal' | 'alongside'>;
+	pieces: ReadonlyMap<bigint, Piece>;
+	army: bigint;
+	moves: readonly Move[];
+}): Promise<string | undefined> {
+	const {route, pieces, army, moves} = params;
+	if (moves.length === 0) return undefined;
+	const around = piecesAround(
+		pieces,
+		moves.map((move) => move.from),
+	);
+	if (await route.isLegal(around, army, moves)) return undefined;
+	const culprits: Move[] = [];
+	for (const move of moves) {
+		const others = moves.filter((other) => other !== move);
+		const offered = await route.alongside(around, move.from, others);
+		if (!offered.includes(move.to)) culprits.push(move);
+	}
+	if (culprits.length === 0) {
+		return 'The contract refuses this move. Take a piece-move back.';
+	}
+	const named = culprits.map(pieceMoveLabel).join(', ');
+	return culprits.length === 1
+		? `The contract refuses ${named} alongside the rest of the move. Take it back or change it.`
+		: `The contract refuses ${named} alongside the rest of the move. Take them back or change them.`;
+}
+
+/**
+ * The check a commit runs (`refusingIllegalMoves` in `./commit-reveal.ts`):
+ * the reason the contract would refuse a submission's piece-moves on the
+ * board as it is now, or undefined. A deployment and a pass are never
+ * refused here. When the check cannot be made it REFUSES, saying so: an
+ * illegal move committed is a reveal that reverts and an army that freezes,
+ * while a refused commit costs a cycle at worst.
+ */
+export function createWholeMoveGuard(params: {
+	board: () => OnchainStateValue<BoardState>;
+	army: () => bigint | undefined;
+	maxPieceMoves: () => Promise<number>;
+	call: WholeMoveCall;
+}): (actions: readonly Move[]) => Promise<string | undefined> {
+	return async (actions) => {
+		const moves = pieceMovesOf(actions);
+		if (moves.length === 0) return undefined;
+		const board = params.board();
+		const army = params.army();
+		if (board.step !== 'Loaded' || army === undefined) {
+			return 'The board has not loaded yet, so this move cannot be checked. Try again in a moment.';
+		}
+		try {
+			const route = wholeMoveRoute({
+				call: params.call,
+				maxPieceMoves: await params.maxPieceMoves(),
+			});
+			return await refusalOf({route, pieces: board.pieces, army, moves});
+		} catch (error) {
+			return `Could not ask the contract whether this move is legal, so it was not committed: ${error instanceof Error ? error.message : String(error)}`;
+		}
+	};
+}
+
+type HighlightInput = {
+	from: bigint;
+	pieces: Piece[];
+	others: Move[];
+	maxPieceMoves: number;
+	key: string;
+};
+
+type VerdictInput = {
+	pieces: ReadonlyMap<bigint, Piece>;
+	army: bigint;
+	moves: readonly Move[];
+	maxPieceMoves: number;
+	key: string;
+};
 
 const keyOf = (from: bigint, pieces: readonly Piece[]) =>
 	`${from}|${pieces.map((p) => `${p.position}:${p.army}:${p.kind}`).join(',')}`;
+
+const movesKey = (moves: readonly Move[]) =>
+	moves.map((m) => `${m.from}>${m.to}`).join(',');
 
 export type PlanningStore = {
 	/** What the player has planned, for the view merge. */
@@ -139,14 +290,23 @@ export type PlanningStore = {
 	actions: Readable<readonly Move[]>;
 	/** Whether clicks currently change anything. */
 	canPlan: Readable<boolean>;
-	/** How many actions are planned: one (a deployment or a move), or none. */
+	/** How many actions are planned: the deployment, the piece-moves, or none. */
 	count: Readable<number>;
-	/** The planned move, if the plan is one. */
-	move: Readable<Move | undefined>;
+	/** The planned piece-moves, in the order they were picked. */
+	pieceMoves: Readable<readonly Move[]>;
+	/** The cap the game reports (3, or 1 at a table); undefined until read. */
+	maxPieceMoves: Readable<number | undefined>;
+	/**
+	 * Why the contract would refuse the planned move, once the route has
+	 * answered; undefined while it accepts it, or has not answered yet.
+	 */
+	refusal: Readable<string | undefined>;
 	/** Pick a spawn point to deploy at, or drop it if it is the one picked. */
 	choose(spawnPoint: bigint): void;
 	/** A click on `square` of the board, for a deployed army. */
 	click(square: bigint): void;
+	/** Take back the planned piece-move of the piece on `from`. */
+	takeBack(from: bigint): void;
 	clear(): void;
 };
 
@@ -163,14 +323,20 @@ export function createPlanning(params: {
 	army: Readable<GameIdentity | undefined>;
 	/** The board as the chain resolves it for the cycle in progress. */
 	board: Readable<OnchainStateValue<BoardState>>;
-	/** `legalMoves`, the contract's rule, run in the sandbox. */
-	legalMoves: (pieces: readonly Piece[], from: bigint) => Promise<bigint[]>;
+	/**
+	 * The game's cap (`getMaxPieceMoves`, `./piece-moves.ts`), undefined until
+	 * it is read. Nothing is offered before it is.
+	 */
+	maxPieceMoves: Readable<number | undefined>;
+	/** The whole-move route, the contract's rule, run in the sandbox. */
+	wholeMove: WholeMoveCall;
 }): PlanningStore {
-	const {submission, needsDeployment, canMove, army, board} = params;
+	const {submission, needsDeployment, canMove, army, board, maxPieceMoves} =
+		params;
 
 	const planned = derived(submission, plannedActionsOf);
 	const plannedSpawnPoint = derived(planned, ($p) => spawnPointOf($p));
-	const plannedMove = derived(planned, ($p) => moveOf($p));
+	const pieceMoves = derived(planned, ($p) => pieceMovesOf($p));
 
 	/** The piece clicked, until a destination is picked or it is let go. */
 	const selected = writable<bigint | undefined>(undefined);
@@ -181,16 +347,32 @@ export function createPlanning(params: {
 	const inspected = writable<bigint | undefined>(undefined);
 
 	const highlightInput = derived(
-		[selected, board],
-		([$selected, $board]): HighlightInput | undefined => {
+		[selected, board, pieceMoves, maxPieceMoves],
+		([$selected, $board, $moves, $cap]): HighlightInput | undefined => {
 			if ($selected === undefined || $board.step !== 'Loaded') return undefined;
-			const pieces = piecesAround($board.pieces, $selected);
-			return {from: $selected, pieces, key: keyOf($selected, pieces)};
+			if ($cap === undefined) return undefined;
+			const others = othersThan($moves, $selected, $cap);
+			const pieces = piecesAround($board.pieces, [
+				$selected,
+				...others.map((move) => move.from),
+			]);
+			return {
+				from: $selected,
+				pieces,
+				others,
+				maxPieceMoves: $cap,
+				key: `${keyOf($selected, pieces)}|${movesKey(others)}|${$cap}`,
+			};
 		},
 	);
 	const highlights = latestResult(
 		highlightInput,
-		({from, pieces}) => params.legalMoves(pieces, from),
+		({from, pieces, others, maxPieceMoves: cap}) =>
+			wholeMoveRoute({call: params.wholeMove, maxPieceMoves: cap}).alongside(
+				pieces,
+				from,
+				others,
+			),
 		{equal: (a, b) => a.key === b.key},
 	);
 	const destinations = derived(
@@ -199,11 +381,47 @@ export function createPlanning(params: {
 			$h.step === 'Ready' && $h.input.from === $selected ? $h.result : [],
 	);
 
+	// THE WHOLE MOVE, JUDGED AS THE REVEAL WILL JUDGE IT: each piece-move was
+	// offered alongside the others, but taking one back, or the board changing
+	// under the plan, can leave the rest illegal.
+	const verdictInput = derived(
+		[pieceMoves, board, army, maxPieceMoves],
+		([$moves, $board, $army, $cap]): VerdictInput | undefined => {
+			if ($moves.length === 0 || $board.step !== 'Loaded') return undefined;
+			if ($army === undefined || $cap === undefined) return undefined;
+			const pieces = piecesAround(
+				$board.pieces,
+				$moves.map((move) => move.from),
+			);
+			return {
+				pieces: $board.pieces,
+				army: $army,
+				moves: $moves,
+				maxPieceMoves: $cap,
+				key: `${keyOf($army, pieces)}|${movesKey($moves)}|${$cap}`,
+			};
+		},
+	);
+	const verdict = latestResult(
+		verdictInput,
+		({pieces, army: $army, moves, maxPieceMoves: cap}) =>
+			refusalOf({
+				route: wholeMoveRoute({call: params.wholeMove, maxPieceMoves: cap}),
+				pieces,
+				army: $army,
+				moves,
+			}),
+		{equal: (a, b) => a.key === b.key},
+	);
+	const refusal = derived(verdict, ($v) =>
+		$v.step === 'Ready' ? $v.result : undefined,
+	);
+
 	const plan = derived(
-		[plannedSpawnPoint, plannedMove, army, selected, destinations, inspected],
+		[plannedSpawnPoint, pieceMoves, army, selected, destinations, inspected],
 		([
 			$spawn,
-			$move,
+			$moves,
 			$army,
 			$selected,
 			$destinations,
@@ -211,7 +429,7 @@ export function createPlanning(params: {
 		]): LocalPlan => ({
 			...($inspected !== undefined ? {inspected: $inspected} : {}),
 			...($spawn !== undefined ? {spawnPoint: $spawn} : {}),
-			...($move !== undefined ? {move: $move} : {}),
+			...($moves.length > 0 ? {moves: $moves} : {}),
 			...($army !== undefined ? {army: $army} : {}),
 			...($selected !== undefined
 				? {selected: $selected, destinations: $destinations}
@@ -220,9 +438,9 @@ export function createPlanning(params: {
 	);
 
 	const actions = derived(
-		[plannedSpawnPoint, plannedMove],
-		([$spawn, $move]): readonly Move[] =>
-			$spawn !== undefined ? deploymentAt($spawn) : $move ? [$move] : [],
+		[plannedSpawnPoint, pieceMoves],
+		([$spawn, $moves]): readonly Move[] =>
+			$spawn !== undefined ? deploymentAt($spawn) : $moves,
 	);
 
 	// AND ONLY ONCE THE SUBMISSION CAN TAKE A PLAN: after an account switch the
@@ -265,14 +483,19 @@ export function createPlanning(params: {
 			return;
 		}
 		selected.set(undefined);
-		if (outcome.kind === 'move') {
-			// One move per army per cycle: a new one replaces the one planned, and
-			// picking the planned one again takes it back off.
-			const current = moveOf(plannedActionsOf(submission.value));
-			const same =
-				current?.from === outcome.move.from && current?.to === outcome.move.to;
-			submission.plan(same ? [] : [outcome.move]);
+		const cap = get(maxPieceMoves);
+		if (outcome.kind === 'move' && cap !== undefined) {
+			const current = pieceMovesOf(plannedActionsOf(submission.value));
+			submission.plan(withPieceMove(current, outcome.move, cap));
 		}
+	}
+
+	function takeBack(from: bigint) {
+		if (!get(canPlan) || get(needsDeployment)) return;
+		const current = pieceMovesOf(plannedActionsOf(submission.value));
+		if (!current.some((move) => move.from === from)) return;
+		if (get(selected) === from) selected.set(undefined);
+		submission.plan(current.filter((move) => move.from !== from));
 	}
 
 	function clear() {
@@ -287,9 +510,12 @@ export function createPlanning(params: {
 		actions,
 		canPlan,
 		count,
-		move: plannedMove,
+		pieceMoves,
+		maxPieceMoves,
+		refusal,
 		choose,
 		click,
+		takeBack,
 		clear,
 	};
 }

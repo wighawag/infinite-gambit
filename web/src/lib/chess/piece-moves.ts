@@ -98,3 +98,6 @@ export function wholeMoveRoute(params: {
 		},
 	};
 }
+
+/** The whole-move route at one cap, as {@link wholeMoveRoute} builds it. */
+export type WholeMoveRoute = ReturnType<typeof wholeMoveRoute>;

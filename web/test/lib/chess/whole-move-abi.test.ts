@@ -10,7 +10,7 @@ import type {TypedDeployments} from '$lib/deployments-store';
  * destinations alongside the others (`legalMovesAlongside`), and the client
  * reaches both through the ABI it already runs `legalMoves` with: the Game's,
  * in the world and at a table (whose route is the lobby implementation's,
- * `$lib/chess/table`). Nothing calls them yet; the planner will.
+ * `$lib/chess/table`). The planner (`$lib/chess/planning`) calls both.
  */
 
 const records = deployments as unknown as TypedDeployments;

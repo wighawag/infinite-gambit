@@ -123,7 +123,12 @@ describe('what the HUD says about who reveals the turn', () => {
 				submission: Object.assign(writable(committed(true)), {
 					ready: writable(true),
 				}),
-				planning: {count: writable(0), move: writable(undefined)},
+				planning: {
+					count: writable(0),
+					pieceMoves: writable([]),
+					maxPieceMoves: writable(3),
+					refusal: writable(undefined),
+				},
 				cost: writable(0n),
 				reserve: writable({step: 'Loaded', amount: 100n}),
 				cycleInfo,

@@ -21,6 +21,7 @@ import {
 	frozenColour,
 	FROZEN_RING,
 	isStone,
+	plannedMoveColour,
 	STONE_COLOUR,
 	YOUR_COLOUR,
 } from './style';
@@ -46,7 +47,6 @@ const EXIT_ALPHA = 0.55;
 const MIN_BADGE_SCALE = 14;
 const SELECTED_COLOUR = '#ffd166';
 const DESTINATION_COLOUR = 'rgba(120, 220, 140, 0.45)';
-const PLANNED_COLOUR = '#7ee08a';
 const LIGHT_SQUARE = 'rgba(255, 255, 255, 0.05)';
 /** A square an enemy piece may move to this cycle. */
 const ATTACKED_COLOUR = 'rgba(239, 71, 111, 0.22)';
@@ -140,11 +140,11 @@ export function createChessBoardRenderer(params: {
 			for (const {x, y} of view.destinations ?? []) {
 				context.fillRect(x - 0.5, y - 0.5, 1, 1);
 			}
-			// The planned move: both squares outlined, joined by a line. The piece
-			// itself stays where the chain has it until the cycle is over.
-			if (view.plannedMove) {
-				const {from, to} = view.plannedMove;
-				context.strokeStyle = PLANNED_COLOUR;
+			// Each planned piece-move: both squares outlined, joined by a line, in
+			// the colour of its place in the move. The pieces themselves stay
+			// where the chain has them until the cycle is over.
+			for (const {from, to, index} of view.plannedMoves ?? []) {
+				context.strokeStyle = plannedMoveColour(index);
 				context.lineWidth = 3 / scale;
 				context.strokeRect(from.x - 0.5, from.y - 0.5, 1, 1);
 				context.strokeRect(to.x - 0.5, to.y - 0.5, 1, 1);

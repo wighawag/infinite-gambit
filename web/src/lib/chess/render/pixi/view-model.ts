@@ -230,7 +230,8 @@ export type OverlayModel = {
 	selected?: Square;
 	destinations: Array<Square & {capture: boolean}>;
 	attacked: Square[];
-	planned?: {from: Square; to: Square};
+	/** The planned piece-moves, each with its place in the move. */
+	planned: Array<{from: Square; to: Square; index: number}>;
 	outcomes: Array<
 		Square & {
 			collision: boolean;
@@ -243,7 +244,7 @@ export type OverlayModel = {
 
 /**
  * The attacked squares worth showing: around the player's kings, on the
- * selection's destinations and on the planned target. Shown everywhere they
+ * selection's destinations and on the planned targets. Shown everywhere they
  * are noise. With no king of the player's in view (before a deployment), all
  * of them, as the canvas renderer draws them.
  */
@@ -260,7 +261,7 @@ export function attackedThatMatter(view: BoardView): Square[] {
 		}
 	}
 	for (const d of view.destinations ?? []) near.add(keyOf(d));
-	if (view.plannedMove) near.add(keyOf(view.plannedMove.to));
+	for (const move of view.plannedMoves ?? []) near.add(keyOf(move.to));
 	return attacked.filter((square) => near.has(keyOf(square)));
 }
 
@@ -281,7 +282,7 @@ export function overlayModel(view: BoardView): OverlayModel {
 			capture: occupied.has(keyOf(d)),
 		})),
 		attacked: attackedThatMatter(view),
-		...(view.plannedMove ? {planned: view.plannedMove} : {}),
+		planned: [...(view.plannedMoves ?? [])],
 		outcomes: view.outcomes.map((outcome) => {
 			const effects = captureEffectsOf(outcome);
 			return {

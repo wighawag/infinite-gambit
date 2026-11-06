@@ -13,6 +13,7 @@ import {
 } from '$lib/offline';
 import {createBytecodeSandbox} from '$lib/game/simulation';
 import {createPlanning} from '$lib/chess/planning';
+import {readMaxPieceMoves, type WholeMoveCall} from '$lib/chess/piece-moves';
 import {
 	buildMoveChain,
 	deploymentAt,
@@ -123,67 +124,100 @@ function fakeSubmission(): SubmissionStore<GameIdentity, Move> {
 	} as unknown as SubmissionStore<GameIdentity, Move>;
 }
 
-describe('a move on the offline world', () => {
-	it('highlights what the deployed rule allows, and lands the committed move after the reveal', async () => {
-		world = await createEmbeddedWorld({
-			chainId: CHAIN_ID,
-			chain: {
-				name: 'Offline',
-				nativeCurrency: {name: 'Ether', symbol: 'ETH', decimals: 18},
-				properties: {...config.chains[31337].properties},
+/** The offline world, with one army deployed at the origin, and its route. */
+async function deployedWorld() {
+	world = await createEmbeddedWorld({
+		chainId: CHAIN_ID,
+		chain: {
+			name: 'Offline',
+			nativeCurrency: {name: 'Ether', symbol: 'ETH', decimals: 18},
+			properties: {...config.chains[31337].properties},
+		},
+		rocketh: {config, extensions},
+		environment: OFFLINE_DEPLOYMENT.environment,
+		scripts: [...OFFLINE_DEPLOYMENT.scripts],
+		data: {...OFFLINE_DEPLOYMENT.data},
+		accounts: {...OFFLINE_DEPLOYMENT.accounts},
+		initialBalances: {...OFFLINE_DEPLOYMENT.initialBalances},
+		provision: async ({env}) => {
+			await stakeForOfflinePlayer({env, player: PLAYER});
+		},
+	});
+	const army = firstArmyOf(PLAYER);
+	await playCycle(army, deploymentAt(squareAt(0, 0)), '11');
+	const deployments = world.deployments.get();
+	const sandbox = createBytecodeSandbox({
+		provider: world.provider as never,
+		node: () => createNode({}) as never,
+		contracts: {
+			rules: {
+				address:
+					deployments.contracts.Game_Implementation_Router_Simulation_Route
+						.address,
 			},
-			rocketh: {config, extensions},
-			environment: OFFLINE_DEPLOYMENT.environment,
-			scripts: [...OFFLINE_DEPLOYMENT.scripts],
-			data: {...OFFLINE_DEPLOYMENT.data},
-			accounts: {...OFFLINE_DEPLOYMENT.accounts},
-			initialBalances: {...OFFLINE_DEPLOYMENT.initialBalances},
-			provision: async ({env}) => {
-				await stakeForOfflinePlayer({env, player: PLAYER});
-			},
-		});
-		const army = firstArmyOf(PLAYER);
-		await playCycle(army, deploymentAt(squareAt(0, 0)), '11');
-
-		const deployments = world.deployments.get();
-		const sandbox = createBytecodeSandbox({
-			provider: world.provider as never,
-			node: () => createNode({}) as never,
-			contracts: {
-				rules: {
-					address:
-						deployments.contracts.Game_Implementation_Router_Simulation_Route
-							.address,
-				},
-			},
-		});
-		const board = writable(await boardAround());
-		const submission = fakeSubmission();
-		const planning = createPlanning({
-			submission,
-			needsDeployment: writable(false),
-			canMove: writable(true),
-			army: writable(army),
-			board,
-			legalMoves: async (pieces, from) => [
-				...((await sandbox.call({
-					contract: 'rules',
-					abi: deployments.contracts.Game.abi,
-					functionName: 'legalMoves',
-					args: [pieces, from],
-				})) as unknown as readonly bigint[]),
-			],
-		});
-		let plan: LocalPlan = {};
-		const stop = planning.plan.subscribe((p) => (plan = p));
-
-		// The army stands on the origin: its knight on (0,1) may jump over its
-		// pawns onto the two squares above them, or into either top corner.
-		planning.click(squareAt(0, 1));
-		for (let i = 0; i < 200 && (plan.destinations ?? []).length === 0; i++) {
+		},
+	});
+	const wholeMove: WholeMoveCall = (functionName, args) =>
+		sandbox.call({
+			contract: 'rules',
+			abi: deployments.contracts.Game.abi,
+			functionName,
+			args: args as never,
+		}) as Promise<unknown>;
+	const {env, Game} = gameEnv();
+	const maxPieceMoves = await readMaxPieceMoves(
+		(functionName) => env.read(Game, {functionName}) as Promise<bigint>,
+	);
+	const board = writable(await boardAround());
+	const submission = fakeSubmission();
+	const planning = createPlanning({
+		submission,
+		needsDeployment: writable(false),
+		canMove: writable(true),
+		army: writable(army),
+		board,
+		maxPieceMoves: writable(maxPieceMoves),
+		wholeMove,
+	});
+	let plan: LocalPlan = {};
+	let refusal: string | undefined;
+	const stops = [
+		planning.plan.subscribe((p) => (plan = p)),
+		planning.refusal.subscribe((r) => (refusal = r)),
+	];
+	const until = async (done: () => boolean) => {
+		for (let i = 0; i < 300 && !done(); i++) {
 			await new Promise((r) => setTimeout(r, 10));
 		}
-		expect((plan.destinations ?? []).map(positionOf)).toEqual(
+	};
+	/** Select (x, y), wait for the route's destinations, return them. */
+	const select = async (x: number, y: number) => {
+		planning.click(squareAt(x, y));
+		await until(() => (plan.destinations ?? []).length > 0);
+		return (plan.destinations ?? []).map(positionOf);
+	};
+	return {
+		army,
+		maxPieceMoves,
+		planning,
+		select,
+		until,
+		plan: () => plan,
+		refusal: () => refusal,
+		dispose: () => {
+			for (const stop of stops) stop();
+			sandbox.dispose();
+		},
+	};
+}
+
+describe('a move on the offline world', () => {
+	it('highlights what the deployed rule allows, and lands the committed move after the reveal', async () => {
+		const t = await deployedWorld();
+		// The army stands on the origin: its knight on (0,1) may jump over its
+		// pawns onto the two squares above them, or into either top corner.
+		const destinations = await t.select(0, 1);
+		expect(destinations).toEqual(
 			expect.arrayContaining([
 				{x: 1, y: 3},
 				{x: -1, y: 3},
@@ -191,21 +225,69 @@ describe('a move on the offline world', () => {
 				{x: -2, y: 2},
 			]),
 		);
-		expect(plan.destinations).toHaveLength(4);
+		expect(destinations).toHaveLength(4);
 
-		planning.click(squareAt(2, 2));
-		const actions = [...get(planning.actions)];
+		t.planning.click(squareAt(2, 2));
+		const actions = [...get(t.planning.actions)];
 		expect(actions).toEqual([{from: squareAt(0, 1), to: squareAt(2, 2)}]);
-		stop();
-		sandbox.dispose();
+		t.dispose();
 
-		await playCycle(army, actions, '22');
+		await playCycle(t.army, actions, '22');
 		const after = await boardAround();
 		if (after.step !== 'Loaded') throw new Error('unloaded');
 		expect(after.pieces.get(squareAt(0, 1))).toBeUndefined();
 		expect(after.pieces.get(squareAt(2, 2))).toMatchObject({
-			army,
+			army: t.army,
 			kind: PIECE_KIND.Knight,
 		});
+	}, 60_000);
+
+	it('plans several piece-moves by the contract, refuses one it would refuse, and lands them from one commitment', async () => {
+		const t = await deployedWorld();
+		expect(t.maxPieceMoves).toBe(3);
+		// The king steps onto the empty core square on its right...
+		expect(await t.select(0, 0)).toContainEqual({x: 1, y: 0});
+		t.planning.click(squareAt(1, 0));
+		// ...and the queen may take the square it leaves: offered by the route
+		// alongside the king's piece-move, though the king stands there now.
+		expect(await t.select(-1, 0)).toContainEqual({x: 0, y: 0});
+		t.planning.click(squareAt(0, 0));
+		const both = [
+			{from: squareAt(0, 0), to: squareAt(1, 0)},
+			{from: squareAt(-1, 0), to: squareAt(0, 0)},
+		];
+		expect(get(t.planning.actions)).toEqual(both);
+		// Long enough for the verdict on the two to come back.
+		await new Promise((r) => setTimeout(r, 500));
+		expect(t.refusal()).toBeUndefined();
+
+		// Without the king's piece-move the queen's is onto its own king: the
+		// contract refuses the move, and the planner says so before any commit.
+		t.planning.takeBack(squareAt(0, 0));
+		await t.until(() => t.refusal() !== undefined);
+		expect(t.refusal()).toMatch(/refuses \(-1, 0\) to \(0, 0\)/);
+
+		// Put back, the move is legal again.
+		await t.select(0, 0);
+		t.planning.click(squareAt(1, 0));
+		await t.until(() => t.refusal() === undefined);
+		expect(t.refusal()).toBeUndefined();
+		const actions = [...get(t.planning.actions)];
+		expect(actions).toEqual([both[1], both[0]]);
+		t.dispose();
+
+		// ONE commitment holds both, and both land.
+		await playCycle(t.army, actions, '33');
+		const after = await boardAround();
+		if (after.step !== 'Loaded') throw new Error('unloaded');
+		expect(after.pieces.get(squareAt(1, 0))).toMatchObject({
+			army: t.army,
+			kind: PIECE_KIND.King,
+		});
+		expect(after.pieces.get(squareAt(0, 0))).toMatchObject({
+			army: t.army,
+			kind: PIECE_KIND.Queen,
+		});
+		expect(after.pieces.get(squareAt(-1, 0))).toBeUndefined();
 	}, 60_000);
 });
