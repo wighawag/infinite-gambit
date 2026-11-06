@@ -39,10 +39,11 @@ jobs:
       # Set (e.g. `sepolia`): `pnpm build <env>` exports the committed records in
       # contracts/deployments/<env>, and fails if there are none, rather than
       # quietly shipping an offline-only site under a name that promised a chain.
+      # Its web settings (RPC, fuzd) are committed in web/.env.<env>.
       #
-      # The PUBLIC_* values are repo variables, exported only when set, so an
-      # unset one keeps the default from web/.env instead of overriding it with an
-      # empty string (an empty PUBLIC_ENS_NODE_URL would disable ENS).
+      # The PUBLIC_* repo variables override those files, and are exported only
+      # when set, so an unset one keeps the committed value instead of overriding
+      # it with an empty string (an empty PUBLIC_ENS_NODE_URL would disable ENS).
       - name: Build
         env:
           DEPLOY_ENV: ${{ vars.DEPLOY_ENV }}
@@ -50,9 +51,10 @@ jobs:
           VAR_PUBLIC_CHAIN_INFO_NODE_URL: ${{ vars.PUBLIC_CHAIN_INFO_NODE_URL }}
           VAR_PUBLIC_ENS_NODE_URL: ${{ vars.PUBLIC_ENS_NODE_URL }}
           VAR_PUBLIC_FAUCET_LINK: ${{ vars.PUBLIC_FAUCET_LINK }}
+          VAR_PUBLIC_FUZD_URI: ${{ vars.PUBLIC_FUZD_URI }}
         run: |
           set -euo pipefail
-          for name in PUBLIC_NODE_URL PUBLIC_CHAIN_INFO_NODE_URL PUBLIC_ENS_NODE_URL PUBLIC_FAUCET_LINK; do
+          for name in PUBLIC_NODE_URL PUBLIC_CHAIN_INFO_NODE_URL PUBLIC_ENS_NODE_URL PUBLIC_FAUCET_LINK PUBLIC_FUZD_URI; do
             value="$(printenv "VAR_$name" || true)"
             if [ -n "$value" ]; then
               export "$name=$value"
