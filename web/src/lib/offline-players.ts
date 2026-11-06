@@ -272,8 +272,10 @@ export function createOfflinePlayers(params: {
 				identity,
 				cycleNumber,
 			}),
-			// One move per army per cycle.
-			budget: {actionsAtMost: 1},
+			// One move per army per cycle, of up to the game's cap of piece-moves
+			// (the strategy reads it, `docs/adr/0016`): what the seat pays for is
+			// one reveal transaction, which carries `actionsPerReveal` of them.
+			budget: {actionsAtMost: config.actionsPerReveal},
 		});
 	}
 

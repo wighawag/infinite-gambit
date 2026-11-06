@@ -472,7 +472,7 @@ describe('the other players in the offline world', () => {
 		);
 	});
 
-	it('plays a legal move every cycle at the greedy level, decided once and stored before its commit', async () => {
+	it('plays a legal move of three piece-moves every cycle at the greedy level, decided once and stored before its commit', async () => {
 		const t = await setup();
 		const table = tableOf(SEATS_BY_DEFAULT, 1, ['greedy', 'greedy']);
 		const played = await playedByTheWorld({env: world!.env, table});
@@ -507,8 +507,11 @@ describe('the other players in the offline world', () => {
 				const {cycleNumber} = await t.read<Cycle>('getCycle');
 				for (const seat of played) {
 					const turn = decider.turns.get(seat.identity, Number(cycleNumber));
-					expect(turn, `round ${round}`).toHaveLength(1);
-					expect(turn![0].from).not.toBe(turn![0].to);
+					// Up to three piece-moves, each by a different piece: a fresh
+					// army has more than three pieces with somewhere to go.
+					expect(turn, `round ${round}`).toHaveLength(3);
+					expect(new Set(turn!.map((move) => move.from)).size).toBe(3);
+					for (const move of turn!) expect(move.from).not.toBe(move.to);
 				}
 				expect((await t.read<Attendance>('getAttendance')).committed).toBe(3n);
 				await t.advance();
