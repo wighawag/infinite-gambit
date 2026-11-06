@@ -61,6 +61,8 @@ describe('what the minimap shows', () => {
 				// Not yet revealed: where it goes is still a secret.
 				army(3n, {king: [0, 0], spawn: [0, 0], status: ARMY_STATUS.Deploying}),
 				army(4n, {king: [0, 0], spawn: [0, 16], status: ARMY_STATUS.Captured}),
+				// Frozen by a missed reveal: still on the board, with its stake.
+				army(5n, {king: [-17, 1], spawn: [-16, 0], status: ARMY_STATUS.Frozen}),
 			],
 			you: 2n,
 			camera,
@@ -68,7 +70,9 @@ describe('what the minimap shows', () => {
 		expect(map.armies.map(({id, x, y, you}) => ({id, x, y, you}))).toEqual([
 			{id: 1n, x: 1, y: 2, you: false},
 			{id: 2n, x: 20, y: -3, you: true},
+			{id: 5n, x: -17, y: 1, you: false},
 		]);
+		expect(map.spawnPoints).toContainEqual({x: -16, y: 0, open: false});
 	});
 
 	it('shows the camera as the rectangle it sees', () => {

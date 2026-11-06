@@ -1,8 +1,8 @@
 import {expect} from 'earl';
 import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not support vitest
 import {network} from 'hardhat';
-import {setupFixtures, commitmentChain, squareAt, xyOf} from './utils/index.js';
-import {movesWorld, SECRET, at, move, type Piece} from './utils/moves-world.js';
+import {setupFixtures, squareAt, xyOf} from './utils/index.js';
+import {movesWorld, at, move, type Piece} from './utils/moves-world.js';
 
 /**
  * MOVES: one per army per cycle, judged against the board as it stood at the
@@ -241,7 +241,7 @@ describe('moving an army', function () {
 
 	it('reveals exactly the moves the simulation route calls legal', async function () {
 		const w = await world();
-		const [a] = await w.deploy([[w.alice, [0, 0]]]);
+		await w.deploy([[w.alice, [0, 0]]]);
 		// The knight on (0,0): over the pawns, onto the two empty squares in
 		// front and the empty corner.
 		expect(await w.legalMoves([0, 0])).toEqual(
@@ -261,28 +261,30 @@ describe('moving an army', function () {
 			move([2, 0], [2, 1]), // a pawn sideways
 			move([5, 5], [5, 6]), // nothing there
 		]) {
-			await w.commit(w.alice, a, [illegal]);
-			await w.toRevealPhase();
-			await expect(w.reveal(w.alice, a, [illegal])).toBeRejectedWith(
+			// A fresh army each time: a commitment that cannot be revealed is a
+			// missed reveal, which FREEZES the army for good
+			// (`docs/adr/0005-missed-reveal-freezes-the-army.md`).
+			const fresh = await world();
+			const [army] = await fresh.deploy([[fresh.alice, [0, 0]]]);
+			await fresh.commit(fresh.alice, army, [illegal]);
+			await fresh.toRevealPhase();
+			await expect(fresh.reveal(fresh.alice, army, [illegal])).toBeRejectedWith(
 				/IllegalMove/,
 			);
-			// Settle it so the next cycle can be committed.
-			await w.toNextCycle();
-			await w.env.execute(w.Game, {
-				account: w.alice,
-				functionName: 'acknowledgeMissedReveal',
-				args: [
-					a,
-					[illegal],
-					SECRET,
-					commitmentChain([illegal], SECRET, 1).chunks[0].furtherActions,
-				],
-			});
+			await fresh.toNextCycle();
+			expect(
+				await fresh.env.read(fresh.Game, {
+					functionName: 'isFrozen',
+					args: [army],
+				}),
+			).toEqual(true);
 		}
 
 		// And a legal one goes through: the knight to the corner.
-		await w.play([{owner: w.alice, army: a, moves: [move([0, 0], [2, 1])]}]);
-		expect(await w.pieceAt(2, 1)).toEqual(`N@2,1#${a}:N*`);
+		const ok = await world();
+		const [army] = await ok.deploy([[ok.alice, [0, 0]]]);
+		await ok.play([{owner: ok.alice, army, moves: [move([0, 0], [2, 1])]}]);
+		expect(await ok.pieceAt(2, 1)).toEqual(`N@2,1#${army}:N*`);
 	});
 
 	it("refuses a move of another army's piece", async function () {
@@ -315,20 +317,20 @@ describe('moving an army', function () {
 		await w.toRevealPhase();
 		await expect(w.reveal(w.alice, a, two)).toBeRejectedWith(/OneMovePerCycle/);
 
+		// Which leaves it unrevealed: the army is frozen for good.
+		await w.toNextCycle();
+		await expect(w.commit(w.alice, a, [])).toBeRejectedWith('NotInGame');
+
 		// A second reveal of a move already revealed: refused by the base.
-		await w.toNextCycle();
-		await w.env.execute(w.Game, {
-			account: w.alice,
-			functionName: 'forfeitMissedReveal',
-			args: [a],
-		});
+		const v = await world();
+		const [army] = await v.deploy([[v.alice, [0, 0]]]);
 		const one = [move([-2, 1], [-2, 2])];
-		await w.commit(w.alice, a, one);
-		await w.toRevealPhase();
-		await w.reveal(w.alice, a, one);
-		await expect(w.reveal(w.alice, a, one)).toBeRejected();
-		await w.toNextCycle();
-		expect(await w.pieceAt(-2, 2)).toEqual(`P@-2,2#${a}:N*`);
+		await v.commit(v.alice, army, one);
+		await v.toRevealPhase();
+		await v.reveal(v.alice, army, one);
+		await expect(v.reveal(v.alice, army, one)).toBeRejected();
+		await v.toNextCycle();
+		expect(await v.pieceAt(-2, 2)).toEqual(`P@-2,2#${army}:N*`);
 	});
 
 	it('never promotes a pawn, however far it goes', async function () {

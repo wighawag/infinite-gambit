@@ -217,6 +217,25 @@
 			</div>
 		{/if}
 
+		<!--
+			The reveal deadline is near and the reveal has not landed: decided in
+			hud.ts. Loud on purpose, since missing it freezes the army for good.
+		-->
+		{#if $hud.revealDeadline}
+			<div
+				class="mb-3 animate-pulse rounded-md border-2 border-red-500 bg-red-500/20 p-2"
+				role="alert"
+				data-testid="reveal-deadline"
+			>
+				<p class="text-sm font-bold text-red-400">
+					{$hud.revealDeadline.headline}
+				</p>
+				<p class="mt-1 text-xs text-red-200">
+					{$hud.revealDeadline.detail}
+				</p>
+			</div>
+		{/if}
+
 		{#if $hud.missedReveal}
 			<div class="mb-3 rounded-md border border-red-500/40 bg-red-500/10 p-2">
 				<p class="text-sm font-semibold text-red-400">

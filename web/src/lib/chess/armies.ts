@@ -25,6 +25,13 @@ export const ARMY_STATUS = {
 	 * merged are rocks, and `stake` is what `exit(army)` still has to pay.
 	 */
 	Exited: 7,
+	/**
+	 * Frozen by a missed reveal: it stands on the board with its stake and can
+	 * still be captured, but never moves again and its king cannot exit
+	 * (`docs/adr/0005-missed-reveal-freezes-the-army.md`). Not played: its
+	 * owner deploys again.
+	 */
+	Frozen: 8,
 } as const;
 export type ArmyStatus = (typeof ARMY_STATUS)[keyof typeof ARMY_STATUS];
 
@@ -71,7 +78,10 @@ export function armyViewOf(raw: {
 	};
 }
 
-/** Whether an army can still act: committed this cycle, or on the board. */
+/**
+ * Whether an army can still act: committed this cycle, or on the board and
+ * not frozen.
+ */
 export function isLive(army: Pick<ArmyView, 'status'>): boolean {
 	return (
 		army.status === ARMY_STATUS.Deploying ||
@@ -86,7 +96,8 @@ export function isLive(army: Pick<ArmyView, 'status'>): boolean {
  * NEXT army: the id its deployment would create, which is what a deployment's
  * submission is keyed by before the army exists, so the same identity carries
  * the submission across its own creation. An army whose deployment failed or
- * was never revealed is not played: its owner deploys again.
+ * was never revealed, or that a missed reveal froze, is not played: its owner
+ * deploys again.
  */
 export function chooseArmy(
 	armies: readonly Pick<ArmyView, 'id' | 'status'>[],
@@ -100,8 +111,8 @@ export function chooseArmy(
 
 /**
  * WHAT BECAME OF THE ACCOUNT'S LAST DEPLOYMENT, when it is not playing: its most
- * recent army, if that one failed, was cancelled, was never revealed, or had its
- * king taken. The
+ * recent army, if that one failed, was cancelled, was never revealed, had its
+ * king taken, or froze. The
  * player is back at deployment then, and this is what to tell them.
  */
 export function lastDeploymentOutcome<T extends Pick<ArmyView, 'status'>>(

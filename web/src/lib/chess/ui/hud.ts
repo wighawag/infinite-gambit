@@ -17,7 +17,7 @@ import {
 	opensAWallet,
 	type AcquisitionState,
 } from '$lib/game/acquire';
-import type {Move} from '../commit-reveal';
+import {spawnPointOf, type Move} from '../commit-reveal';
 import type {ReserveState} from '../reserve';
 import {blocksCommitting, type MissedRevealState} from '../missed-reveal';
 import type {RecoveryState} from '$lib/game/core/recovery';
@@ -30,6 +30,7 @@ import {positionOf} from '../squares';
 import type {BoardView} from '../view';
 import {describeOutcomes, type OutcomeLine} from '../outcomes';
 import type {ViewStateValue} from '$lib/game/core/seams';
+import type {CycleInfo} from '$lib/game/core/cycle';
 import type {CyclePhase} from '$lib/game/core/cycle-phase';
 import type {SavedTurn} from '$lib/game/core/commit-reveal-game';
 import type {ScheduledReveal} from '$lib/fuzd';
@@ -226,6 +227,21 @@ export type HudModel = {
 			| 'not-scheduled';
 		label: string;
 		tone: 'idle' | 'busy' | 'good' | 'bad';
+	};
+
+	/**
+	 * Set when the reveal phase is running out and this cycle's reveal has not
+	 * landed: the loudest thing the HUD says during play, because a reveal that
+	 * misses the deadline FREEZES the army for good (a deployment's stake is
+	 * burned instead): `docs/adr/0005-missed-reveal-freezes-the-army.md`.
+	 * Whoever is sending it, this browser, a reveal service or a play key with
+	 * no gas left, what is warned about is that it has not LANDED.
+	 */
+	revealDeadline?: {
+		headline: string;
+		detail: string;
+		/** Whole seconds to the end of the reveal phase. */
+		secondsLeft: number;
 	};
 
 	/**
@@ -587,6 +603,79 @@ export function describeRevealSchedule(
 	}
 }
 
+/**
+ * How much of the reveal phase may be left before an owed reveal that has not
+ * landed is warned about: the last half. A reveal normally lands within
+ * seconds of the phase opening (this browser sends it at once; a reveal
+ * service that has not by half the phase is taken over by this browser), so
+ * one still missing then is in trouble, and the player has the other half to
+ * act.
+ */
+export const REVEAL_DEADLINE_WARNING_SHARE = 0.5;
+
+/**
+ * The warning that the reveal deadline is near and this cycle's reveal has not
+ * landed (story 15), or nothing.
+ *
+ * "NOT LANDED" IS READ FROM WHAT THE CLIENT KNOWS OF THE CHAIN, not from who
+ * was meant to send it: the submission still owes the reveal (committed, being
+ * revealed, or a reveal that failed) and no reveal service reports it
+ * confirmed. So a revealer that went quiet, a play key out of gas and a tab
+ * that was asleep all warn alike. A failed reveal warns at once, since it will
+ * not land by itself; otherwise the warning starts at
+ * {@link REVEAL_DEADLINE_WARNING_SHARE} of the phase left. A cycle with no
+ * clock (manual) has no deadline: it waits for every reveal.
+ */
+export function describeRevealDeadline(params: {
+	cycle: {
+		currentCycleNumber: number;
+		isCommitPhase: boolean;
+		/** Seconds; zero without a clock. */
+		revealPhaseDuration: number;
+		/** Seconds to the end of the reveal phase; undefined without a clock. */
+		secondsToRevealEnd: number | undefined;
+	};
+	submission: SubmissionState<Move>;
+	/** What a reveal service says of this turn, if one holds it. */
+	revealSchedule?: NonNullable<HudModel['revealSchedule']>['step'];
+}): HudModel['revealDeadline'] {
+	const {cycle, submission} = params;
+	const left = cycle.secondsToRevealEnd;
+	if (left === undefined || cycle.revealPhaseDuration <= 0) return undefined;
+	if (cycle.isCommitPhase) return undefined;
+	const owed =
+		submission.step === 'Committed' ||
+		submission.step === 'Revealing' ||
+		(submission.step === 'Error' && submission.during === 'reveal');
+	if (!owed || submission.cycleNumber !== cycle.currentCycleNumber) {
+		return undefined;
+	}
+	if (params.revealSchedule === 'confirmed') return undefined;
+	const failed = submission.step === 'Error';
+	if (
+		!failed &&
+		left > cycle.revealPhaseDuration * REVEAL_DEADLINE_WARNING_SHARE
+	) {
+		return undefined;
+	}
+	const secondsLeft = Math.max(0, Math.ceil(left));
+	const consequence =
+		spawnPointOf(submission.actions) !== undefined
+			? 'If it has not landed when the phase ends, the deployment is lost and its stake is burned.'
+			: 'If it has not landed when the phase ends, your army freezes for good: it never moves again and its king cannot exit.';
+	const remedy =
+		failed && submission.error instanceof SignerOutOfFundsError
+			? 'The key that sends your reveal has run out of gas: top it up now and the reveal goes out by itself.'
+			: failed
+				? 'Sending it failed: press Retry reveal to send it again.'
+				: 'Keep this page open while it is sent.';
+	return {
+		headline: `Your reveal has not landed: ${secondsLeft}s left.`,
+		detail: `${remedy} ${consequence}`,
+		secondsLeft,
+	};
+}
+
 /** No scheduled reveal: what a context without the layer's member reads. */
 const NO_REVEAL_SCHEDULE: Readable<ScheduledReveal | undefined> =
 	readable(undefined);
@@ -646,6 +735,13 @@ export function describeArmy(
 					'Its king left through an exit, with its stake: its own pieces left the board, and those it had won stay as rocks.',
 				stakeLabel,
 				tone: 'good',
+			};
+		case ARMY_STATUS.Frozen:
+			return {
+				label:
+					'It is frozen: a reveal was missed, so it never moves again and its king cannot exit. It stays on the board with its stake, and can still be captured.',
+				stakeLabel,
+				tone: 'bad',
 			};
 		default:
 			return undefined;
@@ -707,6 +803,13 @@ export function describeLastDeployment(params: {
 						? `${STAKE.amount(last.stake)} is waiting to be paid out.`
 						: 'Its stake was paid out.',
 				tone: 'good',
+			};
+		case ARMY_STATUS.Frozen:
+			return {
+				label:
+					'Your army is frozen: its reveal was missed, so it never moves again and its king cannot exit. Pick a spawn point to deploy again.',
+				stakeLabel: `Its stake of ${STAKE.amount(last.stake)} stays on the board with it, for whoever captures it.`,
+				tone: 'bad',
 			};
 		default:
 			return undefined;
@@ -794,6 +897,27 @@ export function describeLastCycle(
 	};
 }
 
+/** The clock {@link describeRevealDeadline} reads, from the cycle tracker. */
+function deadlineClockOf(
+	cycle: CycleInfo,
+): Parameters<typeof describeRevealDeadline>[0]['cycle'] {
+	if (cycle.type !== 'timed' && cycle.type !== 'hybrid') {
+		// No clock, so no deadline: a manual cycle waits for every reveal.
+		return {
+			currentCycleNumber: cycle.currentCycleNumber,
+			isCommitPhase: cycle.isCommitPhase,
+			revealPhaseDuration: 0,
+			secondsToRevealEnd: undefined,
+		};
+	}
+	return {
+		currentCycleNumber: cycle.currentCycleNumber,
+		isCommitPhase: cycle.isCommitPhase,
+		revealPhaseDuration: cycle.config.revealPhaseDuration,
+		secondsToRevealEnd: cycle.timeLeftForRevealEnd,
+	};
+}
+
 export function createHud(context: Context): Readable<HudModel> {
 	const {game} = context;
 
@@ -847,6 +971,10 @@ export function createHud(context: Context): Readable<HudModel> {
 			$exitPayout,
 		]): HudModel => {
 			const savedTurn = describeSavedTurn($savedTurn as SavedTurn);
+			const revealSchedule = describeRevealSchedule(
+				$revealSchedule as ScheduledReveal | undefined,
+				$submission,
+			);
 			const submission = describeSubmission($submission);
 			const reserve = $reserve as ReserveState;
 			const reserveAmount =
@@ -954,10 +1082,12 @@ export function createHud(context: Context): Readable<HudModel> {
 				}),
 				recovery: describeRecovery($recovery as RecoveryState, $count),
 				savedTurn,
-				revealSchedule: describeRevealSchedule(
-					$revealSchedule as ScheduledReveal | undefined,
-					$submission,
-				),
+				revealSchedule,
+				revealDeadline: describeRevealDeadline({
+					cycle: deadlineClockOf($cycle as CycleInfo),
+					submission: $submission,
+					revealSchedule: revealSchedule?.step,
+				}),
 				// Committing early is allowed the whole time the phase is open; the
 				// submission commits by itself if the player leaves it too late. An
 				// unrevealed commitment blocks it entirely: the contract would reject

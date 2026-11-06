@@ -30,7 +30,12 @@ export function describeSpawnPoints(params: {
 }): SpawnPointView[] {
 	const count = params.count ?? NEAREST_COUNT;
 	const kings = params.armies
-		.filter((army) => army.status === ARMY_STATUS.Deployed)
+		// A frozen army stands on the board with its stake, like any other.
+		.filter(
+			(army) =>
+				army.status === ARMY_STATUS.Deployed ||
+				army.status === ARMY_STATUS.Frozen,
+		)
 		.map((army) => positionOf(army.king));
 	return params.spawnPoints.map((spawnPoint) => {
 		const position = positionOf(spawnPoint);

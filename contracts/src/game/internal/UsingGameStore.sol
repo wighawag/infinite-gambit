@@ -63,6 +63,12 @@ abstract contract UsingGameStore is
         bool collecting;
         /// @notice whether the exit has been paid
         bool paid;
+        /// @notice whether a missed reveal of a move has been SETTLED, which
+        ///         froze the army for good; false until somebody settles it
+        ///         (`UsingGameInternal-_isFrozen` also reads the unsettled
+        ///         commitment meanwhile,
+        ///         `docs/adr/0005-missed-reveal-freezes-the-army.md`)
+        bool frozen;
         // ---- third slot: whose army it merged into
         /// @notice the army that took its king, once a later reveal has folded
         ///         the square it was taken on; zero until then, and for an army

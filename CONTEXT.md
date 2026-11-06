@@ -181,7 +181,7 @@ The twenty squares a deployment's layout puts a piece on (the 6 by 4 rectangle w
 _Avoid_: base, area, zone (a zone is the board read's 16 by 16 index)
 
 **Dead army**:
-An army that can never act again, so no cycle waits for it: today a deployment that failed, was cancelled or was never revealed, an army whose king was taken, or an army whose king exited (later a frozen army). One predicate in the contract (`_isDead`); an advance stops waiting for every dead army first.
+An army that can never act again, so no cycle waits for it: a deployment that failed, was cancelled or was never revealed, an army whose king was taken, an army whose king exited, or a frozen army. One predicate in the contract (`_isDead`); an advance stops waiting for every dead army first. Dead is not gone: a frozen army still stands on the board with its stake.
 _Avoid_: eliminated, gone, inactive
 
 **Exit**:
@@ -209,7 +209,7 @@ Kings capturing each other in a ring within one cycle (A takes B while B takes A
 _Avoid_: mutual capture, swap, draw
 
 **Freeze**:
-What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured. An army is frozen as soon as its reveal window closes unrevealed, before anyone settles it (frozen flag OR an unrevealed commitment from a past cycle). In the framework's terms it is a forfeit, and the cycle stops waiting for it.
+What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured, its pieces then joining the captor. It takes nothing: the whole stake stays on the board as prey. An army is frozen as soon as its reveal window closes unrevealed, before anyone settles it (frozen flag OR an unrevealed commitment from a past cycle: `_isFrozen`, `isFrozen`, status `Frozen` in the registry). A commitment that cannot be revealed (an illegal move, a reveal out of gas) is a missed reveal too. In the framework's terms it is a forfeit, and the cycle stops waiting for it.
 _Avoid_: ban, lock, penalty
 
 ## The work/ contract
