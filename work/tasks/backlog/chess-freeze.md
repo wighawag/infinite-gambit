@@ -16,6 +16,14 @@ covers: [14, 15, 36, 37]
 
 Client: the template's local revealer sends the player's reveal automatically; the client warns loudly as the reveal deadline approaches with the reveal not landed (including when the revealer is short of gas); frozen and idle armies stay on the board with their stakes.
 
+> FORWARD-POINTER (conductor, from what landed through `chess-exits-redeem`; see the `## Decisions` in `work/tasks/done/` and ADRs 0009-0011):
+> - **Extend the ONE `_isDead` predicate** (failed / cancelled / unrevealed deployment, captured, exited) with frozen; the `advanceCycle` sweep and `_effectiveAttendance` already use it, and a dead army's commit reverts `NotInGame`.
+> - **`_forfeit` already has the deployment burn** (an army with `spawnIndexPlusOne == 0 && !cancelled`): keep it exactly, and add the freeze for every other army.
+> - **A frozen king must not exit.** `_exited` (in `UsingGameBoard`) decides an exit from a king that arrived alone on an exit square. A frozen army cannot reveal a move, but check that no path (a reveal landing before the freeze is known, a settled-later missed reveal) lets a frozen army exit, and test it.
+> - **Captured frozen armies**: their pieces come back to life under the captor through the existing merge pointers; a frozen army's pieces are NOT rocks (a rock is army 0: an exited root's merged pieces, or more than MAX_CHAIN captures deep).
+> - The contract has moved entry points between routes for size before (`GameReveal` to `GameCommit`, a new `GameDeploymentReveal`, `GameExit`, `GameRegistry`): `RouteSizes.test.ts` must stay green.
+> - **Reveal gas has no slack**: `REVEAL_GAS` is 1,345,000 against a `GasBudget.test.ts` generosity cap of 1,347,342 (three times the plainest reveal). Anything added to the reveal path will trip that test; re-measure and adjust both honestly, never paper over it.
+
 ## Acceptance criteria
 
 - [ ] A missed reveal freezes the army: further commitments are refused, its king cannot exit, and it can be captured as usual, its pieces joining the captor.

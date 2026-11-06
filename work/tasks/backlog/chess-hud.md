@@ -10,6 +10,11 @@ covers: [21, 46, 47]
 
 What a player needs to judge a cycle at a glance: every king labelled with its army's stake (from the army registry view); frozen armies greyed out (using the contract's frozen view, which also counts an unsettled missed reveal); a countdown to the end of the current phase; an overlay of the squares attacked by enemy pieces on the start-of-cycle board (from the contract's rule through the simulation route, `docs/adr/0007-rules-live-only-in-the-contract.md`). No fog of war: everything on chain is shown. All logic in `.ts`, components only render.
 
+> FORWARD-POINTER (conductor, from what landed before this task; see `work/tasks/done/`):
+> - **Kings' stakes** come from the registry view, which counts merged stakes only down to MAX_CHAIN levels (`_treeStake`); an exited army reads `Exited` with its uncollected stake. Show what the registry says.
+> - **Rocks are army 0** (ownerless, greyed like frozen pieces but distinct from them); `chess-exits-redeem` already draws exits on the board.
+> - **Minimap exit markers** were moved here from `chess-exits-redeem` by the human (2026-11-06): mark exits on the minimap too (`web/src/lib/chess/exits.ts` has the geometry, `web/src/lib/chess/minimap.ts` the map).
+
 ## Acceptance criteria
 
 - [ ] Kings show their stake, frozen armies are visibly distinct, and the phase countdown is accurate.

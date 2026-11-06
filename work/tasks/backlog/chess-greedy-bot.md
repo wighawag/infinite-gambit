@@ -10,6 +10,11 @@ covers: [43]
 
 Machine-played seats in the offline world (the hotseat mode, where each seat is a human or the machine; online tables have no machine seats in v1) play chess. A machine seat whose army is gone (captured, exited, failed deployment) redeploys at an open spawn point. Each cycle it plays: each cycle, capture the most valuable piece reachable (king highest, then queen 9, rook 5, bishop 3, knight 3, pawn 1), otherwise make a random legal move. Scoring and legality come from the contract's own rule through the simulation route (`docs/adr/0007-rules-live-only-in-the-contract.md`). The framework's strategy seam is `$lib/game/core/strategy.ts`; the deleted reference game's `placement/strategy.ts` (in git history) shows how a `greedy` level scored moves from the bytecode. Bot logic lives in plain `.ts`.
 
+> FORWARD-POINTER (conductor, from what landed before this task; see `work/tasks/done/`):
+> - **DRIFT TO CHECK FIRST: redeploying.** `chess-deployment-collisions` decided "machine seats with a dead army sit out instead of redeploying", because a redeploy changes the seat's identity (a new army id) and the secret derived for it, which is a wire. This task asks the opposite (a seat whose army is gone redeploys). An account may own several armies (`_armyIdOf(owner, nonce)`), so redeploying means the seat plays its NEXT army id; make sure the stored submissions and derived secrets stay keyed per army and nothing in flight is lost. If that cannot be done safely, STOP and surface it rather than break the wire.
+> - **Rocks are army 0**: a piece with a kind and army 0 is an ownerless rock (capturable, worth nothing to capture, never a target worth scoring). An exited army's own pieces are simply gone.
+> - Scoring and legality come from the contract through the simulation route (`legalMoves` in the sandbox), never a TypeScript copy of the rules.
+
 ## Acceptance criteria
 
 - [ ] A played seat captures the most valuable reachable piece when one exists, and otherwise makes a legal move.

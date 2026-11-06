@@ -18,6 +18,13 @@ The same rules as a closed ONLINE game, on the template's table and lobby (fixed
 - **Leaving.** Before the table starts, the owner may withdraw their army's whole reserve, which frees the seat (`_leaveSeat`) and removes the inert army. This is the one exception to "an army reserve is never withdrawn directly" (`docs/adr/0006-stake-erc20-reserve-exit-only.md`). Once the table has started, the normal rule applies.
 - **No machine-played seats at online tables in v1**: someone's browser would have to run them. Tables are humans only; bots are the offline world's.
 
+> FORWARD-POINTER (conductor, from what landed through `chess-exits-redeem`):
+> - **Exits are still ACCEPTED at a table today** (`chess-exits-redeem` decisions): `_exited` must say no under a roster, with a test.
+> - **The table seat is still the ACCOUNT** (pass-only), kept since `chess-army-deployment` so the lobby stayed tested; this task replaces that with the army seat as described. `table.e2e.ts` and the client at a table follow.
+> - **Payouts go through `StakeSale.redeem`** via the token's minter (`IMintedToken(TOKENS).minter()`), the way `GameExit` pays, to the army's CURRENT owner (`_ownerOf`, ADR 0010), debiting what it pays, claimable once.
+> - **Material at the cap**: rocks (army 0) and an exited root's vanished pieces count for nobody.
+> - **Reveal gas has no slack**: `REVEAL_GAS` is 1,345,000 against a `GasBudget.test.ts` generosity cap of 1,347,342 (three times the plainest reveal). Anything added to the reveal path will trip that test; re-measure and adjust both honestly, never paper over it.
+
 ## Acceptance criteria
 
 - [ ] A table can be created, seated and started; buying a seat creates its army, and each seat gets its own spawn point on the table grid.
