@@ -4,6 +4,7 @@ slug: chess-capture-loops
 spec: infinite-chess
 blockedBy: [chess-king-capture-merge]
 covers: [31]
+needsAnswers: true
 ---
 
 ## What to build
