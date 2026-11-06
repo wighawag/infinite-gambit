@@ -4,7 +4,7 @@ slug: chess-camera-minimap
 spec: infinite-chess
 blockedBy: [chess-collisions]
 covers: [44, 45]
-needsAnswers: true
+needsAnswers: false
 ---
 
 ## What to build
@@ -45,3 +45,9 @@ git fetch <remote> && git switch -c work/chess-camera-minimap <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-camera-minimap.md work/tasks/done/chess-camera-minimap.md
 ```
+
+## Applied answers 2026-11-06
+
+### q1: 'task:chess-camera-minimap' was bounced — how should we proceed?
+
+keep. The gate failed in prepare on the known hardhat compile race (two concurrent compiles from the install prepare scripts, see work/notes/observations/prepare-races-two-hardhat-compiles.md), not on the work. The committed work on work/task-chess-camera-minimap is complete: do not redo it; the conductor rebases the branch onto main, check it is still green and finish.
