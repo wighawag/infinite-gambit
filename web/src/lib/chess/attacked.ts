@@ -10,8 +10,10 @@
  * with it (`docs/adr/0003-collision-table-king-survives-a-crowd.md`). That is
  * the union of `legalMoves` over the enemy's pieces, on the board the cycle
  * started with, and nothing else. It differs from the chess picture where the
- * rule does: an enemy pawn's diagonal onto an empty square is not marked (that
- * pawn may not move there this cycle, whatever I do), and its step forward is.
+ * rule does: a pawn steps one square every way and captures on all four
+ * diagonals (`docs/adr/0015`), and an enemy pawn's diagonal onto an empty
+ * square is not marked (that pawn may not move there this cycle, whatever I
+ * do), while its steps onto empty squares are.
  *
  * THE RULE IS THE CONTRACT'S. `legalMoves` is the Simulation route's own
  * bytecode run in the sandbox, as it is for the player's own destinations
@@ -93,7 +95,7 @@ type AttackInput = {
 
 const keyOf = (you: bigint, pieces: ReadonlyMap<bigint, Piece>) =>
 	`${you}|${[...pieces.values()]
-		.map((p) => `${p.position}:${p.army}:${p.kind}:${p.forward}:${p.moved}`)
+		.map((p) => `${p.position}:${p.army}:${p.kind}`)
 		.sort()
 		.join(',')}`;
 

@@ -26,7 +26,7 @@ const {deployAll} = setupFixtures(provider);
 const SECRET =
 	'0x0000000000000000000000000000000000000000000000000000000000000a11';
 
-type Piece = {position: bigint; army: bigint; kind: number; forward: number};
+type Piece = {position: bigint; army: bigint; kind: number};
 
 const byPosition = (a: Piece, b: Piece) =>
 	a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
@@ -37,8 +37,8 @@ describe('the simulation route', function () {
 		const {cycleNumber} = f.getCycleNumber(await f.getTimestamp());
 		await f.advanceToCycleNumber(cycleNumber + 2, true);
 		const owner = f.unnamedAccounts[0] as `0x${string}`;
-		// East-facing, so the preview is not the unrotated layout.
-		const spawnPoint = squareAt(16, 0);
+		// Off the origin, so the preview is placed by its spawn point.
+		const spawnPoint = squareAt(9, 0);
 
 		await fundAccount(f, owner);
 		const {army} = await commitDeployment(f, {
@@ -64,7 +64,7 @@ describe('the simulation route', function () {
 
 		const [board] = (await f.env.read(f.Game, {
 			functionName: 'getPieces',
-			args: [0, -16, 32, 16],
+			args: [0, -9, 18, 9],
 		})) as readonly [readonly Piece[], bigint];
 		expect([...board].sort(byPosition)).toEqual([...preview].sort(byPosition));
 	});
@@ -77,11 +77,11 @@ describe('the simulation route', function () {
 		// what a client's sandbox has.
 		const fromRoute = await f.env.read(
 			{address: route.address, abi: f.Game.abi},
-			{functionName: 'previewDeployment', args: [squareAt(0, 16), army]},
+			{functionName: 'previewDeployment', args: [squareAt(0, 9), army]},
 		);
 		const fromGame = await f.env.read(f.Game, {
 			functionName: 'previewDeployment',
-			args: [squareAt(0, 16), army],
+			args: [squareAt(0, 9), army],
 		});
 		expect(fromRoute).toEqual(fromGame);
 		expect((fromRoute as readonly Piece[]).length).toEqual(20);

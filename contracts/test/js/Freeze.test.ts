@@ -16,8 +16,9 @@ import {movesWorld, move} from './utils/moves-world.js';
  * commitment from a past cycle (`isFrozen`).
  *
  * The world is `utils/moves-world.ts`'s tight grid: alice at spawn (0,0), bob
- * at (6,0) facing East with his king on (6,1), carol at (0,6) and dave at
- * (6,6). alice's king, on (-2,0), reaches the exit (-3,3) in three steps.
+ * at (6,0), carol at (0,6) and dave at (6,6), every king on its spawn point.
+ * alice's king reaches the exit (3,-2) as in `Exits.test.ts`: her rook steps
+ * into her empty core square, and her king walks by (1,-1) and (2,-2).
  */
 
 const {provider, networkHelpers} = await network.connect();
@@ -34,12 +35,14 @@ const UNREVEALED = 4;
 const CAPTURED = 6;
 const FROZEN = 8;
 
-const ALICE_PAWN = move([0, 1], [0, 2]);
+const ALICE_PAWN = move([0, 2], [0, 3]);
 const ALICE_TO_EXIT = [
-	move([-2, 0], [-3, 1]),
-	move([-3, 1], [-3, 2]),
-	move([-3, 2], [-3, 3]),
+	move([1, -1], [1, 0]),
+	move([0, 0], [1, -1]),
+	move([1, -1], [2, -2]),
+	move([2, -2], [3, -2]),
 ];
+const LANDING = ALICE_TO_EXIT.length - 1;
 
 function read<T>(w: World, functionName: string, args: unknown[] = []) {
 	return w.env.read(w.Game, {functionName, args} as never) as Promise<T>;
@@ -57,7 +60,7 @@ const armyView = (w: World, army: bigint) =>
 
 /** Every piece of `army` on the board, as lines. */
 async function piecesOf(w: World, army: bigint): Promise<string[]> {
-	return (await w.board()).filter((l) => l.includes(`#${army}:`));
+	return (await w.board()).filter((l) => l.endsWith(`#${army}`));
 }
 
 /** alice commits `moves` and never reveals them; bob passes, and reveals. */
@@ -169,14 +172,14 @@ describe('a missed reveal', function () {
 			[w.alice, [0, 0]],
 			[w.bob, [1, 0]],
 		]);
-		for (const m of ALICE_TO_EXIT.slice(0, 2)) {
+		for (const m of ALICE_TO_EXIT.slice(0, LANDING)) {
 			await w.play([
 				{owner: w.alice, army: a, moves: [m]},
 				{owner: w.bob, army: b, moves: []},
 			]);
 		}
 		// The step onto the exit is committed, and never revealed.
-		await aliceMisses(w, a, b, [ALICE_TO_EXIT[2]]);
+		await aliceMisses(w, a, b, [ALICE_TO_EXIT[LANDING]]);
 		expect(await isFrozen(w, a)).toEqual(true);
 		expect(await read<boolean>(w, 'isExited', [a])).toEqual(false);
 		await expect(
@@ -188,11 +191,11 @@ describe('a missed reveal', function () {
 		).toBeRejectedWith(/NotExited/);
 
 		// Settled with the move shown: the move is still not made.
-		await settle(w, 'acknowledgeMissedReveal', a, [ALICE_TO_EXIT[2]]);
+		await settle(w, 'acknowledgeMissedReveal', a, [ALICE_TO_EXIT[LANDING]]);
 		await w.play([{owner: w.bob, army: b, moves: []}]);
 		expect(await read<boolean>(w, 'isExited', [a])).toEqual(false);
-		expect(await w.pieceAt(-3, 2)).toEqual(`K@-3,2#${a}:N*`);
-		expect(await w.pieceAt(-3, 3)).toEqual(undefined);
+		expect(await w.pieceAt(2, -2)).toEqual(`K@2,-2#${a}`);
+		expect(await w.pieceAt(3, -2)).toEqual(undefined);
 		const view = await armyView(w, a);
 		expect([view.status, view.stake]).toEqual([FROZEN, DEFAULT_STAKE]);
 		await expect(
@@ -212,17 +215,18 @@ describe('a missed reveal', function () {
 			[w.carol, [0, 1]],
 			[w.dave, [1, 1]],
 		]);
-		// bob commits a move and goes quiet; dave's queen walks over.
-		await w.commit(w.bob, b, [move([6, 1], [7, 2])]);
-		await w.commit(w.dave, d, [move([7, 5], [8, 4])]);
+		// bob commits a move and goes quiet; dave's knight jumps over, by
+		// (7,3) and bob's pawn (5,2).
+		await w.commit(w.bob, b, [move([4, 1], [3, 1])]);
+		await w.commit(w.dave, d, [move([6, 5], [7, 3])]);
 		await w.toRevealPhase();
-		await w.reveal(w.dave, d, [move([7, 5], [8, 4])]);
+		await w.reveal(w.dave, d, [move([6, 5], [7, 3])]);
 		await w.toNextCycle();
 		expect(await isFrozen(w, b)).toEqual(true);
-		await w.play([{owner: w.dave, army: d, moves: [move([8, 4], [8, 3])]}]);
+		await w.play([{owner: w.dave, army: d, moves: [move([7, 3], [5, 2])]}]);
 		// The frozen king never moved, and is taken where it stands.
-		expect(await w.pieceAt(6, 1)).toEqual(`K@6,1#${b}:E`);
-		await w.play([{owner: w.dave, army: d, moves: [move([8, 3], [6, 1])]}]);
+		expect(await w.pieceAt(6, 0)).toEqual(`K@6,0#${b}`);
+		await w.play([{owner: w.dave, army: d, moves: [move([5, 2], [6, 0])]}]);
 
 		const bob = await armyView(w, b);
 		expect([bob.status, bob.capturedBy, bob.stake]).toEqual([CAPTURED, d, 0n]);

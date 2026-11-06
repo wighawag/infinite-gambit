@@ -28,7 +28,7 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         ///         committed (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
         uint256 stake;
         /// @notice The distance between two spawn points on each axis. At least
-        ///         6, so that no two armies' footprints can overlap.
+        ///         6, so that no two armies' 5-wide footprints touch.
         uint32 spawnSpacing;
         /// @notice How many free spawn points are open at once: the ones
         ///         nearest the origin, in spiral order.
@@ -72,27 +72,12 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         Stone
     }
 
-    /// @notice A direction on the board. Only a pawn's is meaningful: it is the
-    ///         way it advances, fixed at deployment.
-    /// @dev In quarter turns clockwise from North, which is what lets the
-    ///      layout rotate a direction by adding.
-    enum Direction {
-        North, // +y
-        East, // +x
-        South, // -y
-        West // -x
-    }
-
     /// @notice One piece on one square, resolved.
     struct Piece {
         uint64 position;
         /// @notice the army it belongs to
         uint256 army;
         PieceKind kind;
-        /// @notice which way a pawn advances; North for every other piece
-        Direction forward;
-        /// @notice whether the piece has moved since its army was deployed
-        bool moved;
     }
 
     /// @notice What the last closed cycle did to one square: a capture, a

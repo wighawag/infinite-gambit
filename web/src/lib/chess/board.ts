@@ -39,17 +39,11 @@ export const PIECE_KIND = {
 } as const;
 export type PieceKind = (typeof PIECE_KIND)[keyof typeof PIECE_KIND];
 
-/** `UsingGameTypes.Direction`, by value: which way a pawn advances. */
-export const DIRECTION = {North: 0, East: 1, South: 2, West: 3} as const;
-export type Direction = (typeof DIRECTION)[keyof typeof DIRECTION];
-
 /** One piece, as the contract resolves it. */
 export type Piece = {
 	position: bigint;
 	army: bigint;
 	kind: PieceKind;
-	forward: Direction;
-	moved: boolean;
 };
 
 export type BoardState = {
@@ -78,15 +72,11 @@ export function pieceOf(raw: {
 	position: bigint;
 	army: bigint;
 	kind: number;
-	forward: number;
-	moved: boolean;
 }): Piece {
 	return {
 		position: raw.position,
 		army: raw.army,
 		kind: raw.kind as PieceKind,
-		forward: raw.forward as Direction,
-		moved: raw.moved,
 	};
 }
 

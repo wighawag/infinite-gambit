@@ -351,7 +351,9 @@ export const config = {
 		 *
 		 * `stake` is what one army holds, taken from the account's reserve when
 		 * its deployment is committed. `spawnSpacing` (S) is the distance between
-		 * spawn points on each axis, and `openSpawnPoints` (K) how many free spawn
+		 * spawn points on each axis (9 on every grid, tables included, so two
+		 * neighbouring 5-wide armies have exactly 4 empty squares between them,
+		 * `docs/adr/0015`), and `openSpawnPoints` (K) how many free spawn
 		 * points are open at once, the K nearest the origin in spiral order: few
 		 * enough that the world stays dense as it grows.
 		 *
@@ -375,7 +377,7 @@ export const config = {
 				revealPhaseDuration: 10n,
 				actionsPerReveal: 1n,
 				stake: parseEther('10'),
-				spawnSpacing: 16n,
+				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.Timed,
 				commitGas: COMMIT_GAS,
@@ -408,7 +410,7 @@ export const config = {
 				revealPhaseDuration: 10n,
 				actionsPerReveal: 1n,
 				stake: parseEther('10'),
-				spawnSpacing: 16n,
+				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.Timed,
 				commitGas: COMMIT_GAS,
@@ -457,9 +459,9 @@ export const config = {
 				revealPhaseDuration: 15n,
 				actionsPerReveal: 1n,
 				stake: parseEther('10'),
-				// A TIGHTER GRID than the world's, so a table's armies meet
-				// quickly: a gap of four squares between two footprints.
-				spawnSpacing: 10n,
+				// THE WORLD'S GRID (`docs/adr/0015`): four empty squares between
+				// two neighbouring armies on both axes.
+				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.TimedWithEarlyAdvance,
 				commitGas: COMMIT_GAS,

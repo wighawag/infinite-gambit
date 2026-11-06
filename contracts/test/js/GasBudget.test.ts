@@ -125,7 +125,7 @@ describe('the declared gas budget', function () {
 		// The first deployment ever: every slot cold, and the reveal writes the
 		// whole open set. The last spawn point of that set, so the reveal reads
 		// all of it before finding its own.
-		const spawnPoint = squareAt(0, -16);
+		const spawnPoint = squareAt(0, -9);
 		const {army, receipt: commitReceipt} = await commitDeployment(
 			{env, Game},
 			{owner: player, spawnPoint, secret: SECRET, actionsPerReveal},
@@ -169,24 +169,23 @@ describe('the declared gas budget', function () {
 			});
 			return BigInt(receipt.gasUsed);
 		}
-		// The army stands on (0,-16) facing South: its king on (1,-17), next to
-		// the empty corner (2,-18), which it steps into; its queen on (-2,-16)
-		// behind the pawn on (-3,-16), which advances West.
+		// The army stands on (0,-9): its king on the spawn point, next to the
+		// empty core square (1,-9), which it steps into; its queen on (-1,-9)
+		// behind the pawn on (-2,-9), which steps out West.
 		const kingRevealUsed = await revealMove({
-			from: squareAt(1, -17),
-			to: squareAt(2, -18),
+			from: squareAt(0, -9),
+			to: squareAt(1, -9),
 		});
 		// The pawn walks 8 squares West, one a cycle, leaving a stale record on
 		// every square of the row; then the queen behind it slides 7 squares
 		// over them, many idle cycles later.
-		await revealMove({from: squareAt(-3, -16), to: squareAt(-4, -16)});
-		for (let x = -4; x > -11; x--) {
-			await revealMove({from: squareAt(x, -16), to: squareAt(x - 1, -16)});
+		for (let x = -2; x > -10; x--) {
+			await revealMove({from: squareAt(x, -9), to: squareAt(x - 1, -9)});
 		}
 		cycle += 10;
 		const sliderRevealUsed = await revealMove({
-			from: squareAt(-2, -16),
-			to: squareAt(-9, -16),
+			from: squareAt(-1, -9),
+			to: squareAt(-8, -9),
 		});
 		measured.king = kingRevealUsed;
 		measured.slider = sliderRevealUsed;
@@ -278,8 +277,8 @@ describe('the declared gas budget', function () {
 		}
 		const max = (xs: bigint[]) => xs.reduce((a, b) => (a > b ? a : b));
 
-		// THE CHAIN: dave's queen takes bob's king while carol's pawn takes
-		// dave's, so bob's king is a stone. Then carol's queen leaves (3,7),
+		// THE CHAIN: dave's knight takes bob's king while carol's knight takes
+		// dave's, so bob's king is a stone. Then carol's queen leaves (6,6),
 		// folding dave's capture, and alice's pawn walks up and takes the stone.
 		const w = await world();
 		const [a, b, c, d] = await w.deploy([
@@ -288,75 +287,83 @@ describe('the declared gas budget', function () {
 			[w.carol, [0, 1]],
 			[w.dave, [1, 1]],
 		]);
-		for (const m of [
-			move([7, 5], [8, 4]),
-			move([8, 4], [8, 3]),
-			move([4, 6], [3, 7]),
+		for (const [dm, cm] of [
+			[move([6, 5], [7, 3]), move([0, 7], [2, 8])],
+			[move([7, 3], [5, 2]), move([2, 8], [4, 7])],
 		]) {
-			await w.play([{owner: w.dave, army: d, moves: [m]}]);
+			await w.play([
+				{owner: w.dave, army: d, moves: [dm]},
+				{owner: w.carol, army: c, moves: [cm]},
+			]);
 		}
 		const making = await cycleGas(w, [
-			{owner: w.carol, army: c, moves: [move([2, 6], [3, 7])]},
-			{owner: w.dave, army: d, moves: [move([8, 3], [6, 1])]},
+			{owner: w.carol, army: c, moves: [move([4, 7], [6, 6])]},
+			{owner: w.dave, army: d, moves: [move([5, 2], [6, 0])]},
 		]);
 		const [foldingCapture] = await cycleGas(w, [
-			{owner: w.carol, army: c, moves: [move([3, 7], [6, 4])]},
+			{owner: w.carol, army: c, moves: [move([6, 6], [6, 4])]},
 		]);
 		for (const m of [
-			move([2, 0], [3, 0]),
-			move([3, 0], [4, 0]),
-			move([4, 0], [5, 0]),
+			move([2, 1], [3, 1]),
+			move([3, 1], [4, 1]),
+			move([4, 1], [5, 1]),
 		]) {
 			await w.play([{owner: w.alice, army: a, moves: [m]}]);
 		}
 		const [takingStone] = await cycleGas(w, [
-			{owner: w.alice, army: a, moves: [move([5, 0], [6, 1])]},
+			{owner: w.alice, army: a, moves: [move([5, 1], [6, 0])]},
 		]);
 		void b;
 
-		// THE TWO-VICTIM SQUARE: alice's king steps onto carol's while dave's
-		// pawn arrives too, revealed in both orders, then dave's queen leaves
+		// THE TWO-VICTIM SQUARE: alice's king steps onto carol's while bob's
+		// knight arrives too, revealed in both orders, then bob's queen leaves
 		// the square, folding both captures. A plain step of a piece that
-		// captured nothing is the baseline of that fold.
+		// captured nothing is the baseline of that fold. The kings meet as in
+		// `KingCapture.test.ts`.
 		async function faceToFace() {
 			const v = await world();
-			const [va, vc, vd] = await v.deploy([
+			const [va, vb, vc] = await v.deploy([
 				[v.alice, [0, 0]],
+				[v.bob, [1, 0]],
 				[v.carol, [0, 1]],
-				[v.dave, [-1, 1]],
 			]);
-			for (const [am, cm] of [
-				[move([-2, 0], [-3, 1]), move([-3, 5], [-4, 6])],
-				[move([-3, 1], [-2, 2]), move([-2, 6], [-3, 5])],
-				[move([-2, 2], [-2, 3]), move([-3, 5], [-3, 4])],
+			const alice = (m: Move) => ({owner: v.alice, army: va, moves: [m]});
+			const bob = (m: Move) => ({owner: v.bob, army: vb, moves: [m]});
+			const carol = (m: Move) => ({owner: v.carol, army: vc, moves: [m]});
+			for (const plays of [
+				[
+					alice(move([1, 1], [5, 5])),
+					carol(move([1, 5], [1, 6])),
+					bob(move([6, 1], [4, 2])),
+				],
+				[carol(move([0, 6], [1, 5]))],
+				[alice(move([0, 0], [1, 1])), carol(move([1, 5], [2, 4]))],
+				[alice(move([1, 1], [2, 2])), carol(move([2, 4], [2, 3]))],
 			]) {
-				await v.play([
-					{owner: v.alice, army: va, moves: [am]},
-					{owner: v.carol, army: vc, moves: [cm]},
-				]);
+				await v.play(plays);
 			}
-			return {v, va, vd};
+			return {v, va, vb};
 		}
 		const kingMoves: Play[] = [];
 		let twoVictims: bigint[] = [];
 		let s = await faceToFace();
 		kingMoves.push(
-			{owner: s.v.alice, army: s.va, moves: [move([-2, 3], [-3, 4])]},
-			{owner: s.v.dave, army: s.vd, moves: [move([-4, 5], [-3, 4])]},
+			{owner: s.v.alice, army: s.va, moves: [move([2, 2], [2, 3])]},
+			{owner: s.v.bob, army: s.vb, moves: [move([4, 2], [2, 3])]},
 		);
 		twoVictims = await cycleGas(s.v, kingMoves);
 		const [foldingTwo] = await cycleGas(s.v, [
-			{owner: s.v.dave, army: s.vd, moves: [move([-3, 4], [-2, 4])]},
+			{owner: s.v.bob, army: s.vb, moves: [move([2, 3], [2, 4])]},
 		]);
 		const [plainStep] = await cycleGas(s.v, [
-			{owner: s.v.dave, army: s.vd, moves: [move([-5, 4], [-5, 3])]},
+			{owner: s.v.bob, army: s.vb, moves: [move([4, 1], [3, 1])]},
 		]);
 		s = await faceToFace();
 		twoVictims = [
 			...twoVictims,
 			...(await cycleGas(s.v, [
-				{owner: s.v.dave, army: s.vd, moves: [move([-4, 5], [-3, 4])]},
-				{owner: s.v.alice, army: s.va, moves: [move([-2, 3], [-3, 4])]},
+				{owner: s.v.bob, army: s.vb, moves: [move([4, 2], [2, 3])]},
+				{owner: s.v.alice, army: s.va, moves: [move([2, 2], [2, 3])]},
 			])),
 		];
 
@@ -399,8 +406,8 @@ describe('the declared gas budget', function () {
 		// the world plus one thing: the first touch of a zone lists it, for the
 		// count of material at the cap (`UsingGameTable._tally`). Priced as the
 		// difference between the same first move on a table and in the world:
-		// bob's pawn (7,0) to (8,0), from zone 0 into zone 1, the first touch of
-		// both. The list is packed four zones a slot, so this second push shared
+		// bob's bishop (7,1) to his empty corner (8,2), from zone 0 into zone 1,
+		// the first touch of both. The list is packed four zones a slot, so this second push shared
 		// the first's slot; at worst it opens one of its own.
 		assert.ok(measured.worst && measured.king, 'runs after the capture case');
 		const lobby = BigInt(
@@ -409,7 +416,7 @@ describe('the declared gas budget', function () {
 					.linkedData as {revealGas: string}
 			).revealGas,
 		);
-		const step = move([7, 0], [8, 0]);
+		const step = move([7, 1], [8, 2]);
 
 		const world = movesWorld({
 			deployAll,

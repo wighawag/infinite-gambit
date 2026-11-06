@@ -130,6 +130,9 @@ describe('this game\u2019s offline world', () => {
 		expect(chess.expectedActionsPerTurn).toBe(onNode.expectedActionsPerTurn);
 		expect(chess.stake).toBe(onNode.stake);
 		expect(chess.spawnSpacing).toBe(onNode.spawnSpacing);
+		// The one grid of every world (`docs/adr/0015`): 4 empty squares
+		// between two neighbouring 5-wide armies.
+		expect(chess.spawnSpacing).toBe(9);
 		// THE ONE OTHER THING IT CHANGES: enough open spawn points for every seat
 		// of the largest table to start deployed in one cycle (`$lib/offline-boot`).
 		expect(chess.openSpawnPoints).toBe(Number(OFFLINE_OPEN_SPAWN_POINTS));

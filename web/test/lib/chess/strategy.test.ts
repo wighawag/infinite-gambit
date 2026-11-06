@@ -13,12 +13,7 @@ import {
 } from '$lib/game/simulation';
 import {seededRandom} from '$lib/game/core/strategy';
 import {ARMY_STATUS, type ArmyView} from '$lib/chess/armies';
-import {
-	DIRECTION,
-	PIECE_KIND,
-	type Piece,
-	type PieceKind,
-} from '$lib/chess/board';
+import {PIECE_KIND, type Piece, type PieceKind} from '$lib/chess/board';
 import {squareAt} from '$lib/chess/squares';
 import {
 	GREEDY_LEVEL,
@@ -45,8 +40,6 @@ const piece = (x: number, y: number, kind: PieceKind, army: bigint): Piece => ({
 	position: squareAt(x, y),
 	army,
 	kind,
-	forward: DIRECTION.North,
-	moved: true,
 });
 
 let world: EmbeddedWorld;

@@ -35,8 +35,11 @@ import {zeroAddress} from 'viem';
  * cycle that advances, a dead army stops being waited for.
  *
  * The game is deployed on the tightest spawn grid (spacing 6), as in
- * `Moves.test.ts`: alice's army on (0,0) facing North reaches x = 2, and the
- * footprint of the spawn point (6,0), facing East, starts at x = 4.
+ * `Moves.test.ts`: alice's army on (0,0) reaches x = 2, and the footprint of
+ * the spawn point (6,0) starts at x = 4. A FOOTPRINT is the 21 squares of the
+ * 5 by 5 square without its corners, the empty core square beside the king
+ * included: (1,-6) for the spawn point (0,-6), which alice's rook (1,-1)
+ * reaches down column 1 once her pawn (1,-2) has stepped aside.
  */
 
 const {provider, networkHelpers} = await network.connect();
@@ -286,73 +289,135 @@ describe('Deployment collisions', function () {
 		expect(outcomes[1]).toEqual(outcomes[0]);
 	});
 
-	it('fails and refunds a deployment whose footprint is occupied at the start of its cycle', async function () {
-		const w = await world();
-		const a = await w.commitDeployment(w.alice, [0, 0]);
-		await w.toRevealPhase();
-		await w.revealDeployment(w.alice, a, [0, 0]);
-		await w.toNextCycle();
-		// alice's east pawn two squares onto (4,0), a square of the footprint of
-		// the spawn point (6,0).
-		const pawn: Move[] = [{from: at(2, 0), to: at(4, 0)}];
-		await w.commit(w.alice, a, pawn);
-		await w.toRevealPhase();
-		await w.reveal(w.alice, a, pawn);
-		await w.toNextCycle();
-		expect((await w.open()).some((p) => p.x === 6 && p.y === 0)).toEqual(true);
+	/**
+	 * The two ways alice's army reaches a square of a footprint it does not
+	 * stand on yet: `setup` is played in the cycles before, `arrive` lands the
+	 * piece. Her east pawn steps into the gap (3,0), then onto (4,0), a pawn's
+	 * square of the spawn point (6,0); or her pawn (1,-2) steps aside into her
+	 * empty corner (2,-2), then her rook slides from (1,-1) onto (1,-6), the
+	 * EMPTY core square of the spawn point (0,-6).
+	 */
+	const FOOTPRINT_SQUARES = [
+		{
+			name: 'a pawn square',
+			spawnPoint: [1, 0] as [number, number],
+			setup: [{from: at(2, 0), to: at(3, 0)}] as Move[],
+			arrive: [{from: at(3, 0), to: at(4, 0)}] as Move[],
+		},
+		{
+			name: 'the empty core square',
+			spawnPoint: [0, -1] as [number, number],
+			setup: [{from: at(1, -2), to: at(2, -2)}] as Move[],
+			arrive: [{from: at(1, -1), to: at(1, -6)}] as Move[],
+		},
+	];
 
-		// bob deploys there anyway, in the next cycle.
-		const b = await w.commitDeployment(w.bob, [1, 0]);
-		await w.toRevealPhase();
-		await w.revealDeployment(w.bob, b, [1, 0]);
-		await w.toNextCycle();
-
-		expect((await w.army(b)).status).toEqual(STATUS.Failed);
-		// Only alice's army is on the board, her pawn where it went.
-		const board = await w.pieces(-6, -6, 12, 6);
-		expect(board.length).toEqual(20);
-		expect(board.every((p) => p.army === a)).toEqual(true);
-		expect(board.some((p) => p.position === at(4, 0))).toEqual(true);
-		// Free again, and the refund written by anyone.
-		expect((await w.open()).some((p) => p.x === 6 && p.y === 0)).toEqual(true);
-		await w.settle(w.carol, b);
-		expect(await w.reserve(idOf(w.bob))).toEqual(DEFAULT_STAKE);
-		expect(await w.reserve(b)).toEqual(0n);
-	});
-
-	it('fails and refunds a deployment a piece arrives on during its cycle, whatever the order', async function () {
-		const outcomes: unknown[] = [];
-		for (const order of ['forward', 'reverse'] as const) {
+	for (const square of FOOTPRINT_SQUARES) {
+		it(`fails and refunds a deployment whose footprint is occupied at the start of its cycle, on ${square.name}`, async function () {
 			const w = await world();
 			const a = await w.commitDeployment(w.alice, [0, 0]);
 			await w.toRevealPhase();
 			await w.revealDeployment(w.alice, a, [0, 0]);
 			await w.toNextCycle();
-			// alice's pawn arrives on (4,0) in the very cycle bob deploys at (6,0).
-			const pawn: Move[] = [{from: at(2, 0), to: at(4, 0)}];
-			await w.commit(w.alice, a, pawn);
-			const b = await w.commitDeployment(w.bob, [1, 0]);
+			for (const moves of [square.setup, square.arrive]) {
+				await w.commit(w.alice, a, moves);
+				await w.toRevealPhase();
+				await w.reveal(w.alice, a, moves);
+				await w.toNextCycle();
+			}
+			const [i, j] = square.spawnPoint;
+			const isTheSpawnPoint = (p: {x: number; y: number}) =>
+				p.x === i * 6 && p.y === j * 6;
+			expect((await w.open()).some(isTheSpawnPoint)).toEqual(true);
+
+			// bob deploys there anyway, in the next cycle.
+			const b = await w.commitDeployment(w.bob, square.spawnPoint);
 			await w.toRevealPhase();
-			const reveals = [
-				() => w.reveal(w.alice, a, pawn),
-				() => w.revealDeployment(w.bob, b, [1, 0]),
-			];
-			if (order === 'reverse') reveals.reverse();
-			for (const reveal of reveals) await reveal();
+			await w.revealDeployment(w.bob, b, square.spawnPoint);
 			await w.toNextCycle();
 
 			expect((await w.army(b)).status).toEqual(STATUS.Failed);
+			// Only alice's army is on the board, her piece where it went.
+			const board = await w.pieces(-12, -12, 12, 6);
+			expect(board.length).toEqual(20);
+			expect(board.every((p) => p.army === a)).toEqual(true);
+			expect(board.some((p) => p.position === square.arrive[0].to)).toEqual(
+				true,
+			);
+			// Free again, and the refund written by anyone.
+			expect((await w.open()).some(isTheSpawnPoint)).toEqual(true);
 			await w.settle(w.carol, b);
 			expect(await w.reserve(idOf(w.bob))).toEqual(DEFAULT_STAKE);
-			outcomes.push({
-				board: (await w.pieces(-6, -6, 12, 6)).map((p) => ({
-					...xyOf(p.position),
-					mine: p.army === a,
-				})),
-				status: (await w.army(b)).status,
-			});
+			expect(await w.reserve(b)).toEqual(0n);
+		});
+
+		it(`fails and refunds a deployment a piece arrives on during its cycle, on ${square.name}, whatever the order`, async function () {
+			const outcomes: unknown[] = [];
+			for (const order of ['forward', 'reverse'] as const) {
+				const w = await world();
+				const a = await w.commitDeployment(w.alice, [0, 0]);
+				await w.toRevealPhase();
+				await w.revealDeployment(w.alice, a, [0, 0]);
+				await w.toNextCycle();
+				await w.commit(w.alice, a, square.setup);
+				await w.toRevealPhase();
+				await w.reveal(w.alice, a, square.setup);
+				await w.toNextCycle();
+				// alice's piece arrives in the very cycle bob deploys.
+				await w.commit(w.alice, a, square.arrive);
+				const b = await w.commitDeployment(w.bob, square.spawnPoint);
+				await w.toRevealPhase();
+				const reveals = [
+					() => w.reveal(w.alice, a, square.arrive),
+					() => w.revealDeployment(w.bob, b, square.spawnPoint),
+				];
+				if (order === 'reverse') reveals.reverse();
+				for (const reveal of reveals) await reveal();
+				await w.toNextCycle();
+
+				expect((await w.army(b)).status).toEqual(STATUS.Failed);
+				await w.settle(w.carol, b);
+				expect(await w.reserve(idOf(w.bob))).toEqual(DEFAULT_STAKE);
+				const board = await w.pieces(-12, -12, 12, 6);
+				expect(board.some((p) => p.position === square.arrive[0].to)).toEqual(
+					true,
+				);
+				outcomes.push({
+					board: board.map((p) => ({
+						...xyOf(p.position),
+						mine: p.army === a,
+					})),
+					status: (await w.army(b)).status,
+				});
+			}
+			expect(outcomes[1]).toEqual(outcomes[0]);
+		});
+	}
+
+	it('lands a deployment beside a piece standing on a corner of its square, which is not its footprint', async function () {
+		const w = await world();
+		const a = await w.commitDeployment(w.alice, [0, 0]);
+		await w.toRevealPhase();
+		await w.revealDeployment(w.alice, a, [0, 0]);
+		await w.toNextCycle();
+		// alice's knight, by (2,-2) and (3,0), onto (4,-2): the bottom-left
+		// corner of the 5 by 5 square of the spawn point (6,0).
+		for (const moves of [
+			[{from: at(0, -1), to: at(2, -2)}],
+			[{from: at(2, -2), to: at(3, 0)}],
+			[{from: at(3, 0), to: at(4, -2)}],
+		]) {
+			await w.commit(w.alice, a, moves);
+			await w.toRevealPhase();
+			await w.reveal(w.alice, a, moves);
+			await w.toNextCycle();
 		}
-		expect(outcomes[1]).toEqual(outcomes[0]);
+		const b = await w.commitDeployment(w.bob, [1, 0]);
+		await w.toRevealPhase();
+		await w.revealDeployment(w.bob, b, [1, 0]);
+		await w.toNextCycle();
+		expect((await w.army(b)).status).toEqual(STATUS.Deployed);
+		expect((await w.pieces(-6, -6, 12, 6)).length).toEqual(40);
 	});
 
 	it('writes the refund automatically on the next deployment, which it pays for', async function () {

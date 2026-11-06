@@ -39,7 +39,7 @@ export const GREEDY_LEVEL = 'greedy';
 
 /**
  * How far around its king a seat looks for its own pieces, in squares on each
- * axis. An army's pieces start within three squares of its king and move one
+ * axis. An army's pieces start within two squares of its king and move one
  * piece per cycle, so this holds all of them for a long while; a piece that
  * wandered further is simply not one the seat moves. Captures are found
  * within `MOVE_REACH` of each piece, and the read is widened by that much.

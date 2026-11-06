@@ -18,7 +18,12 @@ import {
 	deploymentAt,
 	type Move,
 } from '$lib/chess/commit-reveal';
-import {pieceOf, type BoardState, type Piece} from '$lib/chess/board';
+import {
+	PIECE_KIND,
+	pieceOf,
+	type BoardState,
+	type Piece,
+} from '$lib/chess/board';
 import {positionOf, squareAt} from '$lib/chess/squares';
 import {resolveChessConfig} from '$lib/chess/config';
 import type {OnchainStateValue} from '$lib/game/core/seams';
@@ -172,31 +177,35 @@ describe('a move on the offline world', () => {
 		let plan: LocalPlan = {};
 		const stop = planning.plan.subscribe((p) => (plan = p));
 
-		// The army faces North from the origin: its knight on (0,0) may jump
-		// over its pawns onto the two squares in front, or into the corner.
-		planning.click(squareAt(0, 0));
+		// The army stands on the origin: its knight on (0,1) may jump over its
+		// pawns onto the two squares above them, or into either top corner.
+		planning.click(squareAt(0, 1));
 		for (let i = 0; i < 200 && (plan.destinations ?? []).length === 0; i++) {
 			await new Promise((r) => setTimeout(r, 10));
 		}
 		expect((plan.destinations ?? []).map(positionOf)).toEqual(
 			expect.arrayContaining([
-				{x: 1, y: 2},
-				{x: -1, y: 2},
-				{x: 2, y: 1},
+				{x: 1, y: 3},
+				{x: -1, y: 3},
+				{x: 2, y: 2},
+				{x: -2, y: 2},
 			]),
 		);
-		expect(plan.destinations).toHaveLength(3);
+		expect(plan.destinations).toHaveLength(4);
 
-		planning.click(squareAt(2, 1));
+		planning.click(squareAt(2, 2));
 		const actions = [...get(planning.actions)];
-		expect(actions).toEqual([{from: squareAt(0, 0), to: squareAt(2, 1)}]);
+		expect(actions).toEqual([{from: squareAt(0, 1), to: squareAt(2, 2)}]);
 		stop();
 		sandbox.dispose();
 
 		await playCycle(army, actions, '22');
 		const after = await boardAround();
 		if (after.step !== 'Loaded') throw new Error('unloaded');
-		expect(after.pieces.get(squareAt(0, 0))).toBeUndefined();
-		expect(after.pieces.get(squareAt(2, 1))).toMatchObject({army, moved: true});
+		expect(after.pieces.get(squareAt(0, 1))).toBeUndefined();
+		expect(after.pieces.get(squareAt(2, 2))).toMatchObject({
+			army,
+			kind: PIECE_KIND.Knight,
+		});
 	}, 60_000);
 });

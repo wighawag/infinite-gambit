@@ -64,3 +64,14 @@ FIRST, check this task against current reality: have both captures tasks landed 
 Work in small steps (one decision, then edit and run a test), and grow files with edits of at most about 300 lines: earlier builds in this repo died on the 16,384-token output limit when a single reply tried to plan everything. Contract first (layout, pawns, spacing, footprint, exits, with tests), then the client, then the words.
 
 RECORD non-obvious in-scope decisions in a `## Decisions` block at the end of your FINAL REPORT (the runner transcribes it into the done record). Do not write the done record, commit message or PR body yourself, and do not edit this task body.
+
+## Decisions
+
+- **Test worlds stay at spacing 6** (`moves-world.ts`, `table-world.ts`, `DeploymentCollisions.test.ts`). Only the deployed configs moved to 9. At S = 6 the general exit rule puts a block's square on an army's corner (for example (-2,-2), or (4,4) for the army at (6,6)). A corner is not on the footprint, so the rules are unaffected. The alternative was moving every test world to 9, which would have meant longer walks in every scenario for no rule coverage gained. This touches every contract suite's coordinates.
+- **The `Direction` enum is removed entirely**, from the Solidity types and from the client's `DIRECTION` export, not just the fields. Nothing else used it, and the task says the facing goes. This changes the ABI the client decodes.
+- **New ChessRules helpers:** `onFootprint(r, c)`, `footprintCell(spawnPoint, position)` and `FOOTPRINT_REACH = 2`. `kingOf` returns the spawn point itself. The footprint test is now separate from `layoutAt`'s `kind == None`, which would have wrongly excluded the empty core square. `_markArrival`, `_footprintClear` and the table's `_tallyFootprintCell` use them.
+- **`PICK_RADIUS` goes from 3 to 2** in `web/src/lib/chess/planning.ts`. This is a user-visible click target, now matched to the footprint's reach; leaving it at 3 would let a click outside the army's square pick a spawn point. The spawn-points test was updated with it.
+- **The camera's `initialVisible` stays at 72×72**, with its comment corrected (now four grid steps either way at spacing 9). Shrinking it would change the first-frame zoom, a user-visible default, and could move the inherited e2e pixel clicks.
+- **The minimap's exit density cap now counts 4 squares per cell** against `MAX_MINIMAP_EXITS`. Each cell now holds a 2 by 2 block rather than one square.
+- **The stone-at-a-table test's cycle cap goes from 4 to 3** (`w.create(4, 3)`). The ported chain takes three cycles instead of four, so the table must end right after it for the material count to apply.
+- **The declared gas figures are unchanged.** The re-measured worst cases are inside `GasBudget.test.ts`'s window, so per the task they stay. Tightening them is `lean-rules-one-slot-square-record-and-tight-gas-limits`'s job.

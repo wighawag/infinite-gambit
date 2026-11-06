@@ -31,14 +31,16 @@ import {
  * outcomes must be identical (`docs/adr/0002-order-free-lazy-resolution.md`).
  *
  * The world is `utils/moves-world.ts`'s, with a fourth army: alice at spawn
- * (0,0), bob at (6,0) facing East with his king on (6,1), carol at (0,6) and
- * dave at (6,6), both facing North. The only empty square next to bob's king
- * is (7,2), and the pieces brought to it are:
+ * (0,0), bob at (6,0), carol at (0,6) and dave at (6,6), every king on its
+ * spawn point. The only empty square next to alice's king is her empty core
+ * square (1,0), and a knight is what reaches it, from (3,1), (2,2) or (3,-1):
  *
- *   dave's queen (7,5), to (8,4) then (8,3): from there it reaches (7,2);
- *   carol's queen (1,5), to (3,3) then (7,3) (or (6,3)), next to (7,2);
- *   dave's pawn (7,4), facing South, to (7,3) then (7,2), from where it can
- *     take bob's king on (6,1) diagonally.
+ *   dave's knight (6,5), by (4,4) and (2,3), to (3,1);
+ *   carol's knight (0,5), by (1,3) and (3,4), to (2,2);
+ *   bob's knight (6,-1), by (4,-2) and (2,-3), to (3,-1).
+ *
+ * A standing king is taken by dave's knight, which reaches bob's king (6,0)
+ * by (7,3) and bob's pawn (5,2).
  */
 
 const {provider, networkHelpers} = await network.connect();
@@ -69,55 +71,53 @@ async function fourArmies() {
 
 type Armies = Awaited<ReturnType<typeof fourArmies>>;
 
-/** dave's queen to (8,3) and, unless told not to, carol's to (7,3). */
-async function queensAround(s: Armies, order: Order, carol = true) {
-	const {w, c, d} = s;
-	await w.play(
-		[
-			{owner: w.dave, army: d, moves: [move([7, 5], [8, 4])]},
-			...(carol
-				? [{owner: w.carol, army: c, moves: [move([1, 5], [3, 3])]}]
-				: []),
-		],
-		order,
-	);
-	await w.play(
-		[
-			{owner: w.dave, army: d, moves: [move([8, 4], [8, 3])]},
-			...(carol
-				? [{owner: w.carol, army: c, moves: [move([3, 3], [7, 3])]}]
-				: []),
-		],
-		order,
-	);
+type Knight = 'bob' | 'carol' | 'dave';
+const KNIGHT_PATHS: Record<Knight, ReturnType<typeof move>[]> = {
+	dave: [move([6, 5], [4, 4]), move([4, 4], [2, 3]), move([2, 3], [3, 1])],
+	carol: [move([0, 5], [1, 3]), move([1, 3], [3, 4]), move([3, 4], [2, 2])],
+	bob: [move([6, -1], [4, -2]), move([4, -2], [2, -3]), move([2, -3], [3, -1])],
+};
+/** Where each knight lands on alice's core square (1,0) from. */
+const KNIGHT_AT: Record<Knight, [number, number]> = {
+	dave: [3, 1],
+	carol: [2, 2],
+	bob: [3, -1],
+};
+
+/** The knights of `who`, brought round alice's core square in three cycles. */
+async function knightsAround(s: Armies, order: Order, who: readonly Knight[]) {
+	const {w} = s;
+	const army = {bob: s.b, carol: s.c, dave: s.d};
+	const owner = {bob: w.bob, carol: w.carol, dave: w.dave};
+	for (let k = 0; k < 3; k++) {
+		await w.play(
+			who.map((name) => ({
+				owner: owner[name],
+				army: army[name],
+				moves: [KNIGHT_PATHS[name][k]],
+			})),
+			order,
+		);
+	}
 }
 
-/**
- * dave's pawn onto (7,2), to stay there, carol's queen to (7,3) behind it, and
- * alice's queen round to (6,3): two enemies of bob's king that can reach the
- * square, with the pawn on it.
- */
-async function pawnOnTheSquare(s: Armies, order: Order) {
-	const {w, a, c, d} = s;
-	await w.play(
-		[
-			{owner: w.dave, army: d, moves: [move([7, 4], [7, 3])]},
-			{owner: w.carol, army: c, moves: [move([1, 5], [3, 3])]},
-			{owner: w.alice, army: a, moves: [move([1, -1], [2, -2])]},
-		],
-		order,
-	);
-	await w.play(
-		[
-			{owner: w.dave, army: d, moves: [move([7, 3], [7, 2])]},
-			{owner: w.carol, army: c, moves: [move([3, 3], [7, 3])]},
-			{owner: w.alice, army: a, moves: [move([2, -2], [3, -1])]},
-		],
-		order,
-	);
-	await w.play([{owner: w.alice, army: a, moves: [move([3, -1], [3, 3])]}]);
-	await w.play([{owner: w.alice, army: a, moves: [move([3, 3], [6, 3])]}]);
+/** `name`'s knight, from where {knightsAround} left it, onto (1,0). */
+function knightOnto(s: Armies, name: Knight) {
+	const army = {bob: s.b, carol: s.c, dave: s.d};
+	const owner = {bob: s.w.bob, carol: s.w.carol, dave: s.w.dave};
+	return {
+		owner: owner[name],
+		army: army[name],
+		moves: [move(KNIGHT_AT[name], [1, 0])],
+	};
 }
+
+/** alice's king onto her empty core square (1,0). */
+const aliceKing = (s: Armies) => ({
+	owner: s.w.alice,
+	army: s.a,
+	moves: [move([0, 0], [1, 0])],
+});
 
 /** What a scenario left: the board, the registry and the cycle's outcomes. */
 async function snapshot(w: World) {
@@ -155,19 +155,22 @@ async function entry(w: World, army: bigint) {
 
 /** Every piece of `army` on the board, as lines. */
 async function piecesOf(w: World, army: bigint): Promise<string[]> {
-	return (await w.board()).filter((l) => l.includes(`#${army}:`));
+	return (await w.board()).filter((l) => l.endsWith(`#${army}`));
 }
 
-/** dave's pawn walks to (7,2) and takes bob's king on (6,1). */
-async function pawnTakesKing(order: Order) {
+/**
+ * dave's knight jumps to (7,3), takes bob's pawn on (5,2), and takes bob's
+ * king on (6,0).
+ */
+async function knightTakesKing(order: Order) {
 	const s = await fourArmies();
 	const {w, b, d} = s;
-	await w.play([{owner: w.dave, army: d, moves: [move([7, 4], [7, 3])]}]);
-	await w.play([{owner: w.dave, army: d, moves: [move([7, 3], [7, 2])]}]);
+	await w.play([{owner: w.dave, army: d, moves: [move([6, 5], [7, 3])]}]);
+	await w.play([{owner: w.dave, army: d, moves: [move([7, 3], [5, 2])]}]);
 	// bob passes in the capture cycle, so there is an order to replay.
 	await w.play(
 		[
-			{owner: w.dave, army: d, moves: [move([7, 2], [6, 1])]},
+			{owner: w.dave, army: d, moves: [move([5, 2], [6, 0])]},
 			{owner: w.bob, army: b, moves: []},
 		],
 		order,
@@ -177,12 +180,12 @@ async function pawnTakesKing(order: Order) {
 
 describe('capturing a king', function () {
 	it('promotes the lone piece that takes a standing king to a queen, empties the captured army from the board and gives its captor its stake', async function () {
-		const {w, b, d, stakes} = await inEveryOrder(pawnTakesKing);
-		expect(await w.pieceAt(6, 1)).toEqual(`Q@6,1#${d}:N*`);
+		const {w, b, d, stakes} = await inEveryOrder(knightTakesKing);
+		expect(await w.pieceAt(6, 0)).toEqual(`Q@6,0#${d}`);
 		// Every piece of bob's has left the board: none is anybody's now.
 		expect(await piecesOf(w, b)).toEqual([]);
 		expect(await w.pieceAt(4, 0)).toEqual(undefined);
-		expect(await w.pieceAt(7, 0)).toEqual(undefined);
+		expect(await w.pieceAt(8, 0)).toEqual(undefined);
 		expect((await piecesOf(w, d)).length).toEqual(20);
 
 		const bob = await entry(w, b);
@@ -196,16 +199,16 @@ describe('capturing a king', function () {
 		expect([dave.status, dave.capturedBy]).toEqual([DEPLOYED, 0n]);
 		expect(dave.stake).toEqual(stakes.get(d)! + stakes.get(b)!);
 		expect((await w.outcomes()).lines).toEqual([
-			`6,1 died=0 captured=K@6,1#${b}:E now=Q@6,1#${d}:N*`,
+			`6,0 died=0 captured=K@6,0#${b} now=Q@6,0#${d}`,
 		]);
 	});
 
 	it("reads the captured army's pieces as empty squares on a path, and leaves it unable to commit", async function () {
-		const {w, b, d} = await pawnTakesKing('forward');
+		const {w, b, d} = await knightTakesKing('forward');
 		await expect(w.commit(w.bob, b, [])).toBeRejectedWith('NotInGame');
-		// Through bob's bishop, knight and rook, onto his pawn's square.
-		await w.play([{owner: w.dave, army: d, moves: [move([6, 1], [6, -3])]}]);
-		expect(await w.pieceAt(6, -3)).toEqual(`Q@6,-3#${d}:N*`);
+		// Through bob's knight and pawn, into the gap below.
+		await w.play([{owner: w.dave, army: d, moves: [move([6, 0], [6, -3])]}]);
+		expect(await w.pieceAt(6, -3)).toEqual(`Q@6,-3#${d}`);
 		// Nobody can move bob's pieces: they are not on the board.
 		await expect(
 			w.play([{owner: w.dave, army: d, moves: [move([4, 0], [3, 0])]}]),
@@ -215,48 +218,40 @@ describe('capturing a king', function () {
 
 describe('the collision table, king rows', function () {
 	it('kills a moving king that meets exactly one enemy piece on an empty square, and lands that piece as a queen with its stake', async function () {
-		const {w, b, d, stakes} = await inEveryOrder(async (order) => {
+		const {w, a, d, stakes} = await inEveryOrder(async (order) => {
 			const s = await fourArmies();
-			await s.w.play([
-				{owner: s.w.dave, army: s.d, moves: [move([7, 4], [7, 3])]},
-			]);
-			await s.w.play(
-				[
-					{owner: s.w.bob, army: s.b, moves: [move([6, 1], [7, 2])]},
-					{owner: s.w.dave, army: s.d, moves: [move([7, 3], [7, 2])]},
-				],
-				order,
-			);
+			await knightsAround(s, order, ['dave']);
+			await s.w.play([aliceKing(s), knightOnto(s, 'dave')], order);
 			return s;
 		});
-		expect(await w.pieceAt(7, 2)).toEqual(`Q@7,2#${d}:N*`);
-		expect(await w.pieceAt(6, 1)).toEqual(undefined);
-		expect(await piecesOf(w, b)).toEqual([]);
-		const bob = await entry(w, b);
-		expect([bob.status, bob.capturedBy, bob.stake]).toEqual([CAPTURED, d, 0n]);
-		expect((await entry(w, d)).stake).toEqual(stakes.get(d)! + stakes.get(b)!);
+		expect(await w.pieceAt(1, 0)).toEqual(`Q@1,0#${d}`);
+		expect(await w.pieceAt(0, 0)).toEqual(undefined);
+		expect(await piecesOf(w, a)).toEqual([]);
+		const alice = await entry(w, a);
+		expect([alice.status, alice.capturedBy, alice.stake]).toEqual([
+			CAPTURED,
+			d,
+			0n,
+		]);
+		expect((await entry(w, d)).stake).toEqual(stakes.get(d)! + stakes.get(a)!);
 		expect((await w.outcomes()).lines).toEqual([
-			`7,2 died=1 captured=- now=Q@7,2#${d}:N*`,
+			`1,0 died=1 captured=- now=Q@1,0#${d}`,
 		]);
 	});
 
 	it('lands a moving king that meets two or more enemy pieces on an empty square, and kills them', async function () {
-		const {w, b, stakes} = await inEveryOrder(async (order) => {
+		const {w, a, stakes} = await inEveryOrder(async (order) => {
 			const s = await fourArmies();
-			await queensAround(s, order);
+			await knightsAround(s, order, ['dave', 'carol']);
 			await s.w.play(
-				[
-					{owner: s.w.bob, army: s.b, moves: [move([6, 1], [7, 2])]},
-					{owner: s.w.dave, army: s.d, moves: [move([8, 3], [7, 2])]},
-					{owner: s.w.carol, army: s.c, moves: [move([7, 3], [7, 2])]},
-				],
+				[aliceKing(s), knightOnto(s, 'dave'), knightOnto(s, 'carol')],
 				order,
 			);
 			return s;
 		});
-		expect(await w.pieceAt(7, 2)).toEqual(`K@7,2#${b}:E*`);
-		expect(await w.pieceAt(7, 3)).toEqual(undefined);
-		expect(await w.pieceAt(8, 3)).toEqual(undefined);
+		expect(await w.pieceAt(1, 0)).toEqual(`K@1,0#${a}`);
+		expect(await w.pieceAt(3, 1)).toEqual(undefined);
+		expect(await w.pieceAt(2, 2)).toEqual(undefined);
 		const registry = await w.registry();
 		expect(registry.map((r) => r.status)).toEqual([
 			DEPLOYED,
@@ -265,53 +260,53 @@ describe('the collision table, king rows', function () {
 			DEPLOYED,
 		]);
 		expect(registry.map((r) => r.stake)).toEqual([...stakes.values()]);
-		expect((await entry(w, b)).king).toEqual({x: 7, y: 2});
+		expect((await entry(w, a)).king).toEqual({x: 1, y: 0});
 		expect((await w.outcomes()).lines).toEqual([
-			`7,2 died=2 captured=- now=K@7,2#${b}:E*`,
+			`1,0 died=2 captured=- now=K@1,0#${a}`,
 		]);
 	});
 
+	/** All three knights round, and bob's lands on (1,0), to stay there. */
+	async function knightOnTheSquare(s: Armies, order: Order) {
+		await knightsAround(s, order, ['bob', 'carol', 'dave']);
+		await s.w.play([knightOnto(s, 'bob')], order);
+	}
+
 	it('kills a moving king that meets exactly one enemy piece on a piece that stayed, and lands that piece as a queen, capturing it', async function () {
-		const {w, b, c, d, stakes} = await inEveryOrder(async (order) => {
+		const {w, a, b, d, stakes} = await inEveryOrder(async (order) => {
 			const s = await fourArmies();
-			await pawnOnTheSquare(s, order);
-			await s.w.play(
-				[
-					{owner: s.w.bob, army: s.b, moves: [move([6, 1], [7, 2])]},
-					{owner: s.w.carol, army: s.c, moves: [move([7, 3], [7, 2])]},
-				],
-				order,
-			);
+			await knightOnTheSquare(s, order);
+			await s.w.play([aliceKing(s), knightOnto(s, 'dave')], order);
 			return s;
 		});
-		expect(await w.pieceAt(7, 2)).toEqual(`Q@7,2#${c}:N*`);
-		expect(await w.pieceAt(7, 3)).toEqual(undefined);
-		expect(await piecesOf(w, b)).toEqual([]);
-		const bob = await entry(w, b);
-		expect([bob.status, bob.capturedBy, bob.stake]).toEqual([CAPTURED, c, 0n]);
-		expect((await entry(w, c)).stake).toEqual(stakes.get(c)! + stakes.get(b)!);
+		expect(await w.pieceAt(1, 0)).toEqual(`Q@1,0#${d}`);
+		expect(await w.pieceAt(3, 1)).toEqual(undefined);
+		expect(await piecesOf(w, a)).toEqual([]);
+		const alice = await entry(w, a);
+		expect([alice.status, alice.capturedBy, alice.stake]).toEqual([
+			CAPTURED,
+			d,
+			0n,
+		]);
+		expect((await entry(w, d)).stake).toEqual(stakes.get(d)! + stakes.get(a)!);
 		expect((await w.outcomes()).lines).toEqual([
-			`7,2 died=1 captured=P@7,2#${d}:S* now=Q@7,2#${c}:N*`,
+			`1,0 died=1 captured=N@1,0#${b} now=Q@1,0#${d}`,
 		]);
 	});
 
 	it('lets a moving king that meets two or more enemy pieces on a piece that stayed capture it, and kills the others', async function () {
-		const {w, b, d} = await inEveryOrder(async (order) => {
+		const {w, a, b} = await inEveryOrder(async (order) => {
 			const s = await fourArmies();
-			await pawnOnTheSquare(s, order);
+			await knightOnTheSquare(s, order);
 			await s.w.play(
-				[
-					{owner: s.w.bob, army: s.b, moves: [move([6, 1], [7, 2])]},
-					{owner: s.w.carol, army: s.c, moves: [move([7, 3], [7, 2])]},
-					{owner: s.w.alice, army: s.a, moves: [move([6, 3], [7, 2])]},
-				],
+				[aliceKing(s), knightOnto(s, 'dave'), knightOnto(s, 'carol')],
 				order,
 			);
 			return s;
 		});
-		expect(await w.pieceAt(7, 2)).toEqual(`K@7,2#${b}:E*`);
-		expect(await w.pieceAt(6, 3)).toEqual(undefined);
-		expect(await w.pieceAt(7, 3)).toEqual(undefined);
+		expect(await w.pieceAt(1, 0)).toEqual(`K@1,0#${a}`);
+		expect(await w.pieceAt(3, 1)).toEqual(undefined);
+		expect(await w.pieceAt(2, 2)).toEqual(undefined);
 		expect((await w.registry()).map((r) => r.status)).toEqual([
 			DEPLOYED,
 			DEPLOYED,
@@ -319,66 +314,68 @@ describe('the collision table, king rows', function () {
 			DEPLOYED,
 		]);
 		expect((await w.outcomes()).lines).toEqual([
-			`7,2 died=2 captured=P@7,2#${d}:S* now=K@7,2#${b}:E*`,
+			`1,0 died=2 captured=N@1,0#${b} now=K@1,0#${a}`,
 		]);
 	});
 
 	it('keeps a king that stayed when two or more pieces reach it, as any piece that stayed', async function () {
-		const {w, b} = await inEveryOrder(async (order) => {
+		const {w, a} = await inEveryOrder(async (order) => {
 			const s = await fourArmies();
-			await queensAround(s, order);
-			await s.w.play(
-				[{owner: s.w.bob, army: s.b, moves: [move([6, 1], [7, 2])]}],
-				order,
-			);
-			await s.w.play(
-				[
-					{owner: s.w.dave, army: s.d, moves: [move([8, 3], [7, 2])]},
-					{owner: s.w.carol, army: s.c, moves: [move([7, 3], [7, 2])]},
-				],
-				order,
-			);
+			await knightsAround(s, order, ['dave', 'carol']);
+			await s.w.play([aliceKing(s)], order);
+			await s.w.play([knightOnto(s, 'dave'), knightOnto(s, 'carol')], order);
 			return s;
 		});
-		expect(await w.pieceAt(7, 2)).toEqual(`K@7,2#${b}:E*`);
-		expect((await entry(w, b)).status).toEqual(DEPLOYED);
+		expect(await w.pieceAt(1, 0)).toEqual(`K@1,0#${a}`);
+		expect((await entry(w, a)).status).toEqual(DEPLOYED);
 		expect((await w.outcomes()).lines).toEqual([
-			`7,2 died=2 captured=- now=K@7,2#${b}:E*`,
+			`1,0 died=2 captured=- now=K@1,0#${a}`,
 		]);
 	});
 });
 
 /**
- * KINGS FACE TO FACE: alice's king (-2,0) and carol's (-2,6) walk until they
- * stand next to each other, alice's on (-2,3) and carol's on (-3,4), both
- * moving in the cycle they meet (kings may END a cycle adjacent). carol's
- * West pawn first takes the East pawn of dave, deployed at (-6,6), to clear
- * her king's way; dave's other East pawn, on (-4,5), then reaches (-3,4)
- * diagonally.
+ * KINGS FACE TO FACE: alice's bishop and carol's rook step aside, then
+ * alice's king (0,0) and carol's (0,6) walk until they stand next to each
+ * other, alice's on (2,2) and carol's on (2,3), both moving in the cycle they
+ * meet (kings may END a cycle adjacent). bob's knight, by his empty corner
+ * (4,2), is then one jump from (2,3).
  */
 async function kingsFaceToFace(order: Order) {
 	const w = await world();
-	const [a, c, d] = await w.deploy([
+	const [a, b, c] = await w.deploy([
 		[w.alice, [0, 0]],
+		[w.bob, [1, 0]],
 		[w.carol, [0, 1]],
-		[w.dave, [-1, 1]],
 	]);
 	const stakes = new Map((await w.registry()).map((r) => [r.id, r.stake]));
-	const walks = [
-		[move([-2, 0], [-3, 1]), move([-3, 5], [-4, 6])],
-		[move([-3, 1], [-2, 2]), move([-2, 6], [-3, 5])],
-		[move([-2, 2], [-2, 3]), move([-3, 5], [-3, 4])],
+	const alice = (m: ReturnType<typeof move>) => ({
+		owner: w.alice,
+		army: a,
+		moves: [m],
+	});
+	const carol = (m: ReturnType<typeof move>) => ({
+		owner: w.carol,
+		army: c,
+		moves: [m],
+	});
+	const bob = (m: ReturnType<typeof move>) => ({
+		owner: w.bob,
+		army: b,
+		moves: [m],
+	});
+	const cycles = [
+		[
+			alice(move([1, 1], [5, 5])),
+			carol(move([1, 5], [1, 6])),
+			bob(move([6, 1], [4, 2])),
+		],
+		[carol(move([0, 6], [1, 5]))],
+		[alice(move([0, 0], [1, 1])), carol(move([1, 5], [2, 4]))],
+		[alice(move([1, 1], [2, 2])), carol(move([2, 4], [2, 3]))],
 	];
-	for (const [alice, carol] of walks) {
-		await w.play(
-			[
-				{owner: w.alice, army: a, moves: [alice]},
-				{owner: w.carol, army: c, moves: [carol]},
-			],
-			order,
-		);
-	}
-	return {w, a, c, d, stakes};
+	for (const submissions of cycles) await w.play(submissions, order);
+	return {w, a, b, c, stakes};
 }
 
 describe('a king that takes a king', function () {
@@ -387,14 +384,14 @@ describe('a king that takes a king', function () {
 			const s = await kingsFaceToFace(order);
 			await s.w.play(
 				[
-					{owner: s.w.alice, army: s.a, moves: [move([-2, 3], [-3, 4])]},
+					{owner: s.w.alice, army: s.a, moves: [move([2, 2], [2, 3])]},
 					{owner: s.w.carol, army: s.c, moves: []},
 				],
 				order,
 			);
 			return s;
 		});
-		expect(await w.pieceAt(-3, 4)).toEqual(`K@-3,4#${a}:N*`);
+		expect(await w.pieceAt(2, 3)).toEqual(`K@2,3#${a}`);
 		expect(await piecesOf(w, c)).toEqual([]);
 		expect((await entry(w, c)).capturedBy).toEqual(a);
 		expect((await entry(w, a)).stake).toEqual(stakes.get(a)! + stakes.get(c)!);
@@ -403,32 +400,32 @@ describe('a king that takes a king', function () {
 
 describe('the two-victim square', function () {
 	it("gives both kings, and both stakes, to the one piece that meets a moving king on a king's square", async function () {
-		const {w, a, c, d, stakes} = await inEveryOrder(async (order) => {
+		const {w, a, b, c, stakes} = await inEveryOrder(async (order) => {
 			const s = await kingsFaceToFace(order);
 			await s.w.play(
 				[
-					{owner: s.w.alice, army: s.a, moves: [move([-2, 3], [-3, 4])]},
-					{owner: s.w.dave, army: s.d, moves: [move([-4, 5], [-3, 4])]},
+					{owner: s.w.alice, army: s.a, moves: [move([2, 2], [2, 3])]},
+					{owner: s.w.bob, army: s.b, moves: [move([4, 2], [2, 3])]},
 					{owner: s.w.carol, army: s.c, moves: []},
 				],
 				order,
 			);
 			return s;
 		});
-		expect(await w.pieceAt(-3, 4)).toEqual(`Q@-3,4#${d}:N*`);
+		expect(await w.pieceAt(2, 3)).toEqual(`Q@2,3#${b}`);
 		expect(await piecesOf(w, a)).toEqual([]);
 		expect(await piecesOf(w, c)).toEqual([]);
 		const registry = await w.registry();
 		expect(registry.map((r) => [r.status, r.capturedBy])).toEqual([
-			[CAPTURED, d],
-			[CAPTURED, d],
+			[CAPTURED, b],
 			[DEPLOYED, 0n],
+			[CAPTURED, b],
 		]);
-		expect((await entry(w, d)).stake).toEqual(
-			stakes.get(a)! + stakes.get(c)! + stakes.get(d)!,
+		expect((await entry(w, b)).stake).toEqual(
+			stakes.get(a)! + stakes.get(c)! + stakes.get(b)!,
 		);
 		expect((await w.outcomes()).lines).toEqual([
-			`-3,4 died=1 captured=K@-3,4#${c}:N* now=Q@-3,4#${d}:N*`,
+			`2,3 died=1 captured=K@2,3#${c} now=Q@2,3#${b}`,
 		]);
 	});
 });
@@ -460,9 +457,9 @@ describe('a capture in the offline world', function () {
 				})),
 			);
 		}
-		await cycle([move([7, 5], [8, 4])]);
-		await cycle([move([8, 4], [8, 3])]);
-		await cycle([move([8, 3], [6, 1])]);
+		await cycle([move([6, 5], [7, 3])]);
+		await cycle([move([7, 3], [5, 2])]);
+		await cycle([move([5, 2], [6, 0])]);
 		expect((await w.registry())[1].status).toEqual(CAPTURED);
 
 		const attendance = (await w.env.read(w.Game, {
@@ -471,8 +468,8 @@ describe('a capture in the offline world', function () {
 		expect(attendance.waitedFor).toEqual(3n);
 		// bob never commits again, and the world goes on without him.
 		const alive = armies.filter((army) => army !== b);
-		await cycle([move([6, 1], [6, -3])], alive);
+		await cycle([move([6, 0], [6, -3])], alive);
 		await cycle([], alive);
-		expect(await w.pieceAt(6, -3)).toEqual(`Q@6,-3#${d}:N*`);
+		expect(await w.pieceAt(6, -3)).toEqual(`Q@6,-3#${d}`);
 	});
 });

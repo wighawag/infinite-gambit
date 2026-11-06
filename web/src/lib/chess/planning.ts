@@ -39,9 +39,10 @@ function plannedActionsOf(state: SubmissionState<Move>): readonly Move[] {
 
 /**
  * How near a spawn point a click must land to pick it: anywhere on the
- * footprint an army deployed there would stand on.
+ * footprint an army deployed there would stand on, which reaches two squares
+ * from its spawn point on each axis (`docs/adr/0015`).
  */
-export const PICK_RADIUS = 3;
+export const PICK_RADIUS = 2;
 
 /**
  * The open spawn point a click at `position` picks, if any: the nearest one
@@ -124,9 +125,7 @@ export function boardClick(params: {
 type HighlightInput = {from: bigint; pieces: Piece[]; key: string};
 
 const keyOf = (from: bigint, pieces: readonly Piece[]) =>
-	`${from}|${pieces
-		.map((p) => `${p.position}:${p.army}:${p.kind}:${p.forward}:${p.moved}`)
-		.join(',')}`;
+	`${from}|${pieces.map((p) => `${p.position}:${p.army}:${p.kind}`).join(',')}`;
 
 export type PlanningStore = {
 	/** What the player has planned, for the view merge. */

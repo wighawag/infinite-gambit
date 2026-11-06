@@ -57,16 +57,17 @@ describe('how close the nearest armies are', () => {
 });
 
 describe('picking a spawn point by clicking the board', () => {
-	const open = [squareAt(0, 0), squareAt(16, 0)];
+	const open = [squareAt(0, 0), squareAt(9, 0)];
 
 	it('picks the spawn point whose footprint the click lands on', () => {
 		expect(spawnPointNear({x: 0, y: 0}, open)).toBe(open[0]);
-		expect(spawnPointNear({x: -3, y: 2}, open)).toBe(open[0]);
-		expect(spawnPointNear({x: 14, y: -1}, open)).toBe(open[1]);
+		expect(spawnPointNear({x: -2, y: 2}, open)).toBe(open[0]);
+		expect(spawnPointNear({x: 7, y: -1}, open)).toBe(open[1]);
 	});
 
 	it('picks nothing between spawn points', () => {
-		expect(spawnPointNear({x: 8, y: 0}, open)).toBeUndefined();
-		expect(spawnPointNear({x: 0, y: 4}, open)).toBeUndefined();
+		expect(spawnPointNear({x: 4, y: 0}, open)).toBeUndefined();
+		expect(spawnPointNear({x: 5, y: 0}, open)).toBeUndefined();
+		expect(spawnPointNear({x: 0, y: 3}, open)).toBeUndefined();
 	});
 });

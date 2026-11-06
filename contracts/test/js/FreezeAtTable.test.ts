@@ -45,7 +45,7 @@ describe('a frozen army at a table (early advance)', function () {
 		expect((await attendance(w)).waitedFor).toEqual(2n);
 
 		// alice commits a move and never reveals it; bob passes and reveals.
-		await w.commit(w.alice, a, [move([0, 1], [0, 2])]);
+		await w.commit(w.alice, a, [move([0, 2], [0, 3])]);
 		await w.commit(w.bob, b, []);
 		await w.toRevealPhase();
 		await w.reveal(w.bob, b, []);

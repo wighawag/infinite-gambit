@@ -83,7 +83,8 @@ export function createChessBoardRenderer(params: {
 				}
 			}
 
-			// Exits: a filled diamond on the square, under everything else.
+			// Exits: a filled diamond on each square of a 2 by 2 block, under
+			// everything else.
 			if (params.spawnSpacing) {
 				context.fillStyle = EXIT_COLOUR;
 				context.globalAlpha = 0.35;

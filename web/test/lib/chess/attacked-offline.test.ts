@@ -8,7 +8,7 @@ import {
 import {OFFLINE_DEPLOYMENT} from '$lib/offline';
 import {createBytecodeSandbox} from '$lib/game/simulation';
 import {attackedSquares, attackersOf} from '$lib/chess/attacked';
-import {DIRECTION, PIECE_KIND, type Piece} from '$lib/chess/board';
+import {PIECE_KIND, type Piece} from '$lib/chess/board';
 import {ARMY_STATUS, type ArmyView} from '$lib/chess/armies';
 import {positionOf, squareAt} from '$lib/chess/squares';
 
@@ -37,9 +37,7 @@ const piece = (
 	x: number,
 	y: number,
 	kind: Piece['kind'],
-	forward: Piece['forward'] = DIRECTION.North,
-	moved = false,
-): Piece => ({position: squareAt(x, y), army, kind, forward, moved});
+): Piece => ({position: squareAt(x, y), army, kind});
 
 const army = (id: bigint, status: number): ArmyView => ({
 	id,
@@ -82,12 +80,14 @@ describe('the attacked squares, by the deployed rule', () => {
 		});
 
 		const board = [
-			// Yours: a pawn the knight can take, and one beside the enemy pawn.
+			// Yours: a pawn the knight can take, and two on the diagonals of the
+			// enemy pawn, on opposite sides of it.
 			piece(YOU, 0, 0, PIECE_KIND.Pawn),
 			piece(YOU, 6, 4, PIECE_KIND.Pawn),
-			// The enemy: a knight, and a pawn advancing South that has moved.
+			piece(YOU, 4, 6, PIECE_KIND.Pawn),
+			// The enemy: a knight, and a pawn, which steps and captures every way.
 			piece(THEM, 2, 1, PIECE_KIND.Knight),
-			piece(THEM, 5, 5, PIECE_KIND.Pawn, DIRECTION.South, true),
+			piece(THEM, 5, 5, PIECE_KIND.Pawn),
 			// A frozen army's rook and a stone: neither moves again.
 			piece(FROZEN, -3, 0, PIECE_KIND.Rook),
 			piece(STONE, -5, -5, PIECE_KIND.Stone),
@@ -129,15 +129,20 @@ describe('the attacked squares, by the deployed rule', () => {
 				{x: 0, y: 0},
 				{x: 3, y: -1},
 				{x: 1, y: -1},
-				// The pawn's step forward, and its diagonal onto your pawn.
+				// The pawn's four steps, and its two diagonals onto your pawns.
 				{x: 5, y: 4},
+				{x: 5, y: 6},
+				{x: 4, y: 5},
+				{x: 6, y: 5},
 				{x: 6, y: 4},
+				{x: 4, y: 6},
 			]),
 		);
-		// Not its other diagonal, onto an empty square: it may not move there
+		// Not its other diagonals, onto empty squares: it may not move there
 		// this cycle. Nor anything the frozen rook or the stone could reach.
-		expect(marked).toHaveLength(10);
+		expect(marked).toHaveLength(14);
 		expect(marked).not.toContainEqual({x: 4, y: 4});
+		expect(marked).not.toContainEqual({x: 6, y: 6});
 		expect(marked).not.toContainEqual({x: -2, y: 0});
 	}, 60_000);
 });

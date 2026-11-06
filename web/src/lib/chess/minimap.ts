@@ -56,7 +56,7 @@ export const MAX_MINIMAP_EXITS = 1024;
 
 /**
  * How much board to leave around everything marked, in squares: an army's
- * footprint reaches three squares out from its spawn point, so this keeps a
+ * footprint reaches two squares out from its spawn point, so this keeps a
  * whole army on the map rather than its centre.
  */
 const MARGIN = 8;
@@ -125,7 +125,9 @@ export function minimapOf(params: {
 /** The exits within `bounds`, unless there are too many to draw. */
 function exitsOn(bounds: Rect, spacing: number | undefined): Position[] {
 	if (!spacing) return [];
-	const across = (bounds.width / spacing + 1) * (bounds.height / spacing + 1);
+	// Four squares to a block, one block to a cell of the spawn grid.
+	const across =
+		4 * (bounds.width / spacing + 1) * (bounds.height / spacing + 1);
 	if (across > MAX_MINIMAP_EXITS) return [];
 	return exitsIn(
 		{

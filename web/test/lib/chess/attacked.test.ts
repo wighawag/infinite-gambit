@@ -6,12 +6,7 @@ import {
 	createAttackedSquares,
 	withAttacked,
 } from '$lib/chess/attacked';
-import {
-	DIRECTION,
-	PIECE_KIND,
-	type BoardState,
-	type Piece,
-} from '$lib/chess/board';
+import {PIECE_KIND, type BoardState, type Piece} from '$lib/chess/board';
 import {ARMY_STATUS, type ArmyView} from '$lib/chess/armies';
 import {squareAt} from '$lib/chess/squares';
 import {mergeBoardView, type LocalPlan} from '$lib/chess/view';
@@ -39,8 +34,6 @@ const piece = (
 	position: squareAt(x, y),
 	army,
 	kind,
-	forward: DIRECTION.North,
-	moved: false,
 });
 
 const army = (id: bigint, status: number): ArmyView => ({

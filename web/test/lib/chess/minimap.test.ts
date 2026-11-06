@@ -130,26 +130,34 @@ describe('navigating from the minimap', () => {
 });
 
 describe('the exits on the minimap', () => {
-	it('marks every exit the map covers: the centre of each spawn-grid cell', () => {
+	it('marks every exit the map covers: the 2 by 2 block at the centre of each spawn-grid cell', () => {
 		const map = minimapOf({
-			spawnPoints: [squareAt(16, 0)],
+			spawnPoints: [squareAt(9, 0)],
 			armies: [],
 			you: undefined,
 			camera,
-			spawnSpacing: 16,
+			spawnSpacing: 9,
 		});
 		const {bounds} = map;
 		expect(map.exits.length).toBeGreaterThan(0);
+		const band = (v: number) => [4, 5].includes(((v % 9) + 9) % 9);
 		for (const {x, y} of map.exits) {
-			expect(Math.abs((x - 8) % 16)).toBe(0);
-			expect(Math.abs((y - 8) % 16)).toBe(0);
+			expect(band(x)).toBe(true);
+			expect(band(y)).toBe(true);
 			expect(x).toBeGreaterThanOrEqual(bounds.x);
 			expect(x).toBeLessThanOrEqual(bounds.x + bounds.width);
 			expect(y).toBeGreaterThanOrEqual(bounds.y);
 			expect(y).toBeLessThanOrEqual(bounds.y + bounds.height);
 		}
-		expect(map.exits).toContainEqual({x: 8, y: 8});
-		expect(map.exits).toContainEqual({x: 8, y: -8});
+		for (const square of [
+			{x: 4, y: 4},
+			{x: 5, y: 4},
+			{x: 4, y: 5},
+			{x: 5, y: 5},
+			{x: 4, y: -4},
+		]) {
+			expect(map.exits).toContainEqual(square);
+		}
 	});
 
 	it('marks none without a spawn grid (a table), or when too dense to tell apart', () => {
@@ -157,13 +165,13 @@ describe('the exits on the minimap', () => {
 			minimapOf({spawnPoints: [], armies: [], you: undefined, camera}).exits,
 		).toEqual([]);
 		const far = minimapOf({
-			spawnPoints: [squareAt(16 * 100, 0)],
+			spawnPoints: [squareAt(9 * 100, 0)],
 			armies: [],
 			you: undefined,
 			camera,
-			spawnSpacing: 16,
+			spawnSpacing: 9,
 		});
-		expect(far.bounds.width / 16).toBeGreaterThan(Math.sqrt(MAX_MINIMAP_EXITS));
+		expect(4 * (far.bounds.width / 9) ** 2).toBeGreaterThan(MAX_MINIMAP_EXITS);
 		expect(far.exits).toEqual([]);
 	});
 });

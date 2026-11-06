@@ -56,19 +56,18 @@ abstract contract UsingGameBoard is UsingGameStore {
     /// @notice The spawn point whose footprint can cover `position`, if any,
     ///         and its spiral index.
     /// @dev A square is covered by at most one spawn point's footprint (the
-    ///      spacing is at least the footprint's width), and a footprint reaches
-    ///      at most 3 squares left of / below its spawn point and 2 right of /
-    ///      above it: so the spawn point is the one multiple of the spacing in
-    ///      [x-2, x+3] by [y-2, y+3], if there is one. Whether the square is ON
-    ///      the footprint (not a corner, not outside the rectangle of its
-    ///      facing) is {ChessRules-layoutAt}'s to say.
+    ///      spacing is more than the footprint's width), and a footprint
+    ///      reaches 2 squares from its spawn point on each axis: so the spawn
+    ///      point is the one multiple of the spacing in [x-2, x+2] by
+    ///      [y-2, y+2], if there is one. Whether the square is ON the
+    ///      footprint (not a corner) is {ChessRules-footprintCell}'s to say.
     function _spawnCovering(
         uint64 position
     ) internal view returns (bool near, uint64 spawnPoint, uint256 index) {
         (int32 x, int32 y) = PositionUtils.toXY(position);
         int256 s = int256(uint256(SPAWN_SPACING));
-        int256 i = _floorDiv(int256(x) + 3, s);
-        int256 j = _floorDiv(int256(y) + 3, s);
+        int256 i = _floorDiv(int256(x) + 2, s);
+        int256 j = _floorDiv(int256(y) + 2, s);
         if (i * s < int256(x) - 2 || j * s < int256(y) - 2) {
             return (false, 0, 0);
         }
@@ -79,9 +78,9 @@ abstract contract UsingGameBoard is UsingGameStore {
         );
     }
 
-    /// @notice Whether every square the layout of a deployment at
-    ///         `spawnPoint` puts a piece on is empty at the START of
-    ///         `cycleNumber`.
+    /// @notice Whether every square of the footprint of a deployment at
+    ///         `spawnPoint` (its 21 squares, the empty core square included)
+    ///         is empty at the START of `cycleNumber`.
     /// @dev Start-of-cycle facts only, so every reveal of the cycle computes
     ///      the same answer. Only the per-square layer can occupy these
     ///      squares: no other footprint overlaps them, and this spawn point is
@@ -92,9 +91,9 @@ abstract contract UsingGameBoard is UsingGameStore {
     ) internal view returns (bool) {
         // Square by square rather than through {ChessRules-layout}, which
         // only the board read needs: it keeps the reveal route small.
-        for (uint256 r = 0; r < 4; r++) {
-            for (uint256 c = 0; c < 6; c++) {
-                if ((r == 0 || r == 3) && (c == 0 || c == 5)) continue;
+        for (uint256 r = 0; r < 5; r++) {
+            for (uint256 c = 0; c < 5; c++) {
+                if (!ChessRules.onFootprint(r, c)) continue;
                 uint64 position = ChessRules.layoutSquare(spawnPoint, r, c);
                 if (_squares[position].cycle == 0) continue;
                 if (_squareAt(position, cycleNumber).kind != PieceKind.None) {
@@ -118,11 +117,8 @@ abstract contract UsingGameBoard is UsingGameStore {
             position
         );
         if (!near) return;
-        if (
-            ChessRules.layoutAt(spawnPoint, 0, position).kind == PieceKind.None
-        ) {
-            return;
-        }
+        (bool on, , ) = ChessRules.footprintCell(spawnPoint, position);
+        if (!on) return;
         SpawnRecord storage spawn = _spawns[index];
         if (spawn.cycle == cycleNumber) {
             if (!spawn.blocked) spawn.blocked = true;
@@ -219,13 +215,7 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 position
     ) internal view returns (Piece memory) {
         return
-            Piece({
-                position: position,
-                army: record.army,
-                kind: record.kind,
-                forward: record.forward,
-                moved: record.moved
-            });
+            Piece({position: position, army: record.army, kind: record.kind});
     }
 
     /// @dev The king that arrived on `position` in `record`'s cycle; kind
@@ -238,8 +228,6 @@ abstract contract UsingGameBoard is UsingGameStore {
         if (!record.kingArrived) return king;
         king.army = record.kingArmy;
         king.kind = PieceKind.King;
-        king.forward = record.kingForward;
-        king.moved = true;
     }
 
     /// @dev The first piece other than a king that arrived on `position` in
@@ -252,9 +240,7 @@ abstract contract UsingGameBoard is UsingGameStore {
             Piece({
                 position: position,
                 army: record.arriverArmy,
-                kind: record.arriverKind,
-                forward: record.arriverForward,
-                moved: true
+                kind: record.arriverKind
             });
     }
 
@@ -292,14 +278,10 @@ abstract contract UsingGameBoard is UsingGameStore {
         record.army = standing.army;
         record.cycle = cycleNumber;
         record.kind = standing.kind;
-        record.forward = standing.forward;
-        record.moved = standing.moved;
         record.departed = false;
         record.arrivals = 0;
         record.kingArrived = false;
         record.arriverKind = PieceKind.None;
-        record.arriverForward = Direction.North;
-        record.kingForward = Direction.North;
         if (record.arriverArmy != 0) record.arriverArmy = 0;
         if (record.kingArmy != 0) record.kingArmy = 0;
     }
@@ -528,13 +510,24 @@ abstract contract UsingGameBoard is UsingGameStore {
     // EXITS (`docs/adr/0006`; an exited army falls like a taken one)
     // ------------------------------------------------------------------------
 
-    /// @notice Whether `position` is an exit: the centre of a spawn-grid
-    ///         cell, half the spacing off a spawn point on both axes.
+    /// @notice Whether `position` is an exit: one of the 2 by 2 block at the
+    ///         centre of a spawn-grid cell, where four armies meet diagonally
+    ///         (`docs/adr/0015`). For a spacing S, the squares floor(S/2) and
+    ///         floor(S/2) + 1 off a spawn point on both axes: at S = 9, offsets 4
+    ///         and 5, two squares diagonally off each army's corner.
     function _isExit(uint64 position) internal view returns (bool) {
         (int32 x, int32 y) = PositionUtils.toXY(position);
         int256 s = int256(uint256(SPAWN_SPACING));
+        return _inExitBand(x, s) && _inExitBand(y, s);
+    }
+
+    /// @dev Whether coordinate `v` is floor(s/2) or floor(s/2) + 1 off a multiple of
+    ///      `s`, negative coordinates included.
+    function _inExitBand(int32 v, int256 s) private pure returns (bool) {
+        int256 m = int256(v) % s;
+        if (m < 0) m += s;
         int256 h = s / 2;
-        return (int256(x) - h) % s == 0 && (int256(y) - h) % s == 0;
+        return m == h || m == h + 1;
     }
 
     /// @notice Whether `record`'s facts are of a king that landed ALONE on
@@ -636,7 +629,6 @@ abstract contract UsingGameBoard is UsingGameStore {
         if (piece.kind == PieceKind.King) {
             target.kingArrived = true;
             target.kingArmy = player;
-            target.kingForward = piece.forward;
             ArmyRecord storage army = _armies[player];
             army.kingFrom = move.from;
             army.kingTo = move.to;
@@ -647,7 +639,6 @@ abstract contract UsingGameBoard is UsingGameStore {
             if (others == 0) {
                 target.arriverArmy = player;
                 target.arriverKind = piece.kind;
-                target.arriverForward = piece.forward;
                 // The king already here could die meeting this piece.
                 if (kingThere) _noteCandidate(player, target.kingArmy);
             }

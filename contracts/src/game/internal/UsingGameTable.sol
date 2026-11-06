@@ -22,9 +22,9 @@ import "./UsingGameInternal.sol";
 ///      standing, who takes every stake, or at its last cycle, where the stakes
 ///      are split by the material each standing army has left ({_claim}).
 abstract contract UsingGameTable is UsingGameInternal {
-    /// @dev The squares of a footprint's rectangle, corners included: what
+    /// @dev The squares of a footprint's 5 by 5 square, corners included: what
     ///      the count of material walks per army ({_tallyStep}).
-    uint256 private constant FOOTPRINT_CELLS = 24;
+    uint256 private constant FOOTPRINT_CELLS = 25;
 
     // ------------------------------------------------------------------------
     // BUYING IN
@@ -189,16 +189,16 @@ abstract contract UsingGameTable is UsingGameInternal {
         if (done) table.tallied = true;
     }
 
-    /// @dev Cell `k % 24` of the footprint of army `k / 24`, if no reveal
+    /// @dev Cell `k % 25` of the 5 by 5 square of army `k / 25`, if no reveal
     ///      touched it (a touched square is its zone's).
     function _tallyFootprintCell(
         uint256 k,
         uint64 capCycle
     ) private returns (uint256) {
         uint256 cell = k % FOOTPRINT_CELLS;
-        uint256 r = cell / 6;
-        uint256 c = cell % 6;
-        if ((r == 0 || r == 3) && (c == 0 || c == 5)) return 0;
+        uint256 r = cell / 5;
+        uint256 c = cell % 5;
+        if (!ChessRules.onFootprint(r, c)) return 0;
         uint32 indexPlusOne = _armies[_armyIds[k / FOOTPRINT_CELLS]]
             .spawnIndexPlusOne;
         uint64 position = ChessRules.layoutSquare(

@@ -75,8 +75,6 @@ describe('reading the board', () => {
 									position: squareAt(1, 2),
 									army: 7n,
 									kind: PIECE_KIND.King,
-									forward: 0,
-									moved: false,
 								},
 							],
 							3n,
@@ -117,8 +115,6 @@ describe('the view', () => {
 			position: squareAt(-2, 0),
 			army: 9n,
 			kind: PIECE_KIND.King,
-			forward: 0 as const,
-			moved: false,
 		};
 		const view = mergeBoardView({
 			onchain,

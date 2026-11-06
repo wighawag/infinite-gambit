@@ -39,13 +39,14 @@ import {loadFunctionIndex} from './utils/gas-functions.js';
  * profile adds up to its receipt's `gasUsed` (checked inside
  * `profileTransaction`) and that each move did what it is said to measure.
  *
- * THE SCENE: the first army of the shipped world, deployed on (0,0), facing
- * North, alone, one move a cycle and nothing to settle:
+ * THE SCENE: the first army of the shipped world, deployed on (0,0), alone,
+ * one move a cycle and nothing to settle:
  *
- *   y= 1  . P P P P .     x = -3 .. 2
- *   y= 0  P K B N R P
- *   y=-1  P R N B Q P
- *   y=-2  . P P P P .
+ *   y= 2  . P P P .     x = -2 .. 2
+ *   y= 1  P R N B P
+ *   y= 0  P Q K . P
+ *   y=-1  P B N R P
+ *   y=-2  . P P P .
  *
  * "Fresh" squares have no record yet (the piece's first move off its
  * deployment, onto a square no reveal touched); "touched" squares, origin and
@@ -173,54 +174,54 @@ describe('the gas profile of a plain move', function () {
 		// A PAWN, fresh: its first step, onto a square nobody touched.
 		const first = await measure(
 			'pawn step, fresh squares',
-			m([0, 1], [0, 2]),
-			'P@0,2:N*',
-			[0, 2],
+			m([0, 2], [0, 3]),
+			'P@0,3',
+			[0, 3],
 		);
 		await profile(
 			'plain move commit (the army first commit after its deployment)',
 			first.commit,
 		);
-		// The knight touches (0,3) and leaves it, so the pawn's next step is
+		// The knight touches (0,4) and leaves it, so the pawn's next step is
 		// from a touched square onto a touched square.
-		await play(m([0, 0], [1, 2]));
-		await play(m([1, 2], [2, 4]));
-		await play(m([2, 4], [0, 3]));
-		await play(m([0, 3], [1, 5]));
+		await play(m([0, 1], [1, 3]));
+		await play(m([1, 3], [2, 5]));
+		await play(m([2, 5], [0, 4]));
+		await play(m([0, 4], [1, 6]));
 		await measure(
 			'pawn step, touched squares',
-			m([0, 2], [0, 3]),
-			'P@0,3:N*',
-			[0, 3],
+			m([0, 3], [0, 4]),
+			'P@0,4',
+			[0, 4],
 		);
 
-		// THE QUEEN, 7 squares down the open diagonal past the empty corner,
-		// and back: fresh, then touched (its path is only read, never touched).
+		// A BISHOP, 7 squares up the open diagonal past the empty corner, and
+		// back: fresh, then touched (its path is only read, never touched).
 		await measure(
 			'7-square slider, fresh squares',
-			m([1, -1], [8, -8]),
-			'Q@8,-8:N*',
-			[8, -8],
+			m([1, 1], [8, 8]),
+			'B@8,8',
+			[8, 8],
 		);
 		await measure(
 			'7-square slider, touched squares',
-			m([8, -8], [1, -1]),
-			'Q@1,-1:N*',
-			[1, -1],
+			m([8, 8], [1, 1]),
+			'B@1,1',
+			[1, 1],
 		);
 
-		// THE KING, into its empty corner and back.
+		// THE KING, into its empty core square and back.
 		await measure(
 			'king step, fresh squares',
-			m([-2, 0], [-3, 1]),
-			'K@-3,1:N*',
-			[-3, 1],
+			m([0, 0], [1, 0]),
+			'K@1,0',
+			[1, 0],
 		);
 		const last = await measure(
 			'king step, touched squares',
-			m([-3, 1], [-2, 0]),
-			'K@-2,0:N*',
-			[-2, 0],
+			m([1, 0], [0, 0]),
+			'K@0,0',
+			[0, 0],
 		);
 		await profile('plain move commit (a later cycle)', last.commit);
 
