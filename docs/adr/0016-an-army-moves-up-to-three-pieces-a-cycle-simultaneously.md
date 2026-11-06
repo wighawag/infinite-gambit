@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # An army moves up to three pieces a cycle, simultaneously, unless its table turns it off

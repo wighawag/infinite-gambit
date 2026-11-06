@@ -259,9 +259,59 @@ library ChessRules {
     // that king's own square, which is a capture: that is what makes two kings
     // arriving on one square impossible
     // (`docs/adr/0003-collision-table-king-survives-a-crowd.md`).
+    //
+    // AN ARMY'S MOVE IS UP TO {MAX_PIECE_MOVES} PIECE-MOVES, each by a different
+    // piece, and they are SIMULTANEOUS
+    // (`docs/adr/0016-an-army-moves-up-to-three-pieces-a-cycle-simultaneously.md`):
+    // each is judged on the start-of-cycle board with the army's own pieces
+    // that move this cycle counted as gone ({vacate}), so a piece may move onto
+    // or slide through a square its own army leaves, and two may swap. That is
+    // for the LEGALITY CHECK ONLY: what a square's record keeps as its standing
+    // piece, and what could be captured there, stay the start-of-cycle facts.
 
     /// @notice How far a rook, a bishop or a queen may slide (story 16).
     uint256 internal constant SLIDER_RANGE = 7;
+
+    /// @notice How many piece-moves an army's move holds at most: none (a
+    ///         pass), one, two or three, each by a different piece
+    ///         (`docs/adr/0016`).
+    uint256 internal constant MAX_PIECE_MOVES = 3;
+
+    /// @notice Make `contents` what the legality check judges: every one of
+    ///         `squares` that is in `vacated` and holds a piece of `army` reads
+    ///         as empty, because that piece moves away in the same cycle.
+    /// @param squares {moveSquares}' squares, in order
+    /// @param contents what stood on each of them at the start of the cycle,
+    ///        whose entries are REPLACED, never changed: a caller that keeps an
+    ///        entry (the destination's, which is the start-of-cycle fact a
+    ///        square's record keeps, and what could be taken there,
+    ///        `docs/adr/0002`) still holds the real piece.
+    /// @param army the army whose move this is
+    /// @param vacated the origins of every piece-move of the army's move
+    /// @dev A set membership, so it cannot depend on the order the piece-moves
+    ///      are listed in. A move of ONE piece-move changes nothing, so it
+    ///      costs nothing: a piece's own origin is never one of its
+    ///      {moveSquares} but a king's, among its destination's neighbours,
+    ///      where it is its own king, which the king rule ignores.
+    function vacate(
+        uint64[] memory squares,
+        T.Piece[] memory contents,
+        uint256 army,
+        uint64[] memory vacated
+    ) internal pure {
+        if (vacated.length < 2) return;
+        for (uint256 i = 0; i < contents.length; i++) {
+            // An empty square is army zero, which is never an army's id.
+            if (contents[i].army != army) continue;
+            for (uint256 k = 0; k < vacated.length; k++) {
+                if (vacated[k] != squares[i]) continue;
+                T.Piece memory gone;
+                gone.position = squares[i];
+                contents[i] = gone;
+                break;
+            }
+        }
+    }
 
     /// @notice Whether `piece` moving to `to` has a legal shape, and the
     ///         squares whose start-of-cycle contents decide whether it is

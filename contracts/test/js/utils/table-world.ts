@@ -7,6 +7,7 @@ import {
 	squareAt,
 	xyOf,
 	CYCLE_POLICY,
+	DEFAULT_ACTIONS_PER_REVEAL,
 	DEFAULT_STAKE,
 	TURN_BOND,
 	type Move,
@@ -48,7 +49,7 @@ export function tableWorld(params: {
 			stake: DEFAULT_STAKE,
 			spawnSpacing: 6n,
 			openSpawnPoints: 8n,
-			actionsPerReveal: 1n,
+			actionsPerReveal: DEFAULT_ACTIONS_PER_REVEAL,
 			cyclePolicy: BigInt(CYCLE_POLICY.TimedWithEarlyAdvance),
 		};
 		const route = (name: string, artifact: unknown) => ({
@@ -167,7 +168,11 @@ export function tableWorld(params: {
 				commit(owner: `0x${string}`, army: bigint, moves: readonly Move[]) {
 					return execute(owner, 'makeCommitment', [
 						army,
-						commitmentHashFor(moves, SECRET, 1),
+						commitmentHashFor(
+							moves,
+							SECRET,
+							Number(DEFAULT_ACTIONS_PER_REVEAL),
+						),
 						TURN_BOND,
 						zeroAddress,
 					]);
@@ -180,7 +185,7 @@ export function tableWorld(params: {
 							identity: army,
 							moves,
 							secret: SECRET,
-							actionsPerReveal: 1,
+							actionsPerReveal: Number(DEFAULT_ACTIONS_PER_REVEAL),
 						},
 					);
 				},

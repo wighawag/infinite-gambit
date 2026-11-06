@@ -535,6 +535,16 @@ describe('Deploying an army', function () {
 		const bad: [Move[], RegExp][] = [
 			[[{from: squareAt(0, 0), to: squareAt(9, 0)}], /InvalidDeployment/],
 			[[], /InvalidDeployment/],
+			// A DEPLOYMENT IS THE WHOLE MOVE OF ITS CYCLE, though a move may hold
+			// three piece-moves and the chunk is three (`docs/adr/0016`): a
+			// piece-move beside it, in the same chunk, is refused.
+			[
+				[
+					...deploymentAt(squareAt(0, 0)),
+					{from: squareAt(-1, 2), to: squareAt(-1, 3)},
+				],
+				/InvalidDeployment/,
+			],
 			[deploymentAt(squareAt(1, 0)), /NotASpawnPoint/],
 		];
 		for (const [moves, error] of bad) {

@@ -314,7 +314,7 @@ describe('moving an army', function () {
 		);
 	});
 
-	it('allows one move per army per cycle, and both kinds of pass leave the army in place', async function () {
+	it('allows one move per army per cycle, of at most three piece-moves, and both kinds of pass leave the army in place', async function () {
 		const w = await world();
 		const [a] = await w.deploy([[w.alice, [0, 0]]]);
 		const start = await w.board();
@@ -324,11 +324,19 @@ describe('moving an army', function () {
 		await w.play([{owner: w.alice, army: a, moves: []}]);
 		expect(await w.board()).toEqual(start);
 
-		// Two moves in one submission: refused, whichever chunk comes first.
-		const two = [move([-1, 2], [-1, 3]), move([1, 2], [1, 3])];
-		await w.commit(w.alice, a, two);
+		// Four piece-moves in one submission: refused, chained after a chunk
+		// of three (`docs/adr/0016`; `ThreePieceMoves.test.ts` has the rest).
+		const four = [
+			move([-1, 2], [-1, 3]),
+			move([0, 2], [0, 3]),
+			move([1, 2], [1, 3]),
+			move([-2, 1], [-3, 1]),
+		];
+		await w.commit(w.alice, a, four);
 		await w.toRevealPhase();
-		await expect(w.reveal(w.alice, a, two)).toBeRejectedWith(/OneMovePerCycle/);
+		await expect(w.reveal(w.alice, a, four)).toBeRejectedWith(
+			/OneMovePerCycle/,
+		);
 
 		// Which leaves it unrevealed: the army is frozen for good.
 		await w.toNextCycle();

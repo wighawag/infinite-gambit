@@ -462,15 +462,36 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         // route of its own (`GameDeploymentReveal`), for size alone; `reveal`
         // forwards it there, so this only meets one that is not this cycle's.
         if (_isDeploying(player, chunk.cycleNumber)) revert InvalidDeployment();
-        if (moves.length != 0 || furtherActions != bytes24(0)) {
-            // ONE MOVE PER ARMY PER CYCLE (story 9): a submission is a pass
-            // (nothing) or exactly one move, in one chunk. A move is validated
-            // against the start-of-cycle board, so an account seated at a
-            // table, which has no pieces, can only ever pass.
-            if (moves.length != 1 || furtherActions != bytes24(0)) {
-                revert OneMovePerCycle();
+        // ONE MOVE PER ARMY PER CYCLE (story 9), in one chunk, and a move is up
+        // to three piece-moves, each by a different piece: none is a pass
+        // (`docs/adr/0016`). The chunk is three, so the base would accept a
+        // chained fourth: refused here. So is a move that moves one piece twice
+        // or sends two to one square, whole. Every piece-move is validated
+        // against the start-of-cycle board, so an account seated at a table,
+        // which has no pieces, can only ever pass.
+        uint256 n = moves.length;
+        if (n > ChessRules.MAX_PIECE_MOVES || furtherActions != bytes24(0)) {
+            revert OneMovePerCycle();
+        }
+        uint64[] memory vacated = new uint64[](n);
+        for (uint256 i = 0; i < n; i++) {
+            for (uint256 j = 0; j < i; j++) {
+                if (
+                    moves[j].from == moves[i].from || moves[j].to == moves[i].to
+                ) {
+                    revert OneMovePerCycle();
+                }
             }
-            _revealMove(player, moves[0], chunk.cycleNumber);
+            vacated[i] = moves[i].from;
+        }
+        // SIMULTANEOUS: every piece-move is judged on the start-of-cycle board
+        // with all of `vacated` counted as gone, and records only order-free
+        // facts, so the order they are listed in changes nothing. One cache of
+        // start-of-cycle facts serves them all ({UsingGameBoard-Reads}): no
+        // write of this reveal changes what it holds.
+        UsingGameBoard.Reads memory reads;
+        for (uint256 i = 0; i < n; i++) {
+            _revealMove(player, moves[i], vacated, chunk.cycleNumber, reads);
         }
 
         _closeChunk(chunk, 0);
