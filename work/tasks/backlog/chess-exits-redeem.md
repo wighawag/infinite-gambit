@@ -26,6 +26,9 @@ Serialised after capture loops because it edits the same resolution code.
 > - **Extend the ONE `_isDead` predicate** (failed/cancelled/unrevealed deployment, captured) with exited; a dead army's commit reverts `NotInGame`.
 > - **Route sizes** are tight (`RouteSizes.test.ts`): `chess-deployment-collisions` already moved entry points from `GameReveal` to `GameCommit`, and `chess-king-capture-merge` added a `GameRegistry` route.
 
+> - **Pay the army's CURRENT owner, `_ownerOf(army)`**, not the account that created it: a capture loop rotates owners (`docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`), so the army record's creator can differ from who owns it now.
+> - **Money rules to keep (ADR 0006):** only `StakeSale` may mint; the sale keeps its ETH; `redeem` pays at the same fixed price from that ETH; an exit can be claimed once (debit what it pays); tokens obtained any other way cannot drain the sale (test it). Nothing is deployed yet (`git ls-files contracts/deployments` is empty), so changing the sale's constructor is free, but every contract stays `deterministic: true` and every setup call guarded (`DeterministicDeploys.test.ts`).
+
 ## Acceptance criteria
 
 - [ ] A king landing alone on an exit is paid its whole stake in ETH and its army is removed.
