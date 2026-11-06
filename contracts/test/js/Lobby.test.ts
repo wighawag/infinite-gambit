@@ -370,8 +370,10 @@ describe('games for a fixed set of players', function () {
 	});
 
 	it('ends a table after the cycles its creator chose: the last reveals land, then no commit or advance, and a missed reveal is still settled', async function () {
+		// The game's one readable bit (`ChessRules.ONE_PIECE_MOVE`): a table
+		// whose options carry any other is refused at the seat.
 		const options =
-			'0x00000000000000000000000000000000000000000000000000000000000c0de5' as const;
+			'0x0000000000000000000000000000000000000000000000000000000000000001' as const;
 		const table = await createTable(2, 2, options);
 		expect(table.created.args.cycles).toEqual(2);
 		expect(table.created.args.gameOptions).toEqual(options);

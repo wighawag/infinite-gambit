@@ -24,14 +24,21 @@ contract GameReveal is IGameReveal, UsingGameInternal {
             // A DEPLOYMENT, revealed by its own route, which this route no
             // longer has room for. Forwarded rather than refused, so a client
             // reveals every submission the same way. Nobody is paid inside:
-            // the payee is this call's.
-            IGameDeploymentReveal(address(this)).revealDeployment(
-                player,
-                moves,
-                secret,
-                furtherActions,
-                payable(address(0))
-            );
+            // the inner call carries no value, so the payee is this call's.
+            // FORWARDED AS IS: `revealDeployment` takes the very arguments
+            // `reveal` does, so only the selector changes. Re-encoding the
+            // moves no longer fit beside the table's cap under the size
+            // limit. A refusal is bubbled up unchanged.
+            bytes4 selector = IGameDeploymentReveal.revealDeployment.selector;
+            assembly ("memory-safe") {
+                let p := mload(0x40)
+                mstore(p, selector)
+                calldatacopy(add(p, 4), 4, sub(calldatasize(), 4))
+                if iszero(call(gas(), address(), 0, p, calldatasize(), 0, 0)) {
+                    returndatacopy(p, 0, returndatasize())
+                    revert(p, returndatasize())
+                }
+            }
         } else {
             _reveal(player, moves, secret, furtherActions);
         }

@@ -104,14 +104,21 @@ export function tableWorld(params: {
 		const [alice, bob, carol, dave] = f.unnamedAccounts as `0x${string}`[];
 		const {price} = f.StakeSale.linkedData as {price: string};
 
-		/** Create a table of `seats` seats playing `cycles` cycles, by alice. */
-		async function create(seats: number, cycles = 100) {
+		/**
+		 * Create a table of `seats` seats playing `cycles` cycles, by alice,
+		 * with the game's own `gameOptions` (none by default).
+		 */
+		async function create(
+			seats: number,
+			cycles = 100,
+			gameOptions: `0x${string}` = `0x${'00'.repeat(32)}`,
+		) {
 			const receipt = await f.env.execute(
 				f.Factory as never,
 				{
 					account: alice,
 					functionName: 'createGame',
-					args: [seats, cycles, `0x${'00'.repeat(32)}`],
+					args: [seats, cycles, gameOptions],
 				} as never,
 			);
 			const [created] = parseEventLogs({

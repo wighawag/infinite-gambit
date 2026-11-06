@@ -168,7 +168,8 @@
 										? ', ended'
 										: table.started
 											? ', started'
-											: ''}
+											: ''}{#each gameOptions?.describe(table.gameOptions) ?? [] as option (option.label)},
+										{option.label}: {option.value}{/each}
 								</span>
 							</span>
 							<Button

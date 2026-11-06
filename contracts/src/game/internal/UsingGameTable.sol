@@ -45,8 +45,18 @@ abstract contract UsingGameTable is UsingGameInternal {
     ///
     ///      Seating is the base's: funding the army's reserve takes the seat,
     ///      reverting `GameAlreadyStarted` or `GameFull`.
+    ///
+    ///      A TABLE THIS GAME CANNOT READ IS REFUSED HERE, at the seat: options
+    ///      with any bit but {ChessRules-ONE_PIECE_MOVE} set. The framework's
+    ///      factory checks nothing of them, by design, and the reveal must
+    ///      never refuse on them, since its members would then miss their
+    ///      reveals and freeze (`docs/adr/0005`); so nobody may stake at it.
     function _joinTable(address owner) internal returns (uint256 army) {
         if (owner == address(0)) revert InvalidPlayer(0);
+        bytes32 options = _gameOptions();
+        if (!ChessRules.readsOptions(options)) {
+            revert UnreadableGameOptions(options);
+        }
         (uint64 cycleNumber, ) = _cycleNumber();
         uint256 nonce = _armyCountOf[owner] + 1;
         army = _armyIdOf(owner, nonce);

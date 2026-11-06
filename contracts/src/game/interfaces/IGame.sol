@@ -248,6 +248,14 @@ interface IGameGetters is UsingGameTypes {
 
     function getConfig() external view returns (Config memory config);
 
+    /// @notice How many piece-moves a move holds at most here: 3, or 1 at a
+    ///         table whose creator turned three piece-moves off (one bit of
+    ///         its `gameOptions`, `docs/adr/0016`). 3 in both worlds.
+    /// @dev What the reveal caps a move at. The client passes it to the
+    ///      simulation routes ({IGameSimulation-isLegalWholeMove},
+    ///      {IGameSimulation-legalMovesAlongside}), which read nothing.
+    function getMaxPieceMoves() external view returns (uint256 maxPieceMoves);
+
     /// @notice Every piece on the squares from (`minX`,`minY`) to
     ///         (`maxX`,`maxY`) inclusive, RESOLVED, plus the cycle the answer
     ///         is for.

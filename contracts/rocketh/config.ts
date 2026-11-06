@@ -71,31 +71,34 @@ export const CYCLE_POLICY = {
  * each as dear as the rules allow. NO REVEAL WALKS A CHAIN (merges, capture
  * chains and loops are gone, `docs/adr/0013`, `docs/adr/0014`), so what a
  * capture adds is bounded by the two squares each piece-move touches and the
- * armies on the squares it reads.
+ * armies on the squares it reads. Re-measured again for the table's toggle
+ * (`three-piece-moves-table-toggle`): every reveal now reads the game's
+ * options to know its cap, about 3,000 more on every reveal of the world.
  *
  *   the worst commit: a first paid deployment commit in a manual world,
  *   which settles the previous deployment and pays a fresh payee     370,098
  *   a plain move's commit (one piece-move or three: it stores a hash)  85,823
- *   the first deployment reveal ever                                  301,675
- *   the two-victim square (the dearest capture measured)              354,276
+ *   the first deployment reveal ever                                  300,623
+ *   the two-victim square (the dearest capture measured)              357,306
  *   the dearest plain move: the king's first step and two 7-square
- *   sliders over stale squares, in one reveal                         676,044
+ *   sliders over stale squares, in one reveal                         679,074
  *   the worst reveal: that move with each of its three piece-moves
  *   folding a two-victim square at its origin and at its destination
  *   and noting three candidates for a stake, and with each of the 22
  *   squares it reads holding a piece of a different fallen army whose
- *   fall is not folded yet (the vanish check, cold)                 1,831,734
+ *   fall is not folded yet (the vanish check, cold)                 1,834,764
  *
  * Each figure is its worst case plus `GasBudget.test.ts`'s minimum headroom
  * (10%), rounded up to ten thousand: COMMIT_GAS 410,000 (unchanged: a commit
  * stores a hash, whatever the move holds), REVEAL_GAS 2,020,000 (was 770,000,
  * priced on one piece-move a reveal; 720,000 and 1,100,000 before that). Under
  * the generosity ceiling too, now three times the dearest PLAIN move, the
- * three piece-moves above (2,028,132). The window is narrow: the figure is
- * 5,093 above the required 2,014,907 and 8,132 below that ceiling. Gas added
+ * three piece-moves above (2,037,222). The window is narrow: the figure is
+ * 1,760 above the required 2,018,240 and 17,222 below that ceiling. Gas added
  * to EVERY reveal widens it (the ceiling rises three times as fast as the
- * worst); about 4,600 added to the worst alone closes it, since the rounded
- * figure would be 2,030,000 (`docs/gas.md`, "The declared figures").
+ * worst), as the options read did; about 1,600 added to the worst alone
+ * makes the rounded figure 2,030,000, still under the ceiling, and about
+ * 10,700 closes it (the figure would round to 2,040,000) (`docs/gas.md`, "The declared figures").
  *
  * WHAT IT COSTS PLAYERS. `creditsGasMultiplier` below is COMMIT_GAS +
  * REVEAL_GAS, 2,430,000 where it was 1,180,000, so a credit is about twice the
@@ -133,15 +136,16 @@ const REVEAL_GAS = 2_020_000n;
  * (`UsingGameTable._tally` counts the material at the cap from that list). A
  * move of three piece-moves touches up to six squares, so it lists up to six
  * zones: 67,571 at worst (four measured at 44,141, two more, and one more
- * fresh slot of the list), so a table's worst reveal is 1,899,305 and this is
- * that plus the minimum headroom (10%), rounded up (was 840,000, priced on
- * one piece-move listing two zones; 790,000 and 1,150,000 before that). A
+ * fresh slot of the list), so a table's worst reveal is 1,901,611 and this is
+ * that plus the minimum headroom (10%), rounded up (2,090,000 before the
+ * options read; 840,000 priced on one piece-move listing two zones; 790,000
+ * and 1,150,000 before that). A
  * table that turns three piece-moves off still declares it: one figure per
  * deployment, shared by every clone. Priced in `GasBudget.test.ts`, whose
  * generosity ceiling is three times a table's plain three-piece-move reveal
- * (about 2,231,000).
+ * (about 2,238,000).
  */
-const LOBBY_REVEAL_GAS = 2_090_000n;
+const LOBBY_REVEAL_GAS = 2_100_000n;
 
 /**
  * HOW MANY SPAWN POINTS THE OFFLINE WORLD OPENS (K), which is the one thing
