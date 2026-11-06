@@ -1,8 +1,9 @@
 /**
  * Everything the board shows that is not wood or a piece: open spawn points,
  * the selection and its destinations, attacked squares, what the last cycle
- * did, and the planned move. Ported from `spikes/pixi-wood-board/src/overlays.ts`,
- * fed from `view-model.ts`'s `OverlayModel` rather than the spike's own state.
+ * did, and the planned piece-moves. Ported from
+ * `spikes/pixi-wood-board/src/overlays.ts`, fed from `view-model.ts`'s
+ * `OverlayModel` rather than the spike's own state.
  *
  * `under` sits under the pieces, `over` above them (only the arrow, which must
  * stay readable across pieces). Redrawn when the view state changes, never per
@@ -10,6 +11,7 @@
  */
 import {Container, Graphics} from 'pixi.js';
 import type {OverlayModel} from './view-model';
+import {plannedMoveColour} from '../style';
 
 const GOLD = 0xffd166;
 const MAPLE = 0xe2cba0;
@@ -170,16 +172,16 @@ export class Overlays {
 			}
 		}
 
-		// The planned move: an arrow from square to square, over the pieces.
+		// Each planned piece-move: an arrow from square to square, over the
+		// pieces, in the colour of its place in the move.
 		const a = this.arrow.clear();
-		if (state.planned) {
-			const {from, to} = state.planned;
+		for (const {from, to, index} of state.planned) {
 			const fx = at(from.x);
 			const fy = at(from.y);
 			const tx = at(to.x);
 			const ty = at(to.y);
 			const len = Math.hypot(tx - fx, ty - fy);
-			if (len === 0) return;
+			if (len === 0) continue;
 			const ux = (tx - fx) / len;
 			const uy = (ty - fy) / len;
 			const head = c * 0.42;
@@ -199,7 +201,7 @@ export class Overlays {
 				fx - nx * width * 0.5, fy - ny * width * 0.5,
 			];
 			a.poly(shaft)
-				.fill({color: GOLD, alpha: 0.9})
+				.fill({color: plannedMoveColour(index), alpha: 0.9})
 				.stroke({color: INK, width: c * 0.03, alpha: 0.7});
 		}
 	}

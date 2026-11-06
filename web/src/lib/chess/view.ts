@@ -7,8 +7,9 @@
  * else until it is revealed, and the client is the only thing that can show
  * it. A planned army is drawn as a GHOST of the pieces the contract says it
  * would stand on (`./preview.ts`), never merged into the confirmed board, and
- * a planned move as a mark from its square to its destination: the piece
- * stays where the chain has it until the cycle is over.
+ * each planned piece-move as a mark from its square to its destination,
+ * numbered by its place in the move so up to three stay apart: the pieces
+ * stay where the chain has them until the cycle is over.
  */
 import type {ViewMerge} from '$lib/view';
 import {PIECE_KIND, type BoardState, type Piece} from './board';
@@ -19,6 +20,9 @@ import {ARMY_STATUS, type ArmyView} from './armies';
 import {STAKE} from './stake';
 
 export type PieceView = Piece & {position2d: Position};
+
+/** One planned piece-move, drawn as the `index`-th of its move. */
+export type PlannedMoveView = {from: Position; to: Position; index: number};
 
 /** A square the last closed cycle changed by a capture or a collision. */
 export type OutcomeView = SquareOutcome & {position2d: Position};
@@ -72,8 +76,11 @@ export type BoardView = {
 	 * sandbox (`legalMoves`). Empty until it answers.
 	 */
 	destinations?: readonly Position[];
-	/** The move the player has planned this cycle, if any. */
-	plannedMove?: {from: Position; to: Position};
+	/**
+	 * The piece-moves the player has planned this cycle, in the order picked:
+	 * `index` tells them apart on the board and in the HUD.
+	 */
+	plannedMoves?: readonly PlannedMoveView[];
 	/**
 	 * What the last closed cycle did: the squares where a piece was captured
 	 * or pieces died colliding, as the contract resolved them.
@@ -108,8 +115,8 @@ export type LocalPlan = {
 	 * for exactly this spawn point.
 	 */
 	preview?: readonly Piece[];
-	/** The one move planned this cycle, for a deployed army. */
-	move?: {from: bigint; to: bigint};
+	/** The piece-moves planned this cycle, for a deployed army: up to three. */
+	moves?: readonly {from: bigint; to: bigint}[];
 	/** The piece selected to move. */
 	selected?: bigint;
 	/** The king or stone whose stake label is shown (clicked). */
@@ -233,12 +240,13 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 		stones: stonesOf(onchain.pieces, onchain.armies),
 		frozen: frozenArmiesOf(onchain.armies),
 		attacked: (local.attacked ?? []).map(positionOf),
-		...(local.move
+		...(local.moves && local.moves.length > 0
 			? {
-					plannedMove: {
-						from: positionOf(local.move.from),
-						to: positionOf(local.move.to),
-					},
+					plannedMoves: local.moves.map((move, index) => ({
+						from: positionOf(move.from),
+						to: positionOf(move.to),
+						index,
+					})),
 				}
 			: {}),
 	};

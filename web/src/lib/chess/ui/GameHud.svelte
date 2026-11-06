@@ -365,7 +365,31 @@
 				{#if $hud.moving}
 					<dt class="text-muted-foreground">Move</dt>
 					<dd data-testid="planned-move">
-						{$hud.moving.planned ?? 'select a piece'}
+						{#if $hud.moving.pieceMoves.length === 0}
+							select a piece
+						{:else}
+							<ol>
+								{#each $hud.moving.pieceMoves as pieceMove (pieceMove.from)}
+									<li data-testid="planned-piece-move">
+										<span style="color: {pieceMove.colour}"
+											>{pieceMove.label}</span
+										>
+										<button
+											class="ml-1 text-xs text-muted-foreground underline hover:text-foreground"
+											data-testid="take-back"
+											onclick={() => planning.takeBack(pieceMove.from)}
+										>
+											take back
+										</button>
+									</li>
+								{/each}
+							</ol>
+						{/if}
+						{#if $hud.moving.countLabel}
+							<span class="text-xs text-muted-foreground">
+								{$hud.moving.countLabel}
+							</span>
+						{/if}
 					</dd>
 				{/if}
 				<dt class="text-muted-foreground">Reserve</dt>
@@ -413,6 +437,11 @@
 
 			{#if $hud.warning}
 				<p class="mt-2 text-xs text-amber-400">{$hud.warning}</p>
+			{/if}
+			{#if $hud.moving?.refusal}
+				<p class="mt-2 text-xs text-amber-400" data-testid="move-refused">
+					{$hud.moving.refusal}
+				</p>
 			{/if}
 
 			<div class="mt-3 flex flex-wrap gap-2">
@@ -482,10 +511,12 @@
 					Nobody sees where until the reveal; two armies revealing the same
 					spawn point both fail.
 				{:else if $hud.moving}
-					Select one of your pieces, then one of the highlighted squares. One
-					move per cycle, hidden until the reveal; it lands when the cycle ends.
-					Squares tinted red are where an enemy piece may move this cycle: a
-					piece of yours there can be captured, or collide.
+					Select one of your pieces, then one of the highlighted squares, for
+					each piece you move: up to the count shown, all at once, hidden until
+					the reveal; they land when the cycle ends. Click a planned square
+					again, or take back, to undo one. Squares tinted red are where an
+					enemy piece may move this cycle: a piece of yours there can be
+					captured, or collide.
 				{:else}
 					Your army acts from the cycle after it lands.
 				{/if}

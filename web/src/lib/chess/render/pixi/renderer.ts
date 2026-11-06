@@ -264,6 +264,7 @@ export function createChessPixiRenderer(params: {
 						spawns: [],
 						destinations: [],
 						attacked: [],
+						planned: [],
 						outcomes: [],
 					});
 					latestLabels = [];

@@ -62,8 +62,19 @@ export function spawnPointOf(actions: readonly Move[]): bigint | undefined {
 }
 
 /**
- * The move a submission makes, if it is one: a single `Move` whose `from` and
- * `to` differ (one move per army per cycle). A deployment is not a move.
+ * The piece-moves a submission makes: every `Move` of it, unless it is a
+ * deployment, which moves nothing. Empty for a pass. A move is up to three
+ * piece-moves (`docs/adr/0016`); how many the contract accepts is its own
+ * rule, judged by the whole-move route, never here.
+ */
+export function pieceMovesOf(actions: readonly Move[]): readonly Move[] {
+	return spawnPointOf(actions) !== undefined ? [] : actions;
+}
+
+/**
+ * The move a submission makes, if it is ONE piece-move: a single `Move` whose
+ * `from` and `to` differ. A deployment is not a move. See {@link pieceMovesOf}
+ * for a move of several.
  */
 export function moveOf(actions: readonly Move[]): Move | undefined {
 	if (actions.length !== 1) return undefined;
@@ -120,9 +131,11 @@ export function createChessCommitReveal(params: {
 	config: ChessConfig;
 	/** See `beforeCommit` in `$lib/game/core/commit-reveal/adapter`. */
 	beforeCommit?: () => Promise<void>;
+	/** See {@link refusingIllegalMoves}. */
+	refuse?: (actions: readonly Move[]) => Promise<string | undefined>;
 }): CommitRevealAdapter<GameIdentity, Move> {
 	const {deps, config} = params;
-	return createCommitRevealContractAdapter<GameIdentity, Move>({
+	const adapter = createCommitRevealContractAdapter<GameIdentity, Move>({
 		deps,
 		// Deployments are fixed for the life of the app.
 		contract: gameContract(get(deps.deployments)),
@@ -137,4 +150,29 @@ export function createChessCommitReveal(params: {
 		bondFor: (actions) => bondFor(config, actions),
 		beforeCommit: params.beforeCommit,
 	});
+	return params.refuse ? refusingIllegalMoves(adapter, params.refuse) : adapter;
+}
+
+/**
+ * The adapter, refusing to commit a move `refuse` names a reason against.
+ *
+ * WHY AT THE COMMIT and not only on the Commit button: the submission also
+ * commits BY ITSELF when the player leaves it late, and a move the reveal
+ * judges illegal reverts it (`IllegalMove`), which is a missed reveal and a
+ * frozen army (`docs/adr/0005`). Refused here, the worst it costs is a cycle
+ * without that move. The reason is thrown, so the submission's Error state
+ * carries it to the player, as the framework's own `beforeCommit` does.
+ */
+export function refusingIllegalMoves(
+	adapter: CommitRevealAdapter<GameIdentity, Move>,
+	refuse: (actions: readonly Move[]) => Promise<string | undefined>,
+): CommitRevealAdapter<GameIdentity, Move> {
+	return {
+		...adapter,
+		async commit(args) {
+			const reason = await refuse(args.actions);
+			if (reason !== undefined) throw new Error(reason);
+			return adapter.commit(args);
+		},
+	};
 }

@@ -9,7 +9,7 @@
  * Constructed synchronously and off-browser, like the core half: nothing here
  * starts IO, which belongs to `start()`.
  */
-import {derived, get, type Readable} from 'svelte/store';
+import {derived, get, writable, type Readable} from 'svelte/store';
 import {env} from '$env/dynamic/public';
 import type {CoreServices} from '$lib/context/core';
 import type {SignerGrant} from '$lib/ui/delegation/grant';
@@ -28,7 +28,7 @@ import {
 import type {AcquisitionStore} from '$lib/game/acquire';
 import type {CameraControl, CameraWatcher} from '$lib/game/render/camera';
 import type {CanvasEventEmitter} from '$lib/game/render/events';
-import type {GameRenderer} from '$lib/game/core/seams';
+import type {GameRenderer, OnchainStateValue} from '$lib/game/core/seams';
 import type {OnchainStateStore} from '$lib/onchain/state';
 import type {ViewStateStore} from '$lib/view';
 import {isEmbeddedChainId} from '$lib/embedded/chain-id';
@@ -65,7 +65,13 @@ import {
 	createAccountDataSubmissionStorage,
 	storedTurnsFor,
 } from '$lib/game/core/commit-reveal/storage';
-import {createPlanning, spawnPointNear, type PlanningStore} from './planning';
+import {
+	createPlanning,
+	createWholeMoveGuard,
+	spawnPointNear,
+	type PlanningStore,
+} from './planning';
+import {readMaxPieceMoves, type WholeMoveCall} from './piece-moves';
 import {createCycleReader} from '$lib/game/core/commit-reveal/cycle';
 import {
 	createAttendanceReader,
@@ -392,6 +398,47 @@ export function createGameContext(core: CoreServices): GameContext {
 		})) as unknown as readonly bigint[]),
 	];
 
+	// THE WHOLE-MOVE ROUTE, from the same bytecode: where a piece may go
+	// alongside the piece-moves already planned, and whether a whole move is
+	// legal, each judged at the cap the game reports (3, or 1 at a table that
+	// turns three off, `docs/adr/0016`). The route reads no storage, so the cap
+	// is read from the game once and passed in.
+	// The board the commit guard judges against: the one planning reads, bound
+	// when the game hands it over (the guard is built before that).
+	let boardNow = (): OnchainStateValue<BoardState> => ({step: 'Unloaded'});
+	const wholeMove: WholeMoveCall = (functionName, args) =>
+		sandbox.call({
+			contract: 'rules',
+			abi: deployments.contracts.Game.abi,
+			functionName,
+			args: args as never,
+		}) as Promise<unknown>;
+	const maxPieceMoves = writable<number | undefined>(undefined);
+	let readingCap: Promise<number> | undefined;
+	const readCap = (): Promise<number> => {
+		const known = get(maxPieceMoves);
+		if (known !== undefined) return Promise.resolve(known);
+		readingCap ??= readMaxPieceMoves(
+			(functionName) =>
+				core.publicClient.readContract({
+					address: contract.address,
+					abi: contract.abi,
+					functionName,
+				}) as Promise<bigint>,
+		).then(
+			(cap) => {
+				maxPieceMoves.set(cap);
+				return cap;
+			},
+			(error: unknown) => {
+				// Asked again by the next caller: a failed read is not the answer.
+				readingCap = undefined;
+				throw error;
+			},
+		);
+		return readingCap;
+	};
+
 	// Under a manual cycle (the offline world) nothing moves until every army
 	// has acted, so a deployed army's pass has to be SENT: the player presses
 	// Pass, which commits an empty submission. Under a clock committing nothing
@@ -465,8 +512,21 @@ export function createGameContext(core: CoreServices): GameContext {
 				},
 			}),
 		blocksCommitting,
+		// A move the contract would refuse is never committed, whoever asks for
+		// the commit (the button or the submission itself): its reveal would
+		// revert, and the army freeze.
 		adapter: ({beforeCommit}) =>
-			createChessCommitReveal({deps: core, config, beforeCommit}),
+			createChessCommitReveal({
+				deps: core,
+				config,
+				beforeCommit,
+				refuse: createWholeMoveGuard({
+					board: () => boardNow(),
+					army: () => get(activeIdentity),
+					maxPieceMoves: readCap,
+					call: wholeMove,
+				}),
+			}),
 		buildCommitment: ({actions, secret}) =>
 			buildMoveCommitment({
 				actions,
@@ -502,13 +562,15 @@ export function createGameContext(core: CoreServices): GameContext {
 			grant: SIGNER_GRANT,
 		},
 		planning: ({submission, onchainState}) => {
+			boardNow = () => get(onchainState);
 			const planning = createPlanning({
 				submission,
 				needsDeployment,
 				canMove,
 				army: activeIdentity,
 				board: onchainState,
-				legalMoves,
+				maxPieceMoves,
+				wholeMove,
 			});
 			const preview = createDeploymentPreview({plan: planning.plan, simulate});
 			// Where the enemy may move this cycle, by the same rule (story 21).
@@ -552,9 +614,13 @@ export function createGameContext(core: CoreServices): GameContext {
 			// or fails then), so the registry is read again on each.
 			void refreshStake();
 			const stopAccount = account.subscribe(() => void refreshStake());
-			const stopCycle = crg.game.currentCycleNumber.subscribe(
-				() => void armies.update().then(() => tableClaim?.update()),
-			);
+			// The cap is fixed for the game's life; read once, and again on the next
+			// cycle if it failed, until it is known. Nothing is offered before.
+			const readCapQuietly = () => void readCap().catch(() => {});
+			const stopCycle = crg.game.currentCycleNumber.subscribe(() => {
+				readCapQuietly();
+				void armies.update().then(() => tableClaim?.update());
+			});
 			return () => {
 				stopAccount();
 				stopCycle();

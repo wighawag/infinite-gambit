@@ -53,3 +53,15 @@ export function armyColour(army: bigint): string {
 	const hue = Number((army ^ (army >> 160n)) % 300n) + 60;
 	return `hsl(${hue % 360}, 65%, 62%)`;
 }
+
+/**
+ * A colour per planned piece-move, by its place in the move: the first gold,
+ * the second cyan, the third magenta, so up to three marks on the board stay
+ * apart, and the HUD names each in the colour it is drawn in.
+ */
+export const PLANNED_MOVE_COLOURS = ['#ffd166', '#5ad1e6', '#e07ad6'] as const;
+
+/** The colour the `index`-th planned piece-move of a move is drawn in. */
+export function plannedMoveColour(index: number): string {
+	return PLANNED_MOVE_COLOURS[index % PLANNED_MOVE_COLOURS.length];
+}

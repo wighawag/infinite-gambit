@@ -219,7 +219,7 @@ describe('highlights', () => {
 		]);
 	});
 
-	it('show attacked squares only around your king, on your destinations and on the planned target', () => {
+	it('show attacked squares only around your king, on your destinations and on every planned target', () => {
 		const view = viewOf({
 			kings: [
 				{
@@ -231,18 +231,27 @@ describe('highlights', () => {
 				},
 			],
 			destinations: [{x: 5, y: 5}],
-			plannedMove: {from: {x: 9, y: 9}, to: {x: 8, y: 8}},
+			plannedMoves: [
+				{from: {x: 9, y: 9}, to: {x: 8, y: 8}, index: 0},
+				{from: {x: 12, y: 12}, to: {x: 11, y: 11}, index: 1},
+			],
 			attacked: [
 				{x: 1, y: 1},
 				{x: 3, y: 3},
 				{x: 5, y: 5},
 				{x: 8, y: 8},
+				{x: 11, y: 11},
 			],
 		});
 		expect(attackedThatMatter(view)).toEqual([
 			{x: 1, y: 1},
 			{x: 5, y: 5},
 			{x: 8, y: 8},
+			{x: 11, y: 11},
+		]);
+		// Every planned piece-move is handed to the overlay, each with its place.
+		expect(overlayModel(view).planned.map((move) => move.index)).toEqual([
+			0, 1,
 		]);
 	});
 

@@ -1,6 +1,6 @@
 /**
- * Keeping the player's own deployment or move on screen until the board takes
- * it over.
+ * Keeping the player's own deployment or move (its piece-moves) on screen
+ * until the board takes it over.
  *
  * The framework decides WHEN (`game/core/handover.ts`); this is what a
  * remembered submission LOOKS like here. The submission drops its actions the
@@ -12,7 +12,7 @@
 import {derived, type Readable} from 'svelte/store';
 import type {SubmissionState} from '$lib/game/core/submission';
 import {heldTurnUntilBoardReleases} from '$lib/game/core/handover';
-import {moveOf, spawnPointOf, type Move} from './commit-reveal';
+import {pieceMovesOf, spawnPointOf, type Move} from './commit-reveal';
 import type {LocalPlan} from './view';
 
 export function holdPlanUntilBoardReleases(params: {
@@ -27,11 +27,11 @@ export function holdPlanUntilBoardReleases(params: {
 	return derived([params.plan, held], ([$plan, $held]): LocalPlan => {
 		if ($held === undefined) return $plan;
 		const spawnPoint = spawnPointOf($held);
-		// A held move keeps its mark until the board shows it landed; a held
+		// A held move keeps its marks until the board shows it landed; a held
 		// pass draws nothing; a held deployment keeps its ghost while the
 		// preview for it is still the one in hand.
-		const move = moveOf($held);
-		if (move) return {...$plan, move, preview: undefined};
+		const moves = pieceMovesOf($held);
+		if (moves.length > 0) return {...$plan, moves, preview: undefined};
 		if (spawnPoint === undefined) return {...$plan, preview: undefined};
 		return {
 			...$plan,
