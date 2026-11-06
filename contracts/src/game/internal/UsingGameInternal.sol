@@ -99,24 +99,12 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         address owner = address(uint160(army));
         (uint64 cycleNumber, ) = _cycleNumber();
         _armyCountOf[owner] = army >> 160;
-        _armies[army] = ArmyRecord({
-            owner: owner,
-            deployCycle: cycleNumber,
-            spawnIndexPlusOne: 0,
-            kingMovedIn: 0,
-            kingTo: 0,
-            kingFrom: 0,
-            cancelled: false,
-            exited: false,
-            collecting: false,
-            paid: false,
-            frozen: false,
-            atTable: false,
-            fallen: false,
-            capturedBy: 0,
-            fellIn: 0
-        });
-        _armyIds.push(army);
+        // The first slot only: the rest of the record starts at zero, and
+        // writing zero over zero would still pay for each slot.
+        ArmyRecord storage record = _armies[army];
+        record.owner = owner;
+        record.deployCycle = _cycle32(cycleNumber);
+        record.index = _registerArmy(army);
         // Only a cycle that advances reads who it waits for, so only there is
         // the army remembered for the sweep ({_sweepDeadArmies}).
         if (CYCLE_POLICY != CyclePolicy.Timed) {
@@ -163,7 +151,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             spawn.cycle == deployCycle &&
             spawn.count == 1 &&
             !spawn.blocked &&
-            spawn.army == army
+            spawn.armyIndex == record.index
         ) {
             return ArmyStatus.Deployed;
         }
@@ -378,7 +366,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     ///      skipped: it stays on the board as prey (`docs/adr/0014`). Each
     ///      army's whole reserve is DEBITED as it is collected, so nothing is
     ///      paid twice, and before that every victim of it has its taker
-    ///      written (`capturedBy`), so no later fold can move a reserve into
+    ///      written (`capturedByIndex`), so no later fold can move a reserve into
     ///      an army already collected (`UsingGameBoard-_take` skips a written
     ///      one).
     function _collect(
@@ -409,7 +397,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
                 }
                 if (seen) continue;
                 ArmyRecord storage taken = _armies[victim];
-                if (taken.capturedBy == 0) taken.capturedBy = node;
+                if (taken.capturedByIndex == 0) {
+                    taken.capturedByIndex = _indexOf(node);
+                }
                 stack.push(victim);
             }
             pot += CommitReveal.debit(node, type(uint256).max);
@@ -595,7 +585,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             spawn.cycle = cycleNumber;
             spawn.count = 1;
             spawn.blocked = blocked;
-            spawn.army = player;
+            spawn.armyIndex = _indexOf(player);
         } else {
             spawn.count += 1;
         }

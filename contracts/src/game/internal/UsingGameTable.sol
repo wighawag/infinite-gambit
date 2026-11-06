@@ -53,24 +53,13 @@ abstract contract UsingGameTable is UsingGameInternal {
         _armyCountOf[owner] = nonce;
         uint32 index = _table.spawned;
         _table.spawned = index + 1;
-        _armies[army] = ArmyRecord({
-            owner: owner,
-            deployCycle: cycleNumber,
-            spawnIndexPlusOne: index + 1,
-            kingMovedIn: 0,
-            kingTo: 0,
-            kingFrom: 0,
-            cancelled: false,
-            exited: false,
-            collecting: false,
-            paid: false,
-            frozen: false,
-            atTable: true,
-            fallen: false,
-            capturedBy: 0,
-            fellIn: 0
-        });
-        _armyIds.push(army);
+        uint32 armyIndex = _registerArmy(army);
+        ArmyRecord storage record = _armies[army];
+        record.owner = owner;
+        record.deployCycle = _cycle32(cycleNumber);
+        record.spawnIndexPlusOne = index + 1;
+        record.index = armyIndex;
+        record.atTable = true;
         if (CYCLE_POLICY != CyclePolicy.Timed) {
             _awaitedArmies.push(army);
         }
@@ -79,7 +68,7 @@ abstract contract UsingGameTable is UsingGameInternal {
             count: 1,
             blocked: false,
             arrivedIn: 0,
-            army: army
+            armyIndex: armyIndex
         });
         _addToReserve(army, STAKE);
         emit ArmyCreated(army, owner, cycleNumber, STAKE);

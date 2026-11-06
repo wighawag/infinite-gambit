@@ -32,16 +32,30 @@ abstract contract UsingGameStore is
     uint8 internal immutable OPEN_SPAWN_POINTS;
 
     /// @notice What the registry keeps of one army.
-    /// @dev One slot. Everything else about an army is RESOLVED from the facts
-    ///      (its status, its king) or is the base's (its reserve, which is its
-    ///      stake).
+    /// @dev THREE SLOTS, laid out by who reads them (`docs/gas.md`). The first
+    ///      two hold everything a reveal and a commit read: who owns it and
+    ///      where it was deployed, then where its king went and its flags. The
+    ///      third holds what only a capture's fold, an exit's payout and the
+    ///      stake views read. Everything else about an army is RESOLVED from
+    ///      the facts (its status, its king) or is the base's (its reserve,
+    ///      which is its stake).
     struct ArmyRecord {
         /// @notice who plays it: the account that created it
         address owner;
         /// @notice the cycle its deployment was committed in
-        uint64 deployCycle;
+        /// @dev 32 bits so that `index` shares this slot: 2^32 cycles is
+        ///      over a century of one-second cycles. Written through a
+        ///      checked cast ({_cycle32}).
+        uint32 deployCycle;
         /// @notice the spiral index it revealed, plus one; zero until revealed
         uint32 spawnIndexPlusOne;
+        /// @notice ITS COMPACT INDEX: its place in `_armyIds`, plus one.
+        /// @dev Written once, when it is created. Storage names an army by
+        ///      this (a square record, a spawn record, `capturedByIndex`) so
+        ///      that those records fit one slot; everything outside storage
+        ///      (the base, events, views) names it by its 256-bit id, which
+        ///      {_armyAt} gives back from the index.
+        uint32 index;
         // ---- second slot: where its king went, written by its own reveals
         /// @notice the cycle its king last moved in; zero while it stands
         ///         where it was deployed
@@ -78,17 +92,16 @@ abstract contract UsingGameStore is
         /// @dev In this slot so that the vanish check of a live army costs
         ///      this slot and its king's square, nothing more.
         bool fallen;
-        // ---- third slot: who holds its stake
-        /// @notice the army its stake went to once a later reveal has folded
-        ///         the capture: the army that took its king, or that took its
-        ///         stone; zero until then, for an army whose king was never
-        ///         taken, and for a stone nobody has taken
-        ///         (`docs/adr/0013`, `docs/adr/0014`)
+        // ---- third slot: who holds its stake, and when its king fell
+        /// @notice the compact index of the army its stake went to once a
+        ///         later reveal has folded the capture: the army that took its
+        ///         king, or that took its stone; zero until then, for an army
+        ///         whose king was never taken, and for a stone nobody has
+        ///         taken (`docs/adr/0013`, `docs/adr/0014`)
         /// @dev A CACHE OF A CLOSED CYCLE'S FACTS, written by `_touch` just
         ///      before it overwrites them (`UsingGameBoard-_captureOf`), or by
         ///      an exit's collection (`UsingGameInternal-_collect`).
-        uint256 capturedBy;
-        // ---- fourth slot: when its king fell
+        uint32 capturedByIndex;
         /// @notice the cycle its king was taken in, once `fallen` is written;
         ///         read only to decide whether a capture by this army leaves a
         ///         stone (`docs/adr/0014`)
@@ -106,27 +119,32 @@ abstract contract UsingGameStore is
     ///      cost nothing. A square no reveal ever touched has no record and
     ///      reads as the layout of the army deployed over it, if any.
     ///
-    ///      Four slots: the standing piece's army, everything small, the
-    ///      arriver's army and the arriving king's army. The ARRIVER is the
+    ///      ONE SLOT: every army in it is a compact index
+    ///      ({ArmyRecord-index}), never a 256-bit id, so a touch writes one
+    ///      slot (`docs/gas.md`). The ARRIVER is the
     ///      first piece other than a king to arrive, and the KING is kept apart
     ///      from it, because the king rows of the collision table need both:
     ///      who the king met when it met exactly one piece
     ///      (`docs/adr/0003-collision-table-king-survives-a-crowd.md`).
     struct SquareRecord {
-        uint256 army;
         uint64 cycle;
         PieceKind kind;
         bool departed;
         uint32 arrivals;
         bool kingArrived;
         PieceKind arriverKind;
-        uint256 arriverArmy;
-        uint256 kingArmy;
+        /// @dev the standing piece's army, as an index
+        uint32 armyIndex;
+        /// @dev the arriver's army, as an index
+        uint32 arriverIndex;
+        /// @dev the arriving king's army, as an index
+        uint32 kingIndex;
     }
 
     /// @notice What the deployments revealed onto one spawn point add up to.
     /// @dev ACCUMULATED: `count` is how many deployments revealed it in
-    ///      `cycle`, and `army` is meaningful only when that count is one, which
+    ///      `cycle`, and `armyIndex` (the army's compact index, so the record is
+    ///      one slot) is meaningful only when that count is one, which
     ///      is what makes it order-free (see `_revealDeployment`).
     ///
     ///      `blocked` is whether its FOOTPRINT (the squares its layout puts a
@@ -148,12 +166,14 @@ abstract contract UsingGameStore is
         uint32 count;
         bool blocked;
         uint64 arrivedIn;
-        uint256 army;
+        uint32 armyIndex;
     }
 
     /// @notice The army registry.
     mapping(uint256 army => ArmyRecord) internal _armies;
-    /// @notice Every army ever created, in order: what the registry pages over.
+    /// @notice Every army ever created, in order: what the registry pages over,
+    ///         and what turns an army's compact index back into its id
+    ///         ({_armyAt}).
     uint256[] internal _armyIds;
     /// @notice How many armies each account has created; its next is one more.
     mapping(address owner => uint256 count) internal _armyCountOf;
@@ -246,6 +266,40 @@ abstract contract UsingGameStore is
 
     /// @notice The material each standing army holds at a table's cap.
     mapping(uint256 army => uint256 material) internal _materialOf;
+
+    /// @notice The id of the army with compact index `index`; zero for zero.
+    /// @dev `_armyIds[index - 1]` without the bounds check, which would read
+    ///      the array's length: an index is only ever written for an army that
+    ///      was pushed, and it is never removed.
+    function _armyAt(uint32 index) internal view returns (uint256 army) {
+        if (index == 0) return 0;
+        assembly ("memory-safe") {
+            mstore(0, _armyIds.slot)
+            army := sload(add(keccak256(0, 32), sub(index, 1)))
+        }
+    }
+
+    /// @notice The compact index of `army`; zero for zero, or for an army that
+    ///         does not exist.
+    function _indexOf(uint256 army) internal view returns (uint32) {
+        if (army == 0) return 0;
+        return _armies[army].index;
+    }
+
+    /// @notice Register a new army in `_armyIds` and return its compact index.
+    function _registerArmy(uint256 army) internal returns (uint32 index) {
+        index = uint32(_armyIds.length + 1);
+        _armyIds.push(army);
+    }
+
+    /// @notice `cycleNumber` as the 32 bits an army record keeps of it.
+    /// @dev Never truncated: past 2^32 cycles (over a century of one-second
+    ///      cycles) no army can be created, rather than one being recorded in
+    ///      the wrong cycle.
+    function _cycle32(uint64 cycleNumber) internal pure returns (uint32) {
+        require(cycleNumber <= type(uint32).max);
+        return uint32(cycleNumber);
+    }
 
     /// @notice Create an instance of a game
     /// @param config configuration options for the game
