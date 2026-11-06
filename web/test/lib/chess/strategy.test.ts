@@ -40,7 +40,6 @@ const CHAIN_ID = 9007199254740131;
 const OWN = (1n << 160n) | 0xabcn;
 const ENEMY = (1n << 160n) | 0xdefn;
 const OTHER = (2n << 160n) | 0xdefn;
-const ROCK = 0n;
 
 const piece = (x: number, y: number, kind: PieceKind, army: bigint): Piece => ({
 	position: squareAt(x, y),
@@ -147,14 +146,14 @@ describe('captureValue and chooseGreedyMove', () => {
 	const material = (kind: PieceKind) =>
 		({1: 1, 2: 3, 3: 3, 4: 5, 5: 9})[kind as 1] ?? 0;
 
-	it('values an enemy piece by material and a king above everything, and nothing for its own army, a rock or an empty square', () => {
+	it('values an enemy piece by material, a king and a stone above everything, and nothing for its own army or an empty square', () => {
 		const at = (kind: PieceKind, army: bigint) =>
 			captureValue({kind, army}, OWN, material, 10);
 		expect(at(PIECE_KIND.Queen, ENEMY)).toBe(9);
 		expect(at(PIECE_KIND.Pawn, ENEMY)).toBe(1);
 		expect(at(PIECE_KIND.King, ENEMY)).toBe(10);
+		expect(at(PIECE_KIND.Stone, ENEMY)).toBe(10);
 		expect(at(PIECE_KIND.Queen, OWN)).toBe(0);
-		expect(at(PIECE_KIND.Queen, ROCK)).toBe(0);
 		expect(captureValue(undefined, OWN, material, 10)).toBe(0);
 	});
 
@@ -200,11 +199,11 @@ describe('the greedy strategy, scored by the deployed rules', () => {
 		]);
 	}, 60_000);
 
-	it('does not aim at a rock, however it is shaped', async () => {
+	it('takes a stone over any material, as it would a king: the stone holds a stake', async () => {
 		const {decide} = strategyOn([
 			piece(0, 0, PIECE_KIND.Rook, OWN),
-			piece(0, 4, PIECE_KIND.Queen, ROCK),
-			piece(4, 0, PIECE_KIND.Pawn, ENEMY),
+			piece(0, 4, PIECE_KIND.Queen, ENEMY),
+			piece(4, 0, PIECE_KIND.Stone, OTHER),
 		]);
 		expect(await decide()).toEqual([
 			{from: squareAt(0, 0), to: squareAt(4, 0)},

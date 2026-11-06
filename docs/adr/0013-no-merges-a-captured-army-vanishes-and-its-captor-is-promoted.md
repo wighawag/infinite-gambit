@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # No merges: a captured army vanishes, its stake goes to its captor, and the capturing piece becomes a queen

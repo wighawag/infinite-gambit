@@ -11,8 +11,8 @@ const GLYPHS: Record<PieceKind, string> = {
 	[PIECE_KIND.Rook]: '\u265C',
 	[PIECE_KIND.Queen]: '\u265B',
 	[PIECE_KIND.King]: '\u265A',
-	// A placeholder until stones are drawn (`lean-rules-captures-on-the-client`).
-	[PIECE_KIND.Stone]: '\u25CF',
+	// A stone is drawn on a square tile (`STONE_COLOUR`), never a disc.
+	[PIECE_KIND.Stone]: '\u25C6',
 };
 
 /** The chess glyph a piece is drawn with. */
@@ -20,19 +20,26 @@ export function glyphOf(kind: PieceKind): string {
 	return GLYPHS[kind] ?? '?';
 }
 
-/** A ROCK: a piece nobody can play again (army zero on the board read). */
-export const ROCK_COLOUR = '#7a7f8c';
+/**
+ * A STONE's tile: a taken king that never moves again and holds its army's
+ * stake (`docs/adr/0014`). Drawn as a square rather than a disc, so it is never
+ * read as a piece anyone plays, and edged in the colour of the army it was.
+ */
+export const STONE_COLOUR = '#8d8579';
+
+/** Whether a piece is drawn as a stone. */
+export const isStone = (kind: PieceKind): boolean => kind === PIECE_KIND.Stone;
 
 /**
  * A FROZEN army's pieces: its own hue, drained of colour, so it stays told
- * apart from the other frozen armies and from the flat grey of a rock.
+ * apart from the other frozen armies and from a stone's tile.
  */
 export function frozenColour(army: bigint): string {
 	const hue = Number((army ^ (army >> 160n)) % 300n) + 60;
 	return `hsl(${hue % 360}, 12%, 58%)`;
 }
 
-/** The ring a frozen army's pieces are drawn with, which a rock has not. */
+/** The ring a frozen army's pieces are drawn with. */
 export const FROZEN_RING = '#cfe8ff';
 
 /** The colour of the army this client plays. */

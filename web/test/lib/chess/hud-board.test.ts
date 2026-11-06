@@ -1,7 +1,13 @@
 import {describe, it, expect} from 'vitest';
 import {ARMY_STATUS, type ArmyView} from '$lib/chess/armies';
 import {squareAt} from '$lib/chess/squares';
-import {frozenArmiesOf, kingsOf, mergeBoardView} from '$lib/chess/view';
+import {
+	frozenArmiesOf,
+	kingsOf,
+	mergeBoardView,
+	stonesOf,
+} from '$lib/chess/view';
+import {DIRECTION, PIECE_KIND, type Piece} from '$lib/chess/board';
 import {noOutcomes} from '$lib/chess/outcomes';
 import {describeCountdown, formatCountdown} from '$lib/chess/ui/hud';
 import type {CycleInfo} from '$lib/game/core/cycle';
@@ -61,6 +67,29 @@ describe('the kings and their stakes', () => {
 		expect(kings[0].stakeLabel).toContain('30');
 		expect(kings[0].stakeLabel).toContain('TOK');
 		expect(kings[1].stakeLabel).toContain('frozen');
+	});
+
+	it('labels every stone in view with the stake its army still holds, as the registry says', () => {
+		const stone = (x: number, y: number, army: bigint): Piece => ({
+			position: squareAt(x, y),
+			army,
+			kind: PIECE_KIND.Stone,
+			forward: DIRECTION.North,
+			moved: false,
+		});
+		const pawn: Piece = {...stone(9, 9, 1n), kind: PIECE_KIND.Pawn};
+		const pieces = new Map(
+			[stone(4, 5, 6n), pawn].map((p) => [p.position, p] as const),
+		);
+		const stones = stonesOf(pieces, [
+			army(1n, ARMY_STATUS.Deployed, {stake: 30n * 10n ** 18n}),
+			army(6n, ARMY_STATUS.Captured, {stake: 12n * 10n ** 18n}),
+		]);
+		expect(
+			stones.map(({army, position2d, stake}) => ({army, position2d, stake})),
+		).toEqual([{army: 6n, position2d: {x: 4, y: 5}, stake: 12n * 10n ** 18n}]);
+		expect(stones[0].stakeLabel).toContain('12');
+		expect(stones[0].stakeLabel).toContain('stone');
 	});
 
 	it('names the frozen armies, a missed reveal not yet settled included (the registry counts it)', () => {

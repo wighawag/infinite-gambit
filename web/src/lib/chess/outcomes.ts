@@ -75,6 +75,53 @@ export function accumulateOutcomes(
 }
 
 /**
+ * What a capture on a square did, beyond taking a piece, read from the
+ * contract's answer alone (`ChessRules.outcome` for what was taken and how many
+ * arrivals died, `getPieces`' resolution for what stands there now): nothing
+ * here applies a rule, it only names the shapes that answer can take
+ * (`docs/adr/0013`, `docs/adr/0014`).
+ */
+export type CaptureEffects = {
+	/**
+	 * The piece standing there now landed as a queen: it took a king that
+	 * stayed (a king that takes a king stays a king), or it was the one piece
+	 * a moving king met.
+	 */
+	promoted: boolean;
+	/**
+	 * The army of the king that stayed there and was taken for good: its
+	 * pieces leave the board from the next cycle and its stake is its
+	 * captor's. Absent when no king was taken, or when it became a stone.
+	 */
+	vanished?: bigint;
+	/** A stone stands there now, from a capture whose captor's king fell. */
+	stoneMade: boolean;
+	/** A stone that stood there was taken, with its stake, by what stands now. */
+	stoneCaptured: boolean;
+	/**
+	 * A moving king met exactly one piece there and died: the only row of the
+	 * table where exactly one arrival dies.
+	 */
+	kingMet: boolean;
+};
+
+export function captureEffectsOf(outcome: SquareOutcome): CaptureEffects {
+	const {captured, piece} = outcome;
+	const kingMet = outcome.died === 1;
+	const stoneNow = piece?.kind === PIECE_KIND.Stone;
+	const kingTaken = captured?.kind === PIECE_KIND.King;
+	const stoneTaken = captured?.kind === PIECE_KIND.Stone;
+	const vanished = kingTaken && !stoneNow ? captured.army : undefined;
+	return {
+		promoted: piece?.kind === PIECE_KIND.Queen && (kingTaken || kingMet),
+		...(vanished !== undefined ? {vanished} : {}),
+		stoneMade: stoneNow && !stoneTaken,
+		stoneCaptured: stoneTaken && !stoneNow && piece !== undefined,
+		kingMet,
+	};
+}
+
+/**
  * A piece kind as a player says it. A function rather than a table built at
  * load time, because `./board` imports this module and a table would read
  * `PIECE_KIND` before that cycle has finished loading.
@@ -88,6 +135,7 @@ function pieceName(kind: number): string {
 			[PIECE_KIND.Rook]: 'rook',
 			[PIECE_KIND.Queen]: 'queen',
 			[PIECE_KIND.King]: 'king',
+			[PIECE_KIND.Stone]: 'stone',
 		}[kind] ?? 'piece'
 	);
 }
@@ -97,6 +145,110 @@ export type OutcomeLine = {
 	/** `bad` when it cost the player a piece, `good` when it won them one. */
 	tone: 'idle' | 'good' | 'bad';
 };
+
+/** Who a line is about, from the player's side. */
+type Side = 'yours' | 'theirs' | 'nobody';
+
+const sideOf = (army: bigint | undefined, you: bigint | undefined): Side =>
+	you === undefined || army === undefined
+		? 'nobody'
+		: army === you
+			? 'yours'
+			: 'theirs';
+
+/** The line for a capture of a king or a stone, or undefined for any other. */
+function describeStakeCapture(
+	outcome: SquareOutcome,
+	effects: CaptureEffects,
+	at: string,
+	you: bigint | undefined,
+): OutcomeLine | undefined {
+	const {captured, piece} = outcome;
+	if (!captured) return undefined;
+	const victim = sideOf(captured.army, you) === 'yours';
+	const captor = !victim && sideOf(piece?.army, you) === 'yours';
+	if (effects.stoneMade) {
+		const whose = victim ? 'your' : 'its';
+		const what = victim ? 'Your king' : 'A king';
+		return {
+			label: `${what} on ${at} was taken by a piece whose own king fell this cycle: it is a stone now, holding ${whose} army's stake.`,
+			tone: victim ? 'bad' : 'idle',
+		};
+	}
+	if (effects.vanished !== undefined) {
+		const how = effects.promoted
+			? 'and the piece that took it is now a queen'
+			: piece
+				? `by a ${pieceName(piece.kind)}`
+				: '';
+		if (captor) {
+			const by = effects.promoted
+				? 'piece captured a king on ' + at + ' and is now a queen'
+				: `${pieceName(piece!.kind)} captured a king on ${at}`;
+			return {
+				label: `Your ${by}: its army leaves the board and its stake is yours.`,
+				tone: 'good',
+			};
+		}
+		const sep = effects.promoted ? ', ' : how ? ' ' : '';
+		if (victim) {
+			return {
+				label: `Your king on ${at} was captured${sep}${how}: your army leaves the board and its stake is theirs.`,
+				tone: 'bad',
+			};
+		}
+		return {
+			label: `A king on ${at} was captured${sep}${how}: its army leaves the board and its stake goes to the captor.`,
+			tone: 'idle',
+		};
+	}
+	if (effects.stoneCaptured && piece) {
+		const by = pieceName(piece.kind);
+		if (captor) {
+			return {
+				label: `Your ${by} captured a stone on ${at}: its stake is yours.`,
+				tone: 'good',
+			};
+		}
+		if (victim) {
+			return {
+				label: `Your stone on ${at} was captured by a ${by}: its stake is theirs.`,
+				tone: 'bad',
+			};
+		}
+		return {
+			label: `A stone on ${at} was captured by a ${by}, which took its stake.`,
+			tone: 'idle',
+		};
+	}
+	return undefined;
+}
+
+/** The line for a moving king that met exactly one piece and died. */
+function describeKingMet(
+	outcome: SquareOutcome,
+	effects: CaptureEffects,
+	at: string,
+	you: bigint | undefined,
+): OutcomeLine {
+	const {piece} = outcome;
+	if (effects.stoneMade) {
+		return {
+			label: `A king moving onto ${at} met one piece and died, and that piece's own king fell too: a stone stands there now, holding a stake.`,
+			tone: 'idle',
+		};
+	}
+	if (piece && sideOf(piece.army, you) === 'yours') {
+		return {
+			label: `Your piece on ${at} took a moving king and is now a queen: the king's stake is yours.`,
+			tone: 'good',
+		};
+	}
+	return {
+		label: `A king moving onto ${at} met one piece and died: that piece is now a queen with the king's stake.`,
+		tone: 'idle',
+	};
+}
 
 /**
  * The last cycle's outcomes in the player's words, in the order of their
@@ -116,7 +268,14 @@ export function describeOutcomes(
 		const {x, y} = square(outcome.position);
 		const at = `(${x}, ${y})`;
 		const {captured, piece} = outcome;
-		if (captured) {
+		const effects = captureEffectsOf(outcome);
+		if (effects.kingMet) {
+			lines.push(describeKingMet(outcome, effects, at, you));
+		}
+		const stakeLine = describeStakeCapture(outcome, effects, at, you);
+		if (stakeLine) {
+			lines.push(stakeLine);
+		} else if (captured) {
 			const what = pieceName(captured.kind);
 			const by = piece ? ` by a ${pieceName(piece.kind)}` : '';
 			if (you !== undefined && captured.army === you) {
@@ -136,7 +295,7 @@ export function describeOutcomes(
 				});
 			}
 		}
-		if (outcome.died > 0) {
+		if (outcome.died > 1) {
 			const held = piece
 				? `; the ${pieceName(piece.kind)} there held its square`
 				: '';

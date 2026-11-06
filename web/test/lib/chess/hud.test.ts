@@ -30,6 +30,43 @@ describe('the HUD', () => {
 		expect(captured?.label).toContain('king was taken');
 	});
 
+	it('says nothing of rocks or merges, and shows the total an army holds, the stakes it captured included', () => {
+		const statuses = Object.values(ARMY_STATUS);
+		for (const status of statuses) {
+			for (const capturedBy of [0n, 5n]) {
+				const army = {status, stake: 10n, capturedBy};
+				const words = [
+					describeArmy(army),
+					describeLastDeployment({needsDeployment: true, last: army}),
+				]
+					.flatMap((said) => (said ? [said.label, said.stakeLabel] : []))
+					.join(' ');
+				expect(words).not.toMatch(/rock|merge|joined the army|play for/i);
+			}
+		}
+		const deployed = describeArmy({
+			status: ARMY_STATUS.Deployed,
+			stake: 30n * 10n ** 18n,
+		});
+		expect(deployed?.stakeLabel).toContain('30');
+		expect(deployed?.stakeLabel).toContain('every stake it captured');
+		const exited = describeArmy({status: ARMY_STATUS.Exited, stake: 0n});
+		expect(exited?.label).toContain('its pieces left the board');
+	});
+
+	it('tells the player their king is a stone holding their stake, while nobody has captured it', () => {
+		const stone = {
+			status: ARMY_STATUS.Captured,
+			stake: 10n * 10n ** 18n,
+			capturedBy: 0n,
+		};
+		expect(describeArmy(stone)?.label).toContain('stone');
+		const last = describeLastDeployment({needsDeployment: true, last: stone});
+		expect(last?.label).toContain('stone');
+		expect(last?.stakeLabel).toContain('10');
+		expect(last?.stakeLabel).toContain('whoever captures it');
+	});
+
 	it('tells the player their king was taken, and that its stake went with its pieces, while they deploy again', () => {
 		const captured = describeLastDeployment({
 			needsDeployment: true,

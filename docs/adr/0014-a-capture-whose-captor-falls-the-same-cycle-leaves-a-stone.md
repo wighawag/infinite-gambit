@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A capture whose captor falls in the same cycle leaves a stone that holds the stake

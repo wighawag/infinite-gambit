@@ -28,6 +28,7 @@ import type {OnchainStateValue} from '$lib/game/core/seams';
 const YOU = 1n << 160n;
 const THEM = 2n << 160n;
 const FROZEN = 3n << 160n;
+const STONE = 4n << 160n;
 
 const piece = (
 	army: bigint,
@@ -65,13 +66,15 @@ const board = (pieces: Piece[], armies: ArmyView[]) =>
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('whose pieces attack', () => {
-	it('is every piece of another army that may move: not yours, not a rock, not a frozen army', () => {
+	it('is every piece of another army that may move: not yours, not a frozen army, not a stone', () => {
 		const pieces = [
 			piece(YOU, 0, 0),
 			piece(THEM, 1, 1),
 			piece(THEM, 2, 2, PIECE_KIND.King),
 			piece(FROZEN, 3, 3),
-			piece(0n, 4, 4),
+			piece(STONE, 4, 4, PIECE_KIND.Stone),
+			// A stone attacks nothing whatever its army's record says.
+			piece(THEM, 5, 5, PIECE_KIND.Stone),
 		];
 		const attackers = attackersOf({
 			pieces: new Map(pieces.map((p) => [p.position, p])),
@@ -79,6 +82,7 @@ describe('whose pieces attack', () => {
 				army(YOU, ARMY_STATUS.Deployed),
 				army(THEM, ARMY_STATUS.Deployed),
 				army(FROZEN, ARMY_STATUS.Frozen),
+				army(STONE, ARMY_STATUS.Captured),
 			],
 			you: YOU,
 		});

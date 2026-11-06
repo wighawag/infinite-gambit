@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {
 	accumulateOutcomes,
+	captureEffectsOf,
 	describeOutcomes,
 	noOutcomes,
 	outcomeOf,
@@ -185,5 +186,94 @@ describe('showing the outcomes', () => {
 		});
 		expect(describeLastCycle(view([]))).toBeUndefined();
 		expect(describeLastCycle({step: 'Unloaded'} as never)).toBeUndefined();
+	});
+});
+
+describe('the captures of the lean rules, as the contract reports them', () => {
+	const K = PIECE_KIND.King;
+	const Q = PIECE_KIND.Queen;
+	const S = PIECE_KIND.Stone;
+	const OTHER = 11n << 160n;
+	// A lone arrival took a standing king: it lands as a queen.
+	const promotion = outcomeOf(
+		raw(1, 1, 0, {army: THEM, kind: K}, {army: YOU, kind: Q}),
+	);
+	// A king took a king: it stays a king.
+	const kingTookKing = outcomeOf(
+		raw(1, 2, 0, {army: THEM, kind: K}, {army: OTHER, kind: K}),
+	);
+	// The captor's own king fell the same cycle: the taken king is a stone.
+	const stoneMade = outcomeOf(
+		raw(1, 3, 0, {army: YOU, kind: K}, {army: YOU, kind: S}),
+	);
+	// A stone taken: its stake moves, nothing is promoted.
+	const stoneTaken = outcomeOf(
+		raw(1, 4, 0, {army: OTHER, kind: S}, {army: YOU, kind: PIECE_KIND.Rook}),
+	);
+	// A moving king met exactly one piece: it died, that piece is a queen.
+	const kingMet = outcomeOf(raw(1, 5, 1, undefined, {army: THEM, kind: Q}));
+
+	it('reads each from what was captured, what died and what stands there now', () => {
+		expect(captureEffectsOf(promotion)).toEqual({
+			promoted: true,
+			vanished: THEM,
+			stoneMade: false,
+			stoneCaptured: false,
+			kingMet: false,
+		});
+		expect(captureEffectsOf(kingTookKing)).toMatchObject({
+			promoted: false,
+			vanished: THEM,
+		});
+		expect(captureEffectsOf(stoneMade)).toMatchObject({
+			stoneMade: true,
+			promoted: false,
+		});
+		expect(captureEffectsOf(stoneMade).vanished).toBeUndefined();
+		expect(captureEffectsOf(stoneTaken)).toMatchObject({
+			stoneCaptured: true,
+			promoted: false,
+		});
+		expect(captureEffectsOf(kingMet)).toMatchObject({
+			kingMet: true,
+			promoted: true,
+		});
+		expect(captureEffectsOf(capture)).toEqual({
+			promoted: false,
+			stoneMade: false,
+			stoneCaptured: false,
+			kingMet: false,
+		});
+	});
+
+	it('words a promotion, a vanished army, a stone made and a stone captured', () => {
+		const words = (outcome: SquareOutcome, you?: bigint) =>
+			describeOutcomes([outcome], positionOf, you).map((l) => l.label);
+		expect(words(promotion, YOU)).toEqual([
+			'Your piece captured a king on (1, 1) and is now a queen: its army leaves the board and its stake is yours.',
+		]);
+		expect(words(promotion, THEM)).toEqual([
+			'Your king on (1, 1) was captured, and the piece that took it is now a queen: your army leaves the board and its stake is theirs.',
+		]);
+		expect(words(kingTookKing)).toEqual([
+			'A king on (1, 2) was captured by a king: its army leaves the board and its stake goes to the captor.',
+		]);
+		expect(words(stoneMade, YOU)).toEqual([
+			"Your king on (1, 3) was taken by a piece whose own king fell this cycle: it is a stone now, holding your army's stake.",
+		]);
+		expect(words(stoneTaken, YOU)).toEqual([
+			'Your rook captured a stone on (1, 4): its stake is yours.',
+		]);
+		expect(words(stoneTaken, OTHER)).toEqual([
+			'Your stone on (1, 4) was captured by a rook: its stake is theirs.',
+		]);
+		expect(words(kingMet)).toEqual([
+			"A king moving onto (1, 5) met one piece and died: that piece is now a queen with the king's stake.",
+		]);
+		expect(describeOutcomes([kingMet], positionOf, THEM)[0]).toEqual({
+			label:
+				"Your piece on (1, 5) took a moving king and is now a queen: the king's stake is yours.",
+			tone: 'good',
+		});
 	});
 });

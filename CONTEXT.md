@@ -193,7 +193,7 @@ At a table the seat IS the army: buying a seat creates a new army for the buyer,
 _Avoid_: player slot, seat account
 
 **Greedy level**:
-How a played seat of the offline world plays by default: each cycle it captures the most valuable enemy piece one of its pieces can reach (a king above any material, then by material), and otherwise makes a random legal move. Legality and material are the contract's, run from the Simulation route (`legalMoves`, `materialOf`). A played seat whose army is gone (failed, captured, frozen) deploys its account's NEXT army, buying a stake with its play money when the reserve cannot pay. The other level, `random`, deploys and then passes.
+How a played seat of the offline world plays by default: each cycle it captures the most valuable enemy piece one of its pieces can reach (a king or a stone above any material, since both carry a stake, then by material), and otherwise makes a random legal move. Legality and material are the contract's, run from the Simulation route (`legalMoves`, `materialOf`). A played seat whose army is gone (failed, captured, frozen) deploys its account's NEXT army, buying a stake with its play money when the reserve cannot pay. The other level, `random`, deploys and then passes.
 _Avoid_: AI, difficulty, bot
 
 **Material**:

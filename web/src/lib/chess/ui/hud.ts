@@ -739,10 +739,23 @@ const NO_REVEAL_SCHEDULE: Readable<ScheduledReveal | undefined> =
 export const LOADING_ACCOUNT =
 	"Loading your account's data: a spawn point clicked now is not picked.";
 
+/**
+ * The registry entry the HUD words an army from. `capturedBy` tells a taken
+ * king that is a stone nobody has captured (zero, its stake still its own)
+ * from one whose stake went to its captor; without it a captured army is
+ * worded as the latter.
+ */
+type ArmyWords = Pick<ArmyView, 'status' | 'stake'> &
+	Partial<Pick<ArmyView, 'capturedBy'>>;
+
+/** Whether a captured army's king is a stone that still holds its stake. */
+const isStoneArmy = (army: ArmyWords) =>
+	army.status === ARMY_STATUS.Captured &&
+	army.capturedBy === 0n &&
+	army.stake > 0n;
+
 /** Where an army is, in the player's words. */
-export function describeArmy(
-	army: Pick<ArmyView, 'status' | 'stake'> | undefined,
-): HudModel['army'] {
+export function describeArmy(army: ArmyWords | undefined): HudModel['army'] {
 	if (!army) return undefined;
 	const stakeLabel = STAKE.amount(army.stake);
 	switch (army.status) {
@@ -753,7 +766,13 @@ export function describeArmy(
 				tone: 'busy',
 			};
 		case ARMY_STATUS.Deployed:
-			return {label: 'On the board.', stakeLabel, tone: 'good'};
+			return {
+				label: 'On the board.',
+				// The registry's stake is already the total: its own and every
+				// stake it captured, which is what its king would exit with.
+				stakeLabel: `${stakeLabel} in all: its own and every stake it captured, what its king would exit with.`,
+				tone: 'good',
+			};
 		case ARMY_STATUS.Failed:
 			return {
 				label:
@@ -775,15 +794,16 @@ export function describeArmy(
 			};
 		case ARMY_STATUS.Captured:
 			return {
-				label:
-					'Its king was taken: its pieces and its stake joined the army that took it.',
+				label: isStoneArmy(army)
+					? 'Its king was taken by a piece whose own king fell the same cycle: its pieces left the board, and its king is a stone holding its stake, for whoever captures it.'
+					: 'Its king was taken: its pieces left the board, and its stake went to the army that took it.',
 				stakeLabel,
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Exited:
 			return {
 				label:
-					'Its king left through an exit, with its stake: its own pieces left the board, and those it had won stay as rocks.',
+					'Its king left through an exit, with its stake and every stake it captured: its pieces left the board with it.',
 				stakeLabel,
 				tone: 'good',
 			};
@@ -806,7 +826,7 @@ export function describeArmy(
  */
 export function describeLastDeployment(params: {
 	needsDeployment: boolean;
-	last: Pick<ArmyView, 'status' | 'stake'> | undefined;
+	last: ArmyWords | undefined;
 }): HudModel['lastDeployment'] {
 	const {last} = params;
 	if (!params.needsDeployment || !last) return undefined;
@@ -839,12 +859,19 @@ export function describeLastDeployment(params: {
 				tone: 'bad',
 			};
 		case ARMY_STATUS.Captured:
-			return {
-				label:
-					'Your king was taken: your pieces now play for the army that took it. Pick a spawn point to deploy again.',
-				stakeLabel: 'Your stake went to your captor, with your pieces.',
-				tone: 'bad',
-			};
+			return isStoneArmy(last)
+				? {
+						label:
+							'Your king was taken by a piece whose own king fell the same cycle: it is a stone now, and your pieces left the board. Pick a spawn point to deploy again.',
+						stakeLabel: `Its stake of ${STAKE.amount(last.stake)} stays on the board in the stone, for whoever captures it.`,
+						tone: 'bad',
+					}
+				: {
+						label:
+							'Your king was taken: your pieces left the board. Pick a spawn point to deploy again.',
+						stakeLabel: 'Your stake went to your captor.',
+						tone: 'bad',
+					};
 		case ARMY_STATUS.Exited:
 			return {
 				label:
