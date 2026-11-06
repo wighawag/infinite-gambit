@@ -50,3 +50,13 @@ git fetch <remote> && git switch -c work/chess-hud <remote>/main
 # on completion, in the work branch's PR/merge:
 git mv work/tasks/ready/chess-hud.md work/tasks/done/chess-hud.md
 ```
+
+## Decisions
+
+- **An attacked square means "an enemy piece may legally move onto it this cycle".** I chose this because all armies move at once and moves are judged on the board the cycle started with: a piece of yours standing there can be captured, and one arriving there collides. The consequence is that an enemy pawn's diagonal onto an empty square is not marked, and its step forward is. The alternative was the chess picture, which would need a new "attacks" rule (a TypeScript copy, which ADR 0007 forbids, or a new contract function) and would mislead under simultaneous moves. This touches the new `CONTEXT.md` entry and `web/src/lib/chess/attacked.ts`.
+- **The overlay calls the existing `legalMoves` once per enemy piece, rather than adding a batch call to the Simulation route.** No contract, ABI or route-size change was needed. The cost is one sandbox call per enemy piece in the loaded area, re-run only when the board read changes. If this proves slow when zoomed far out, a batch call on the route is the fix.
+- **The overlay only shows while the player's own army is on the board and not frozen.** Its purpose is not walking into a capture, and an army that is deploying, frozen or gone has no move to make. Attackers are pieces of armies the registry has as `Deployed`, so frozen armies and rocks are excluded. It only affects what is drawn.
+- **The countdown follows the contract's two phases, separate from the dial.** The dial (part of the framework) counts this browser's commit margin and the reveal phase as one span, which doesn't say when a reveal must land. Under early advance the label adds "sooner once every army has acted". With no clock (manual cycles) there is no countdown. The dial and `twoPhase` are unchanged.
+- **Frozen versus rock styling:** frozen pieces use their own colour drained to grey, alpha 0.55 and a pale ring; rocks stay flat grey at alpha 0.6 with no ring.
+- **King labels come from the registry's king square and stake**, for armies that are `Deployed` or `Frozen`. Captured and exited armies have no king on the board. As the forward-pointer says, the stake counts merged stakes only as far as the registry does (eight captures deep).
+- **Minimap exits are skipped above 1,024** (`MAX_MINIMAP_EXITS`), when the map is zoomed out so far they would blur together. There are none at a table, matching the board.

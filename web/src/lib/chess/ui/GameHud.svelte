@@ -146,6 +146,14 @@
 			<div>
 				<p class="text-sm font-semibold">{$hud.phaseLabel}</p>
 				<p class="text-xs text-muted-foreground">cycle {$hud.cycleNumber}</p>
+				{#if $hud.countdown}
+					<p
+						class="max-w-48 text-xs font-medium tabular-nums"
+						data-testid="phase-countdown"
+					>
+						{$hud.countdown.label}
+					</p>
+				{/if}
 			</div>
 		</div>
 		{#if $hud.walletSigningNotice}
@@ -476,6 +484,8 @@
 				{:else if $hud.moving}
 					Select one of your pieces, then one of the highlighted squares. One
 					move per cycle, hidden until the reveal; it lands when the cycle ends.
+					Squares tinted red are where an enemy piece may move this cycle: a
+					piece of yours there can be captured, or collide.
 				{:else}
 					Your army acts from the cycle after it lands.
 				{/if}

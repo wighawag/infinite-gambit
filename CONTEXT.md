@@ -224,6 +224,10 @@ _Avoid_: mutual capture, swap, draw
 What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured, its pieces then joining the captor. It takes nothing: the whole stake stays on the board as prey. An army is frozen as soon as its reveal window closes unrevealed, before anyone settles it (frozen flag OR an unrevealed commitment from a past cycle: `_isFrozen`, `isFrozen`, status `Frozen` in the registry). A commitment that cannot be revealed (an illegal move, a reveal out of gas) is a missed reveal too. In the framework's terms it is a forfeit, and the cycle stops waiting for it.
 _Avoid_: ban, lock, penalty
 
+**Attacked square**:
+A square a piece of another army may legally move onto this cycle, judged on the board the cycle started with: a piece standing there can be captured, and one arriving there collides. Because every army moves at once this is not chess's attacked square: an enemy pawn's diagonal onto an empty square is not attacked (that pawn may not move there this cycle), and its step forward is. A frozen army and a rock attack nothing, since neither moves again. The client works it out only by running the contract's `legalMoves` over the enemy's pieces (`web/src/lib/chess/attacked.ts`).
+_Avoid_: threatened, controlled, in check
+
 ## The work/ contract
 
 Planning lives in `work/` on `main` (this is a final game, not a template, so there is no orphan `work` branch). The reference docs are in `work/protocol/`, copied by dorfl's `setup` and re-synced by `dorfl sync`: never edit them here. Status is the folder an item is in. `work/specs/` holds product intent, `work/tasks/` the build board, `work/notes/{ideas,observations,findings}` captured signals (findings are external ground truth, each with a `source:`), and `work/questions/` what needs a human. `docs/adr/` records what we decided and why.

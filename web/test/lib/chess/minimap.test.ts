@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import {ARMY_STATUS} from '$lib/chess/armies';
-import {minimapOf, minimapPoint} from '$lib/chess/minimap';
+import {minimapOf, minimapPoint, MAX_MINIMAP_EXITS} from '$lib/chess/minimap';
 import {squareAt} from '$lib/chess/squares';
 
 /**
@@ -126,5 +126,44 @@ describe('navigating from the minimap', () => {
 			x: bounds.x,
 			y: bounds.y + bounds.height,
 		});
+	});
+});
+
+describe('the exits on the minimap', () => {
+	it('marks every exit the map covers: the centre of each spawn-grid cell', () => {
+		const map = minimapOf({
+			spawnPoints: [squareAt(16, 0)],
+			armies: [],
+			you: undefined,
+			camera,
+			spawnSpacing: 16,
+		});
+		const {bounds} = map;
+		expect(map.exits.length).toBeGreaterThan(0);
+		for (const {x, y} of map.exits) {
+			expect(Math.abs((x - 8) % 16)).toBe(0);
+			expect(Math.abs((y - 8) % 16)).toBe(0);
+			expect(x).toBeGreaterThanOrEqual(bounds.x);
+			expect(x).toBeLessThanOrEqual(bounds.x + bounds.width);
+			expect(y).toBeGreaterThanOrEqual(bounds.y);
+			expect(y).toBeLessThanOrEqual(bounds.y + bounds.height);
+		}
+		expect(map.exits).toContainEqual({x: 8, y: 8});
+		expect(map.exits).toContainEqual({x: 8, y: -8});
+	});
+
+	it('marks none without a spawn grid (a table), or when too dense to tell apart', () => {
+		expect(
+			minimapOf({spawnPoints: [], armies: [], you: undefined, camera}).exits,
+		).toEqual([]);
+		const far = minimapOf({
+			spawnPoints: [squareAt(16 * 100, 0)],
+			armies: [],
+			you: undefined,
+			camera,
+			spawnSpacing: 16,
+		});
+		expect(far.bounds.width / 16).toBeGreaterThan(Math.sqrt(MAX_MINIMAP_EXITS));
+		expect(far.exits).toEqual([]);
 	});
 });

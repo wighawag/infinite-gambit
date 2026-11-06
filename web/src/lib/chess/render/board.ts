@@ -15,7 +15,14 @@ import {createImmediateRenderer} from '$lib/game/render/immediate';
 import {visibleCells} from '$lib/game/render/view-transform';
 import type {ViewStateStore} from '$lib/view';
 import type {BoardView, PieceView} from '../view';
-import {glyphOf, armyColour, ROCK_COLOUR, YOUR_COLOUR} from './style';
+import {
+	glyphOf,
+	armyColour,
+	frozenColour,
+	FROZEN_RING,
+	ROCK_COLOUR,
+	YOUR_COLOUR,
+} from './style';
 import {exitsIn} from '../exits';
 
 const SPAWN_COLOUR = '#ffd166';
@@ -25,6 +32,12 @@ const SELECTED_COLOUR = '#ffd166';
 const DESTINATION_COLOUR = 'rgba(120, 220, 140, 0.45)';
 const PLANNED_COLOUR = '#7ee08a';
 const LIGHT_SQUARE = 'rgba(255, 255, 255, 0.05)';
+/** A square an enemy piece may move to this cycle. */
+const ATTACKED_COLOUR = 'rgba(239, 71, 111, 0.22)';
+/** The stake label over a king. */
+const LABEL_BACKGROUND = 'rgba(11, 16, 32, 0.8)';
+const LABEL_TEXT = '#ffffff';
+const FROZEN_LABEL_TEXT = '#cfe8ff';
 /** A square where the last cycle's arrivals collided and died. */
 const COLLISION_COLOUR = '#ef476f';
 /** A square where the last cycle captured a piece. */
@@ -95,6 +108,13 @@ export function createChessBoardRenderer(params: {
 				}
 			}
 
+			// Where an enemy piece may move this cycle, by the contract's rule:
+			// under the player's own destinations, so both stay readable.
+			context.fillStyle = ATTACKED_COLOUR;
+			for (const {x, y} of view.attacked ?? []) {
+				context.fillRect(x - 0.5, y - 0.5, 1, 1);
+			}
+
 			// The selected piece and where the contract says it may go.
 			if (view.selected) {
 				context.strokeStyle = SELECTED_COLOUR;
@@ -163,21 +183,38 @@ export function createChessBoardRenderer(params: {
 
 			for (const piece of view.pieces.values()) {
 				if (!visible(piece)) continue;
-				// A rock (army zero) is greyed out: nobody plays it.
+				// A rock (army zero) is greyed out: nobody plays it. A frozen
+				// army is greyed too, in its own drained hue and ringed, so the
+				// two are never confused: a frozen army still has a stake.
 				const rock = piece.army === 0n;
+				const frozen = !rock && (view.frozen?.has(piece.army) ?? false);
 				drawPiece(context, frame, piece, {
 					colour: rock
 						? ROCK_COLOUR
-						: piece.army === view.you
-							? YOUR_COLOUR
-							: armyColour(piece.army),
-					alpha: rock ? 0.6 : 1,
+						: frozen
+							? frozenColour(piece.army)
+							: piece.army === view.you
+								? YOUR_COLOUR
+								: armyColour(piece.army),
+					alpha: rock ? 0.6 : frozen ? 0.55 : 1,
+					...(frozen ? {ring: FROZEN_RING} : {}),
 				});
 			}
 			// The planned army, as a ghost: never mistaken for one on chain.
 			for (const piece of view.ghost) {
 				if (!visible(piece)) continue;
 				drawPiece(context, frame, piece, {colour: YOUR_COLOUR, alpha: 0.4});
+			}
+			// Every king's stake, over it: what a player judges a target by.
+			if (scale >= MIN_GLYPH_SCALE) {
+				for (const king of view.kings ?? []) {
+					const {x, y} = king.position2d;
+					if (x < bounds.minX || x > bounds.maxX) continue;
+					if (y < bounds.minY || y > bounds.maxY) continue;
+					drawLabel(context, frame, king.position2d, king.stakeLabel, {
+						text: king.frozen ? FROZEN_LABEL_TEXT : LABEL_TEXT,
+					});
+				}
 			}
 			context.restore();
 		},
@@ -188,7 +225,7 @@ function drawPiece(
 	context: CanvasRenderingContext2D,
 	frame: Frame,
 	piece: PieceView,
-	style: {colour: string; alpha: number},
+	style: {colour: string; alpha: number; ring?: string},
 ) {
 	const scale = frame.transform.scale;
 	const centre = toScreen(frame, piece.position2d.x, piece.position2d.y);
@@ -197,6 +234,11 @@ function drawPiece(
 	context.beginPath();
 	context.arc(centre.x, centre.y, scale * 0.42, 0, Math.PI * 2);
 	context.fill();
+	if (style.ring) {
+		context.strokeStyle = style.ring;
+		context.lineWidth = Math.max(1, scale * 0.06);
+		context.stroke();
+	}
 	if (scale >= MIN_GLYPH_SCALE) {
 		context.fillStyle = '#0b1020';
 		context.font = `${Math.round(scale * 0.7)}px serif`;
@@ -205,4 +247,26 @@ function drawPiece(
 		context.fillText(glyphOf(piece.kind), centre.x, centre.y + scale * 0.04);
 	}
 	context.globalAlpha = 1;
+}
+
+/** A short label in a dark box, just above a square, in screen space. */
+function drawLabel(
+	context: CanvasRenderingContext2D,
+	frame: Frame,
+	at: {x: number; y: number},
+	label: string,
+	style: {text: string},
+) {
+	const scale = frame.transform.scale;
+	const centre = toScreen(frame, at.x, at.y);
+	const size = Math.max(10, Math.min(16, Math.round(scale * 0.35)));
+	context.font = `${size}px sans-serif`;
+	context.textAlign = 'center';
+	context.textBaseline = 'middle';
+	const width = context.measureText(label).width + size;
+	const top = centre.y - scale * 0.5 - size * 1.4;
+	context.fillStyle = LABEL_BACKGROUND;
+	context.fillRect(centre.x - width / 2, top, width, size * 1.4);
+	context.fillStyle = style.text;
+	context.fillText(label, centre.x, top + size * 0.7);
 }
