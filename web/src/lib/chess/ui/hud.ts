@@ -28,7 +28,7 @@ import type {ExitPayoutState} from '../exits';
 import type {TableClaim} from '../table-payout';
 import {nearestLabel, type SpawnPointView} from '../spawn-points';
 import {positionOf} from '../squares';
-import {pieceMoveLabel} from '../planning';
+import {pieceMoveLabel, type DestinationsLookup} from '../planning';
 import {plannedMoveColour} from '../render/style';
 import type {BoardView} from '../view';
 import {describeOutcomes, type OutcomeLine} from '../outcomes';
@@ -163,6 +163,11 @@ export type HudModel = {
 		refusal?: string;
 		/** One line on what to tap next, given how many are planned. */
 		hint: string;
+		/**
+		 * What is known of where the selected piece may go, when that is worth
+		 * saying: still being worked out, nowhere, or why it could not be.
+		 */
+		destinations?: {tone: 'muted' | 'warning'; label: string};
 	};
 	/**
 	 * What the last closed cycle did in view, once the board has read it: its
@@ -780,7 +785,8 @@ export function describeArmy(army: ArmyWords | undefined): HudModel['army'] {
 			};
 		case ARMY_STATUS.Failed:
 			return {
-				label: 'Deployment failed (spawn point taken or blocked). Stake refunded.',
+				label:
+					'Deployment failed (spawn point taken or blocked). Stake refunded.',
 				stakeLabel,
 				tone: 'bad',
 			};
@@ -851,7 +857,8 @@ export function describeLastDeployment(params: {
 			};
 		case ARMY_STATUS.Unrevealed:
 			return {
-				label: 'Last deployment never revealed. Pick a spawn point to deploy again.',
+				label:
+					'Last deployment never revealed. Pick a spawn point to deploy again.',
 				stakeLabel:
 					last.stake > 0n
 						? `${STAKE.amount(last.stake)} lost: burned when settled.`
@@ -989,9 +996,11 @@ export function describeMoving(params: {
 	moves: readonly Move[];
 	maxPieceMoves?: number;
 	refusal?: string;
+	lookup?: DestinationsLookup;
 }): HudModel['moving'] {
 	if (params.army?.status !== ARMY_STATUS.Deployed) return undefined;
 	const {moves, maxPieceMoves, refusal} = params;
+	const destinations = describeDestinations(params.lookup);
 	return {
 		pieceMoves: moves.map((move, index) => ({
 			from: move.from,
@@ -1008,7 +1017,29 @@ export function describeMoving(params: {
 			: {}),
 		...(refusal !== undefined ? {refusal} : {}),
 		hint: movingHint(moves.length, maxPieceMoves),
+		...(destinations ? {destinations} : {}),
 	};
+}
+
+/** The line about the selected piece's squares, when there is one to say. */
+function describeDestinations(
+	lookup: DestinationsLookup | undefined,
+): {tone: 'muted' | 'warning'; label: string} | undefined {
+	switch (lookup?.step) {
+		case 'Pending':
+			return {tone: 'muted', label: 'Working out where this piece can go...'};
+		case 'Ready':
+			return lookup.count === 0
+				? {tone: 'muted', label: 'This piece has nowhere to go.'}
+				: undefined;
+		case 'Failed':
+			return {
+				tone: 'warning',
+				label: `Could not work out where this piece can go: ${lookup.reason}. Select it again to retry.`,
+			};
+		default:
+			return undefined;
+	}
 }
 
 /** What to tap next while moving: a first piece, another, or just commit. */
@@ -1077,6 +1108,7 @@ export function createHud(context: Context): Readable<HudModel> {
 			game.planning.pieceMoves,
 			game.planning.maxPieceMoves,
 			game.planning.refusal,
+			game.planning.destinationsLookup,
 			game.armies.lastOutcome,
 			game.armies.pendingRefund,
 			game.armies.unpaidExit,
@@ -1104,6 +1136,7 @@ export function createHud(context: Context): Readable<HudModel> {
 			$pieceMoves,
 			$maxPieceMoves,
 			$refusal,
+			$lookup,
 			$lastOutcome,
 			$refund,
 			$unpaidExit,
@@ -1212,6 +1245,7 @@ export function createHud(context: Context): Readable<HudModel> {
 					moves: $pieceMoves as readonly Move[],
 					maxPieceMoves: $maxPieceMoves as number | undefined,
 					refusal: $refusal as string | undefined,
+					lookup: $lookup as DestinationsLookup,
 				}),
 				lastCycle: describeLastCycle($view as ViewStateValue<BoardView>),
 

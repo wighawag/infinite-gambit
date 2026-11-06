@@ -283,6 +283,31 @@ const keyOf = (from: bigint, pieces: readonly Piece[]) =>
 const movesKey = (moves: readonly Move[]) =>
 	moves.map((m) => `${m.from}>${m.to}`).join(',');
 
+/**
+ * Where the selected piece may go, as far as the client knows: nothing
+ * selected, the route still answering, its answer (possibly none), or why it
+ * could not answer. A failure is NOT "nowhere to go": the two used to look the
+ * same, a selected piece with no squares, which hid every failure of the
+ * sandbox behind what reads as a rule.
+ */
+export type DestinationsLookup =
+	| {step: 'Idle'}
+	| {step: 'Pending'}
+	| {step: 'Ready'; count: number}
+	| {step: 'Failed'; reason: string};
+
+/** An error, as one short line a player can quote back. */
+export function lookupFailureReason(error: unknown): string {
+	const text =
+		error && typeof error === 'object' && 'shortMessage' in error
+			? String((error as {shortMessage: unknown}).shortMessage)
+			: error instanceof Error
+				? error.message
+				: String(error);
+	const line = text.split('\n')[0].trim() || 'unknown error';
+	return line.length > 160 ? `${line.slice(0, 157)}...` : line;
+}
+
 export type PlanningStore = {
 	/** What the player has planned, for the view merge. */
 	plan: Readable<LocalPlan>;
@@ -301,6 +326,8 @@ export type PlanningStore = {
 	 * answered; undefined while it accepts it, or has not answered yet.
 	 */
 	refusal: Readable<string | undefined>;
+	/** Where the selected piece may go, or why that is not known. */
+	destinationsLookup: Readable<DestinationsLookup>;
 	/** Pick a spawn point to deploy at, or drop it if it is the one picked. */
 	choose(spawnPoint: bigint): void;
 	/** A click on `square` of the board, for a deployed army. */
@@ -379,6 +406,28 @@ export function createPlanning(params: {
 		[highlights, selected],
 		([$h, $selected]): readonly bigint[] =>
 			$h.step === 'Ready' && $h.input.from === $selected ? $h.result : [],
+	);
+
+	// WHAT THE PLAYER IS TOLD about the selected piece. A selection whose input
+	// cannot be built yet (the board or the cap still loading) is pending too:
+	// from where the player sits, the answer is on its way.
+	let lastLogged: unknown;
+	const destinationsLookup = derived(
+		[selected, highlights],
+		([$selected, $h]): DestinationsLookup => {
+			if ($selected === undefined) return {step: 'Idle'};
+			if ($h.step === 'Ready' && $h.input.from === $selected) {
+				return {step: 'Ready', count: $h.result.length};
+			}
+			if ($h.step === 'Failed' && $h.input.from === $selected) {
+				if (lastLogged !== $h.error) {
+					lastLogged = $h.error;
+					console.error('legalMovesAlongside failed', $h.error);
+				}
+				return {step: 'Failed', reason: lookupFailureReason($h.error)};
+			}
+			return {step: 'Pending'};
+		},
 	);
 
 	// THE WHOLE MOVE, JUDGED AS THE REVEAL WILL JUDGE IT: each piece-move was
@@ -513,6 +562,7 @@ export function createPlanning(params: {
 		pieceMoves,
 		maxPieceMoves,
 		refusal,
+		destinationsLookup,
 		choose,
 		click,
 		takeBack,

@@ -225,6 +225,40 @@ describe('planning a move', () => {
 		expect(t.plan().selected).toBeUndefined();
 	});
 
+	it('says when the route could not answer, rather than offering nowhere', async () => {
+		const t = setup({
+			alongside: () => {
+				throw new Error(
+					'the sandbox has no code for rules at 0xabc\nmore detail',
+				);
+			},
+		});
+		const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+		t.planning.click(squareAt(0, 0));
+		expect(get(t.planning.destinationsLookup)).toEqual({step: 'Pending'});
+		await t.flush();
+		expect(t.plan().destinations).toEqual([]);
+		expect(get(t.planning.destinationsLookup)).toEqual({
+			step: 'Failed',
+			reason: 'the sandbox has no code for rules at 0xabc',
+		});
+		expect(errors).toHaveBeenCalled();
+		errors.mockRestore();
+	});
+
+	it('tells nowhere to go apart from not knowing yet', async () => {
+		const t = setup({answer: []});
+		expect(get(t.planning.destinationsLookup)).toEqual({step: 'Idle'});
+		t.planning.click(squareAt(0, 0));
+		await t.flush();
+		expect(get(t.planning.destinationsLookup)).toEqual({
+			step: 'Ready',
+			count: 0,
+		});
+		t.planning.click(squareAt(0, 0));
+		expect(get(t.planning.destinationsLookup)).toEqual({step: 'Idle'});
+	});
+
 	it('ignores board clicks while the army still has to be deployed', async () => {
 		const t = setup({needsDeployment: true});
 		t.planning.click(squareAt(0, 0));
@@ -615,5 +649,26 @@ describe('a move, as the rest of the client sees it', () => {
 		expect(
 			describeMoving({army: {status: ARMY_STATUS.Deploying}, moves: [move]}),
 		).toBeUndefined();
+	});
+
+	it("names in the HUD what is known of the selected piece's squares", () => {
+		const deployed = {status: ARMY_STATUS.Deployed};
+		const line = (lookup: Parameters<typeof describeMoving>[0]['lookup']) =>
+			describeMoving({army: deployed, moves: [], lookup})?.destinations;
+		expect(line({step: 'Idle'})).toBeUndefined();
+		expect(line({step: 'Ready', count: 2})).toBeUndefined();
+		expect(line({step: 'Pending'})).toEqual({
+			tone: 'muted',
+			label: 'Working out where this piece can go...',
+		});
+		expect(line({step: 'Ready', count: 0})).toEqual({
+			tone: 'muted',
+			label: 'This piece has nowhere to go.',
+		});
+		expect(line({step: 'Failed', reason: 'boom'})).toEqual({
+			tone: 'warning',
+			label:
+				'Could not work out where this piece can go: boom. Select it again to retry.',
+		});
 	});
 });

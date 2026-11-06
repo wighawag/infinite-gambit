@@ -491,6 +491,16 @@
 			{#if $hud.warning}
 				<p class="mt-2 text-xs text-amber-400">{$hud.warning}</p>
 			{/if}
+			{#if $hud.moving?.destinations}
+				<p
+					class="mt-2 text-xs {$hud.moving.destinations.tone === 'warning'
+						? 'text-amber-400'
+						: 'text-muted-foreground'}"
+					data-testid="destinations-lookup"
+				>
+					{$hud.moving.destinations.label}
+				</p>
+			{/if}
 			{#if $hud.moving?.refusal}
 				<p class="mt-2 text-xs text-amber-400" data-testid="move-refused">
 					{$hud.moving.refusal}

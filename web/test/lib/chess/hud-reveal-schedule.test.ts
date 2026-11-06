@@ -126,6 +126,7 @@ describe('what the HUD says about who reveals the turn', () => {
 					pieceMoves: writable([]),
 					maxPieceMoves: writable(3),
 					refusal: writable(undefined),
+					destinationsLookup: writable({step: 'Idle'}),
 				},
 				cost: writable(0n),
 				reserve: writable({step: 'Loaded', amount: 100n}),
