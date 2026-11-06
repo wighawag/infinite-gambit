@@ -15,4 +15,4 @@ What to settle before building:
 - The trigger: any captured stake, or a threshold (for example twice its own stake).
 - How it walks: the next king step that brings it closer to the nearest exit, from the contract's `legalMoves` (rules live only in the contract, ADR-0007), avoiding attacked squares (`$lib/chess/attacked.ts`) when it can.
 - The priority between running for the exit and a capture that is on offer.
-- It is a bot change only; no contract change. Build it after the `lean-rules` spec has landed (`work/specs/proposed/lean-rules.md`), which changes the exits (2 by 2 blocks), the army and the stakes the bot reads.
+- It is a bot change only; no contract change. Build it after the `lean-rules` spec has landed (`work/specs/tasked/lean-rules.md`), which changes the exits (2 by 2 blocks), the army and the stakes the bot reads.
