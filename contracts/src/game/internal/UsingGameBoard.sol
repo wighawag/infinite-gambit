@@ -93,7 +93,7 @@ abstract contract UsingGameBoard is UsingGameStore {
         for (uint256 k = 0; k < pieces.length; k++) {
             uint64 position = pieces[k].position;
             if (_squares[position].cycle == 0) continue;
-            if (_squareAt(position, cycleNumber).kind != PieceKind.None) {
+            if (_rawSquareAt(position, cycleNumber).kind != PieceKind.None) {
                 return false;
             }
         }
@@ -167,17 +167,33 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 position,
         uint64 cycleNumber
     ) internal view returns (Piece memory piece) {
+        piece = _rawSquareAt(position, cycleNumber);
+        if (piece.kind != PieceKind.None) {
+            piece.army = _armyOf(piece.army, cycleNumber);
+        }
+    }
+
+    /// @notice {_squareAt} WITHOUT RESOLVING THE ARMY: the army is the one the
+    ///         facts were written with, which may since have merged.
+    /// @dev For a read that only needs the kind, or the army of a KING: a king
+    ///      on the board is never of an army that merged, because an army
+    ///      merges exactly when its king is taken. Resolving costs storage
+    ///      reads per merge followed, so a reveal resolves only the two squares
+    ///      whose army the rule compares (the moving piece and its
+    ///      destination), which is what bounds the chains a reveal walks
+    ///      ({MAX_CHAIN}).
+    function _rawSquareAt(
+        uint64 position,
+        uint64 cycleNumber
+    ) internal view returns (Piece memory piece) {
         (Piece memory laid, uint64 laidIn) = _laidAt(position);
         bool deployed = laidIn != 0 && laidIn < cycleNumber;
         SquareRecord storage record = _squares[position];
         uint64 touched = record.cycle;
         if (touched == 0) {
-            if (!deployed) {
-                piece.position = position;
-                return piece;
-            }
-            laid.army = _armyOf(laid.army, cycleNumber);
-            return laid;
+            if (deployed) return laid;
+            piece.position = position;
+            return piece;
         }
 
         piece = _standingOf(record, position);
@@ -192,9 +208,6 @@ abstract contract UsingGameBoard is UsingGameStore {
         }
         if (deployed && laidIn > touched) {
             piece = laid;
-        }
-        if (piece.kind != PieceKind.None) {
-            piece.army = _armyOf(piece.army, cycleNumber);
         }
     }
 
@@ -341,8 +354,12 @@ abstract contract UsingGameBoard is UsingGameStore {
         );
         if (!shapeOk) revert IllegalMove(move.from, move.to);
         Piece[] memory contents = new Piece[](squares.length);
-        for (uint256 i = 0; i < squares.length; i++) {
-            contents[i] = _squareAt(squares[i], cycleNumber);
+        // Only the destination's army is compared with the mover's: the other
+        // squares are a path, which only needs to be empty, or a king's
+        // neighbours, which only matter if they are kings ({_rawSquareAt}).
+        contents[0] = _squareAt(squares[0], cycleNumber);
+        for (uint256 i = 1; i < squares.length; i++) {
+            contents[i] = _rawSquareAt(squares[i], cycleNumber);
         }
         if (!ChessRules.isLegalMove(piece, move.to, contents)) {
             revert IllegalMove(move.from, move.to);
@@ -415,13 +432,15 @@ abstract contract UsingGameBoard is UsingGameStore {
 
     /// @notice How many "captured into" pointers {_armyOf} follows at most.
     /// @dev THE BOUND ON A CHAIN, which bounds what resolving one piece costs a
-    ///      reveal. Chains stay short without it: a fold writes the RESOLVED
-    ///      captor ({_foldCapture}) and a touched square keeps its piece's
-    ///      resolved army, so a hop is a merge since that square was last
-    ///      touched, and a kept one costs one storage read. A
-    ///      chain longer than this ends at the army reached, which is not the
-    ///      one that owns it: a cost bound, measured in `GasBudget.test.ts`.
-    uint256 internal constant MAX_CHAIN = 16;
+    ///      reveal: a reveal resolves two pieces ({_rawSquareAt}), so it follows
+    ///      at most twice this many merges, and `GasBudget.test.ts` prices that
+    ///      against the declared reveal gas. Chains stay short without it: a
+    ///      touched square keeps its piece's army resolved as of then, so a hop
+    ///      is a merge since the square was last touched. A chain longer than
+    ///      this ends at the army reached, a dead one, which is what the board
+    ///      shows too (every read is bounded alike), until a reveal touching the
+    ///      square writes that army down and the next read walks on from it.
+    uint256 internal constant MAX_CHAIN = 8;
 
     /// @notice The army `army` plays for at the start of `cycleNumber`: itself,
     ///         or the army that took its king, followed as far as it goes

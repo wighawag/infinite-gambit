@@ -67,6 +67,7 @@ describe('what became of the last deployment', () => {
 			ARMY_STATUS.Failed,
 			ARMY_STATUS.Cancelled,
 			ARMY_STATUS.Unrevealed,
+			ARMY_STATUS.Captured,
 		]) {
 			expect(
 				lastDeploymentOutcome([
@@ -80,6 +81,9 @@ describe('what became of the last deployment', () => {
 		);
 		expect(lastDeploymentOutcome([])).toBe(undefined);
 		expect(isLive({status: ARMY_STATUS.Cancelled})).toBe(false);
+		// A captured army plays on only as its captor's pieces: not this
+		// account's to play any more.
+		expect(isLive({status: ARMY_STATUS.Captured})).toBe(false);
 	});
 
 	it('counts a failed deployment the army still holds as a pending refund, and nothing else', () => {

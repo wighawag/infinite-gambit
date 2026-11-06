@@ -76,16 +76,21 @@ type Fixtures = ReturnType<typeof setupFixtures>;
 export function movesWorld(params: {
 	deployAll: Fixtures['deployAll'];
 	loadFixture: <T>(fixture: () => Promise<T>) => Promise<T>;
+	/**
+	 * The OFFLINE world: a manual cycle policy, where a phase ends when
+	 * somebody calls `advanceCycle` and everyone it waits for has acted.
+	 */
+	manual?: boolean;
 }) {
-	const {deployAll, loadFixture} = params;
+	const {deployAll, loadFixture, manual = false} = params;
 
 	async function deployMovesWorld() {
 		const f = await deployAll();
 		const Game = await deployGameWith(f, {
-			name: 'Game_moves',
-			cyclePolicy: CYCLE_POLICY.Timed,
-			commitPhaseDuration: COMMIT_PHASE,
-			revealPhaseDuration: REVEAL_PHASE,
+			name: manual ? 'Game_moves_manual' : 'Game_moves',
+			cyclePolicy: manual ? CYCLE_POLICY.Manual : CYCLE_POLICY.Timed,
+			commitPhaseDuration: manual ? 0n : COMMIT_PHASE,
+			revealPhaseDuration: manual ? 0n : REVEAL_PHASE,
 			spawnSpacing: 6n,
 		});
 		return {...f, Game};
@@ -97,7 +102,7 @@ export function movesWorld(params: {
 	async function world() {
 		const f = await loadFixture(deployMovesWorld);
 		let cycle = clock.getCycleNumber(await f.getTimestamp()).cycleNumber + 1;
-		await f.advanceToTime(clock.cycleStartTime(cycle), true);
+		if (!manual) await f.advanceToTime(clock.cycleStartTime(cycle), true);
 		const [alice, bob, carol, dave] = f.unnamedAccounts as `0x${string}`[];
 		const actionsPerReveal = 1;
 
@@ -108,11 +113,21 @@ export function movesWorld(params: {
 			carol,
 			dave,
 			cycle: () => cycle,
+			/** End the phase, in the offline world: anyone may call it. */
+			async advance() {
+				await f.env.execute(f.Game, {
+					account: alice,
+					functionName: 'advanceCycle',
+					args: [],
+				});
+			},
 			async toRevealPhase() {
+				if (manual) return w.advance();
 				await f.advanceToTime(clock.revealStartTime(cycle), true);
 			},
 			async toNextCycle() {
 				cycle += 1;
+				if (manual) return w.advance();
 				await f.advanceToTime(clock.cycleStartTime(cycle), true);
 			},
 			/** Commit deployments for `owners` at their spawn points, in one cycle. */
@@ -228,14 +243,23 @@ export function movesWorld(params: {
 					functionName: 'getArmies',
 					args: [0n, 10n],
 				})) as readonly [
-					readonly {id: bigint; status: number; king: bigint; stake: bigint}[],
+					readonly {
+						id: bigint;
+						owner: `0x${string}`;
+						status: number;
+						king: bigint;
+						stake: bigint;
+						mergedInto: bigint;
+					}[],
 					bigint,
 				];
 				return armies.map((a) => ({
 					id: a.id,
+					owner: a.owner.toLowerCase(),
 					status: a.status,
 					king: xyOf(a.king),
 					stake: a.stake,
+					mergedInto: a.mergedInto,
 				}));
 			},
 			async legalMoves(from: [number, number]): Promise<string[]> {

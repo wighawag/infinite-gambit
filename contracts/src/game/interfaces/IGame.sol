@@ -197,7 +197,6 @@ interface IGameGetters is UsingGameTypes {
         external
         view
         returns (uint64[] memory spawnPoints, uint64 cycleNumber);
-
 }
 
 /// @dev THE ARMY REGISTRY, resolved through every capture: who plays each

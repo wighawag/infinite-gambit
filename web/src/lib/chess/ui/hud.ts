@@ -618,6 +618,13 @@ export function describeArmy(
 				stakeLabel,
 				tone: 'bad',
 			};
+		case ARMY_STATUS.Captured:
+			return {
+				label:
+					'Its king was taken: its pieces and its stake joined the army that took it.',
+				stakeLabel,
+				tone: 'bad',
+			};
 		default:
 			return undefined;
 	}
@@ -660,6 +667,13 @@ export function describeLastDeployment(params: {
 					last.stake > 0n
 						? `Its stake of ${STAKE.amount(last.stake)} is lost: it is burned when the missed reveal is settled.`
 						: 'Its stake was burned.',
+				tone: 'bad',
+			};
+		case ARMY_STATUS.Captured:
+			return {
+				label:
+					'Your king was taken: your pieces now play for the army that took it. Pick a spawn point to deploy again.',
+				stakeLabel: 'Your stake went to your captor, with your pieces.',
 				tone: 'bad',
 			};
 		default:

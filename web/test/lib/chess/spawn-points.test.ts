@@ -18,6 +18,7 @@ const king = (x: number, y: number, status: number = ARMY_STATUS.Deployed) => ({
 	spawnPoint: 0n,
 	king: squareAt(x, y),
 	stake: 1n,
+	mergedInto: 1n << 160n,
 });
 
 describe('how close the nearest armies are', () => {

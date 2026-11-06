@@ -18,6 +18,8 @@ export const ARMY_STATUS = {
 	Failed: 3,
 	Unrevealed: 4,
 	Cancelled: 5,
+	/** Its king was taken: its pieces and stake are `mergedInto`'s now. */
+	Captured: 6,
 } as const;
 export type ArmyStatus = (typeof ARMY_STATUS)[keyof typeof ARMY_STATUS];
 
@@ -32,8 +34,13 @@ export type ArmyView = {
 	spawnPoint: bigint;
 	/** Where its king stands, while it is deployed. */
 	king: bigint;
-	/** What it holds. */
+	/**
+	 * What it holds: its own stake plus those of the armies it merged in;
+	 * zero once captured, its stake being its captor's then.
+	 */
 	stake: bigint;
+	/** The army it plays for: itself, or once captured, the one it merged into. */
+	mergedInto: bigint;
 };
 
 /** Normalise what viem hands back (numbers as `number`, ids as `bigint`). */
@@ -45,6 +52,7 @@ export function armyViewOf(raw: {
 	spawnPoint: bigint;
 	king: bigint;
 	stake: bigint;
+	mergedInto: bigint;
 }): ArmyView {
 	return {
 		id: raw.id,
@@ -54,6 +62,7 @@ export function armyViewOf(raw: {
 		spawnPoint: raw.spawnPoint,
 		king: raw.king,
 		stake: raw.stake,
+		mergedInto: raw.mergedInto,
 	};
 }
 
@@ -86,7 +95,8 @@ export function chooseArmy(
 
 /**
  * WHAT BECAME OF THE ACCOUNT'S LAST DEPLOYMENT, when it is not playing: its most
- * recent army, if that one failed, was cancelled or was never revealed. The
+ * recent army, if that one failed, was cancelled, was never revealed, or had its
+ * king taken. The
  * player is back at deployment then, and this is what to tell them.
  */
 export function lastDeploymentOutcome<T extends Pick<ArmyView, 'status'>>(

@@ -22,6 +22,20 @@ describe('the HUD', () => {
 		expect(describeArmy({status: ARMY_STATUS.Failed, stake: 10n})?.tone).toBe(
 			'bad',
 		);
+		const captured = describeArmy({status: ARMY_STATUS.Captured, stake: 0n});
+		expect(captured?.tone).toBe('bad');
+		expect(captured?.label).toContain('king was taken');
+	});
+
+	it('tells the player their king was taken, and that its stake went with its pieces, while they deploy again', () => {
+		const captured = describeLastDeployment({
+			needsDeployment: true,
+			last: {status: ARMY_STATUS.Captured, stake: 0n},
+		});
+		expect(captured?.tone).toBe('bad');
+		expect(captured?.label).toContain('king was taken');
+		expect(captured?.label).toContain('deploy again');
+		expect(captured?.stakeLabel).toContain('captor');
 	});
 
 	it('tells the player what became of a failed, cancelled or missed deployment while they deploy again', () => {

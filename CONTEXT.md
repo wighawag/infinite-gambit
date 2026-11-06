@@ -161,7 +161,7 @@ chess-battleground is an onchain infinite-board chess game. Players stake to dep
 Everything above this heading is the framework's and stays game-neutral. The words below are this game's own. The full rule set is in `work/specs/`, and the decisions behind it are in `docs/adr/`.
 
 **Army**:
-One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit or a capture, while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
+One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit (a capture does not move it: the captor's stake counts the reserves of every army merged into it), while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
 _Avoid_: player, faction, team, side
 
 **Move**:
@@ -181,7 +181,7 @@ The twenty squares a deployment's layout puts a piece on (the 6 by 4 rectangle w
 _Avoid_: base, area, zone (a zone is the board read's 16 by 16 index)
 
 **Dead army**:
-An army that can never act again, so no cycle waits for it: today a deployment that failed, was cancelled or was never revealed (later a captured, exited or frozen army). One predicate in the contract (`_isDead`); an advance stops waiting for every dead army first.
+An army that can never act again, so no cycle waits for it: today a deployment that failed, was cancelled or was never revealed, or an army whose king was taken (later an exited or frozen army). One predicate in the contract (`_isDead`); an advance stops waiting for every dead army first.
 _Avoid_: eliminated, gone, inactive
 
 **Exit**:
@@ -193,7 +193,7 @@ Taking a piece that stayed put: by being the only piece to arrive on its square,
 _Avoid_: kill, take (in code)
 
 **Merge**:
-What happens to an army whose king is captured, or dies in a collision with a single enemy piece: its pieces join the captor's army, which still makes one move per cycle.
+What happens to an army whose king is captured, or dies in a collision with a single enemy piece: its pieces join the captor's army, which still makes one move per cycle. Resolved lazily: each army keeps who took its king, and a piece's army is followed through those to the end of the chain (A takes B while C takes A: C owns both), so it never matters which squares were read first.
 _Avoid_: absorb, conquer, annex
 
 **Collision**:
