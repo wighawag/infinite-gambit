@@ -32,6 +32,14 @@ import {
 /** Windows cut from each wood texture: enough that neighbours rarely repeat. */
 const FRAMES = 24;
 
+/**
+ * The whole board, dimmed: the pieces are what a player reads, so they should
+ * be the brightest thing on screen, and wooden pieces on full-brightness wood
+ * did not stand out. A tint on the board's container only: the exit inlays
+ * (cut from the same wood) stay bright, since they are meant to be found.
+ */
+const BOARD_DIM = 0xa8998a;
+
 function framesOf(canvas: HTMLCanvasElement, seed: number): Texture[] {
 	const source = new CanvasSource({
 		resource: canvas,
@@ -94,6 +102,7 @@ export class WoodBoard {
 		});
 		this.flat.tileScale.set(cellSize);
 		this.container.addChild(this.flat, this.squares, this.joins);
+		this.container.tint = BOARD_DIM;
 	}
 
 	/** A window of wood for square (x, y), or of the given wood when `light` is set. */

@@ -17,7 +17,7 @@ import type {SubmissionState, SubmissionStore} from '$lib/game/core/submission';
 import type {OnchainStateValue} from '$lib/game/core/seams';
 import type {GameIdentity} from '$lib/game/identity';
 import {latestResult} from '$lib/game/simulation';
-import type {BoardState, Piece} from './board';
+import {PIECE_KIND, type BoardState, type Piece, type PieceKind} from './board';
 import {deploymentAt, moveOf, spawnPointOf, type Move} from './commit-reveal';
 import {kingDistance, positionOf, type Position} from './squares';
 import type {LocalPlan} from './view';
@@ -86,6 +86,11 @@ export function piecesAround(
 	return around.sort((a, b) =>
 		a.position < b.position ? -1 : a.position > b.position ? 1 : 0,
 	);
+}
+
+/** Whether a piece holds its army's stake, which a click on it shows. */
+function isStakeHolder(kind: PieceKind | undefined): boolean {
+	return kind === PIECE_KIND.King || kind === PIECE_KIND.Stone;
 }
 
 /** What a click on a square means for a deployed army's plan. */
@@ -169,6 +174,11 @@ export function createPlanning(params: {
 
 	/** The piece clicked, until a destination is picked or it is let go. */
 	const selected = writable<bigint | undefined>(undefined);
+	/**
+	 * The king or stone whose stake is shown, until the next click elsewhere
+	 * (or on it again). Any army's: what a player judges a target by.
+	 */
+	const inspected = writable<bigint | undefined>(undefined);
 
 	const highlightInput = derived(
 		[selected, board],
@@ -190,8 +200,16 @@ export function createPlanning(params: {
 	);
 
 	const plan = derived(
-		[plannedSpawnPoint, plannedMove, army, selected, destinations],
-		([$spawn, $move, $army, $selected, $destinations]): LocalPlan => ({
+		[plannedSpawnPoint, plannedMove, army, selected, destinations, inspected],
+		([
+			$spawn,
+			$move,
+			$army,
+			$selected,
+			$destinations,
+			$inspected,
+		]): LocalPlan => ({
+			...($inspected !== undefined ? {inspected: $inspected} : {}),
 			...($spawn !== undefined ? {spawnPoint: $spawn} : {}),
 			...($move !== undefined ? {move: $move} : {}),
 			...($army !== undefined ? {army: $army} : {}),
@@ -228,9 +246,13 @@ export function createPlanning(params: {
 	}
 
 	function click(square: bigint) {
-		if (!get(canPlan) || get(needsDeployment)) return;
+		if (get(needsDeployment)) return;
 		const $board = get(board);
 		if ($board.step !== 'Loaded') return;
+		// Showing a stake changes no plan, so it works whatever the phase.
+		const holdsStake = isStakeHolder($board.pieces.get(square)?.kind);
+		inspected.set(holdsStake && get(inspected) !== square ? square : undefined);
+		if (!get(canPlan)) return;
 		const outcome = boardClick({
 			square,
 			pieces: $board.pieces,
@@ -255,6 +277,7 @@ export function createPlanning(params: {
 
 	function clear() {
 		selected.set(undefined);
+		inspected.set(undefined);
 		if (!isPlannable(submission.value)) return;
 		submission.plan([]);
 	}

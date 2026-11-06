@@ -63,6 +63,11 @@ export type BoardView = {
 	/** The piece the player has selected to move, if any. */
 	selected?: Position;
 	/**
+	 * The king or stone clicked: the only one whose stake label is drawn.
+	 * Always drawn, the labels covered the pieces around them.
+	 */
+	inspected?: Position;
+	/**
 	 * Where the selected piece may move, by the contract's rule run in the
 	 * sandbox (`legalMoves`). Empty until it answers.
 	 */
@@ -107,6 +112,8 @@ export type LocalPlan = {
 	move?: {from: bigint; to: bigint};
 	/** The piece selected to move. */
 	selected?: bigint;
+	/** The king or stone whose stake label is shown (clicked). */
+	inspected?: bigint;
 	/** Its legal destinations, once the sandbox has answered. */
 	destinations?: readonly bigint[];
 	/** Where an enemy piece may move this cycle, once the sandbox has answered. */
@@ -212,6 +219,9 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 		...(local.army !== undefined ? {you: local.army} : {}),
 		...(local.selected !== undefined
 			? {selected: positionOf(local.selected)}
+			: {}),
+		...(local.inspected !== undefined
+			? {inspected: positionOf(local.inspected)}
 			: {}),
 		destinations: (local.destinations ?? []).map(positionOf),
 		outcomes: [...onchain.outcomes.bySquare.values()].map((outcome) => ({

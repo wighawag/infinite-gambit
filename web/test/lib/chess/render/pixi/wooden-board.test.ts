@@ -2,13 +2,14 @@ import {describe, expect, it} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {MAPLE, ROSEWOOD, woodPixels} from '$lib/chess/render/pixi/wood';
 import {
-	DOTS_BELOW,
 	FLAT_BELOW,
+	GLYPHS_BELOW,
+	TURNED_BELOW,
 	cellHash,
 	exitInlay,
 	flatChecker,
-	isDots,
 	isFlat,
+	pieceMode,
 	isLight,
 } from '$lib/chess/render/pixi/squares';
 import {
@@ -40,11 +41,20 @@ describe('the squares', () => {
 });
 
 describe('low zoom', () => {
-	it('switches the board to the flat checker and pieces to dots below the threshold', () => {
+	it('switches the board to the flat checker below the threshold', () => {
 		expect(isFlat(FLAT_BELOW - 0.1)).toBe(true);
 		expect(isFlat(FLAT_BELOW)).toBe(false);
-		expect(isDots(DOTS_BELOW - 0.1)).toBe(true);
-		expect(isDots(DOTS_BELOW)).toBe(false);
+	});
+
+	it('draws pieces turned, then as glyphs on discs, then as dots', () => {
+		expect(pieceMode(TURNED_BELOW)).toBe('pieces');
+		expect(pieceMode(TURNED_BELOW - 0.1)).toBe('glyphs');
+		expect(pieceMode(GLYPHS_BELOW)).toBe('glyphs');
+		expect(pieceMode(GLYPHS_BELOW - 0.1)).toBe('dots');
+		// The turned pieces hold on at least until the wood goes flat.
+		expect(TURNED_BELOW).toBeGreaterThanOrEqual(FLAT_BELOW);
+		// The glyphs reach as far down as the canvas board draws them.
+		expect(GLYPHS_BELOW).toBe(6);
 	});
 
 	it('starts the checker on a light square covering the whole view', () => {

@@ -12,7 +12,7 @@
 import {PIECE_KIND, type PieceKind} from '../../board';
 import {captureEffectsOf} from '../../outcomes';
 import type {BoardView, PieceView} from '../../view';
-import {armyColour, frozenColour, YOUR_COLOUR} from '../style';
+import {armyColour, frozenColour, glyphOf, YOUR_COLOUR} from '../style';
 import type {Finish, Kind} from './piece-art';
 import type {ExitSpan} from './squares';
 
@@ -79,6 +79,23 @@ const SILHOUETTES: Partial<Record<PieceKind, Kind>> = {
 	// a stone is a taken king (ADR 0014): the king's silhouette, in stone
 	[PIECE_KIND.Stone]: 'king',
 };
+
+const KINDS_OF: Record<Kind, PieceKind> = {
+	pawn: PIECE_KIND.Pawn,
+	knight: PIECE_KIND.Knight,
+	bishop: PIECE_KIND.Bishop,
+	rook: PIECE_KIND.Rook,
+	queen: PIECE_KIND.Queen,
+	king: PIECE_KIND.King,
+};
+
+/**
+ * The glyph a piece shows when zoomed out (`./squares`'s `pieceMode`): the
+ * canvas board's own (`../style`), so both boards read the same from afar.
+ */
+export function glyphOfLook(look: Pick<PieceLook, 'kind' | 'stone'>): string {
+	return glyphOf(look.stone ? PIECE_KIND.Stone : KINDS_OF[look.kind]);
+}
 
 /** The turned piece a kind is drawn as; none for an empty square. */
 export function silhouetteOf(kind: PieceKind): Kind | undefined {
@@ -282,15 +299,23 @@ export function overlayModel(view: BoardView): OverlayModel {
 
 export type Label = Square & {text: string; tone: 'live' | 'frozen' | 'stone'};
 
-/** The stake over every king and every stone: what a player judges a target by. */
+/**
+ * The stake over the king or stone the player clicked (`inspected`): what a
+ * player judges a target by. Only that one, since labels over every king
+ * covered the pieces around them. Both boards draw these.
+ */
 export function labelsOf(view: BoardView): Label[] {
+	const at = view.inspected;
+	if (!at) return [];
+	const here = (p: {position2d: {x: number; y: number}}) =>
+		p.position2d.x === at.x && p.position2d.y === at.y;
 	return [
-		...(view.kings ?? []).map((king) => ({
+		...(view.kings ?? []).filter(here).map((king) => ({
 			...king.position2d,
 			text: king.stakeLabel,
 			tone: king.frozen ? ('frozen' as const) : ('live' as const),
 		})),
-		...(view.stones ?? []).map((stone) => ({
+		...(view.stones ?? []).filter(here).map((stone) => ({
 			...stone.position2d,
 			text: stone.stakeLabel,
 			tone: 'stone' as const,

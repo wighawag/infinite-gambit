@@ -28,15 +28,30 @@ export type VisibleCells = {
  */
 export const FLAT_BELOW = 18;
 
-/** Screen pixels per square below which pieces are drawn as dots. */
-export const DOTS_BELOW = 18;
+/**
+ * Screen pixels per square below which pieces are no longer turned pieces but
+ * the canvas board's disc with a glyph: at about 28 px a turned knight and
+ * bishop were already hard to tell apart, so this sits above the board's own
+ * switch to the flat checker (`FLAT_BELOW`).
+ */
+export const TURNED_BELOW = 30;
+
+/**
+ * Below this the glyph has no room either, and a piece is a plain disc in its
+ * army colour. The same threshold as the canvas board's `MIN_GLYPH_SCALE`.
+ */
+export const GLYPHS_BELOW = 6;
+
+/** How pieces are drawn at a zoom: turned, as glyphs on discs, or as dots. */
+export type PieceMode = 'pieces' | 'glyphs' | 'dots';
+
+export function pieceMode(scale: number): PieceMode {
+	if (scale >= TURNED_BELOW) return 'pieces';
+	return scale >= GLYPHS_BELOW ? 'glyphs' : 'dots';
+}
 
 export function isFlat(scale: number): boolean {
 	return scale < FLAT_BELOW;
-}
-
-export function isDots(scale: number): boolean {
-	return scale < DOTS_BELOW;
 }
 
 export function isLight(x: number, y: number): boolean {

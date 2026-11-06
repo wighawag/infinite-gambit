@@ -71,10 +71,23 @@ function fakeSubmission(): SubmissionStore<GameIdentity, Move> {
 	} as unknown as SubmissionStore<GameIdentity, Move>;
 }
 
-function setup(options: {needsDeployment?: boolean; answer?: bigint[]} = {}) {
+function setup(
+	options: {
+		needsDeployment?: boolean;
+		canMove?: boolean;
+		answer?: bigint[];
+	} = {},
+) {
 	const submission = fakeSubmission();
 	const board = writable(
-		boardOf([piece(0, 0), piece(1, 1, THEM), piece(20, 20)]),
+		boardOf([
+			piece(0, 0),
+			piece(1, 1, THEM),
+			piece(20, 20),
+			piece(40, 40, THEM, PIECE_KIND.King),
+			piece(42, 40, YOU, PIECE_KIND.King),
+			piece(44, 40, THEM, PIECE_KIND.Stone),
+		]),
 	);
 	const legalMoves = vi.fn(
 		async () => options.answer ?? [squareAt(1, 2), squareAt(2, 1)],
@@ -82,7 +95,7 @@ function setup(options: {needsDeployment?: boolean; answer?: bigint[]} = {}) {
 	const planning = createPlanning({
 		submission,
 		needsDeployment: writable(options.needsDeployment ?? false),
-		canMove: writable(true),
+		canMove: writable(options.canMove ?? true),
 		army: writable(YOU),
 		board,
 		legalMoves,
@@ -144,6 +157,41 @@ describe('planning a move', () => {
 		await t.flush();
 		expect(t.plan().selected).toBeUndefined();
 		expect(t.legalMoves).not.toHaveBeenCalled();
+	});
+});
+
+describe('inspecting a stake', () => {
+	it('shows the stake of any king or stone clicked, an enemy one too', () => {
+		const t = setup();
+		t.planning.click(squareAt(40, 40));
+		expect(t.plan().inspected).toBe(squareAt(40, 40));
+		t.planning.click(squareAt(44, 40));
+		expect(t.plan().inspected).toBe(squareAt(44, 40));
+	});
+
+	it('selects your own king as well as showing its stake', async () => {
+		const t = setup();
+		t.planning.click(squareAt(42, 40));
+		await t.flush();
+		expect(t.plan().inspected).toBe(squareAt(42, 40));
+		expect(t.plan().selected).toBe(squareAt(42, 40));
+	});
+
+	it('hides it on a click anywhere else, or a second click on it', () => {
+		const t = setup();
+		t.planning.click(squareAt(40, 40));
+		t.planning.click(squareAt(0, 3));
+		expect(t.plan().inspected).toBeUndefined();
+		t.planning.click(squareAt(40, 40));
+		t.planning.click(squareAt(40, 40));
+		expect(t.plan().inspected).toBeUndefined();
+	});
+
+	it('works while nothing can be planned', () => {
+		const t = setup({canMove: false});
+		t.planning.click(squareAt(40, 40));
+		expect(t.plan().inspected).toBe(squareAt(40, 40));
+		expect(t.plan().selected).toBeUndefined();
 	});
 });
 

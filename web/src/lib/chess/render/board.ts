@@ -24,12 +24,26 @@ import {
 	STONE_COLOUR,
 	YOUR_COLOUR,
 } from './style';
-import {exitsIn} from '../exits';
 import {captureEffectsOf} from '../outcomes';
+import {PIECE_KIND} from '../board';
+import {
+	BADGE_OUTLINE,
+	ETH_TONES,
+	ethDiamond,
+	exitDiamonds,
+	kingBadge,
+	type Facet,
+} from './eth-diamond';
+import {labelsOf, type Label} from './pixi/view-model';
 
 const SPAWN_COLOUR = '#ffd166';
-/** An exit square, where a king may leave with its stake. */
-const EXIT_COLOUR = '#06d6a0';
+/**
+ * An exit, where a king may leave with its stake: the ETH diamond, in two
+ * tones like the logo (`./eth-diamond`). The same mark sits on every king.
+ */
+const EXIT_ALPHA = 0.55;
+/** Below this many pixels per square a king has no room for its badge. */
+const MIN_BADGE_SCALE = 14;
 const SELECTED_COLOUR = '#ffd166';
 const DESTINATION_COLOUR = 'rgba(120, 220, 140, 0.45)';
 const PLANNED_COLOUR = '#7ee08a';
@@ -38,9 +52,11 @@ const LIGHT_SQUARE = 'rgba(255, 255, 255, 0.05)';
 const ATTACKED_COLOUR = 'rgba(239, 71, 111, 0.22)';
 /** The stake label over a king. */
 const LABEL_BACKGROUND = 'rgba(11, 16, 32, 0.8)';
-const LABEL_TEXT = '#ffffff';
-const FROZEN_LABEL_TEXT = '#cfe8ff';
-const STONE_LABEL_TEXT = '#d9d2c5';
+const LABEL_TONES: Record<Label['tone'], string> = {
+	live: '#ffffff',
+	frozen: '#cfe8ff',
+	stone: '#d9d2c5',
+};
 /** A square where the last cycle's arrivals collided and died. */
 const COLLISION_COLOUR = '#ef476f';
 /** A square where the last cycle captured a piece. */
@@ -83,22 +99,13 @@ export function createChessBoardRenderer(params: {
 				}
 			}
 
-			// Exits: a filled diamond on each square of a 2 by 2 block, under
-			// everything else.
-			if (params.spawnSpacing) {
-				context.fillStyle = EXIT_COLOUR;
-				context.globalAlpha = 0.35;
-				for (const {x, y} of exitsIn(bounds, params.spawnSpacing)) {
-					context.beginPath();
-					context.moveTo(x, y - 0.5);
-					context.lineTo(x + 0.5, y);
-					context.lineTo(x, y + 0.5);
-					context.lineTo(x - 0.5, y);
-					context.closePath();
-					context.fill();
-				}
-				context.globalAlpha = 1;
+			// Exits: one ETH diamond across each 2 by 2 block, under everything
+			// else. In game units, under the camera transform.
+			context.globalAlpha = EXIT_ALPHA;
+			for (const {centre, unit} of exitDiamonds(bounds, params.spawnSpacing)) {
+				fillFacets(context, ethDiamond(centre, unit), (x, y) => ({x, y}));
 			}
+			context.globalAlpha = 1;
 
 			// Open spawn points: a ring where a deployment may land, filled for the
 			// one the player picked.
@@ -218,6 +225,7 @@ export function createChessBoardRenderer(params: {
 						ring: ownColour,
 						square: true,
 					});
+					drawBadge(context, frame, piece, 1);
 					continue;
 				}
 				const frozen = view.frozen?.has(piece.army) ?? false;
@@ -226,29 +234,24 @@ export function createChessBoardRenderer(params: {
 					alpha: frozen ? 0.55 : 1,
 					...(frozen ? {ring: FROZEN_RING} : {}),
 				});
+				// A king carries its army's stake out through an exit: it wears the
+				// exits' mark, which a click on it opens into the amount.
+				if (piece.kind === PIECE_KIND.King) {
+					drawBadge(context, frame, piece, frozen ? 0.55 : 1);
+				}
 			}
 			// The planned army, as a ghost: never mistaken for one on chain.
 			for (const piece of view.ghost) {
 				if (!visible(piece)) continue;
 				drawPiece(context, frame, piece, {colour: YOUR_COLOUR, alpha: 0.4});
 			}
-			// Every king's stake, over it: what a player judges a target by.
+			// The stake of the king or stone the player clicked, over it: what a
+			// player judges a target by. Only that one (`labelsOf`): drawn over
+			// every king, the labels covered the pieces around them.
 			if (scale >= MIN_GLYPH_SCALE) {
-				for (const king of view.kings ?? []) {
-					const {x, y} = king.position2d;
-					if (x < bounds.minX || x > bounds.maxX) continue;
-					if (y < bounds.minY || y > bounds.maxY) continue;
-					drawLabel(context, frame, king.position2d, king.stakeLabel, {
-						text: king.frozen ? FROZEN_LABEL_TEXT : LABEL_TEXT,
-					});
-				}
-				// And every stone's: what capturing it would take.
-				for (const stone of view.stones ?? []) {
-					const {x, y} = stone.position2d;
-					if (x < bounds.minX || x > bounds.maxX) continue;
-					if (y < bounds.minY || y > bounds.maxY) continue;
-					drawLabel(context, frame, stone.position2d, stone.stakeLabel, {
-						text: STONE_LABEL_TEXT,
+				for (const label of labelsOf(view)) {
+					drawLabel(context, frame, label, label.text, {
+						text: LABEL_TONES[label.tone],
 					});
 				}
 			}
@@ -288,6 +291,65 @@ function drawPiece(
 		context.fillText(glyphOf(piece.kind), centre.x, centre.y + scale * 0.04);
 	}
 	context.globalAlpha = 1;
+}
+
+/**
+ * The ETH diamond on a piece that holds a stake (a king, a stone): what says
+ * "click me for the amount", since the amount itself is shown only on a click.
+ */
+function drawBadge(
+	context: CanvasRenderingContext2D,
+	frame: Frame,
+	piece: PieceView,
+	alpha: number,
+) {
+	const scale = frame.transform.scale;
+	if (scale < MIN_BADGE_SCALE) return;
+	const badge = kingBadge(piece.position2d);
+	context.globalAlpha = alpha;
+	fillFacets(
+		context,
+		ethDiamond(badge.centre, badge.unit),
+		(x, y) => toScreen(frame, x, y),
+		{outline: BADGE_OUTLINE, width: Math.max(1, scale * 0.04)},
+	);
+	context.globalAlpha = 1;
+}
+
+/**
+ * The ETH diamond's facets in its two tones, through `at` (identity in game
+ * units, `toScreen` in screen space). Outlined first when asked, so the
+ * outline frames the shape rather than cutting into it.
+ */
+function fillFacets(
+	context: CanvasRenderingContext2D,
+	facets: Facet[],
+	at: (x: number, y: number) => {x: number; y: number},
+	outline?: {outline: string; width: number},
+) {
+	const trace = (facet: Facet) => {
+		context.beginPath();
+		facet.points.forEach(([px, py], i) => {
+			const p = at(px, py);
+			if (i === 0) context.moveTo(p.x, p.y);
+			else context.lineTo(p.x, p.y);
+		});
+		context.closePath();
+	};
+	if (outline) {
+		context.strokeStyle = outline.outline;
+		context.lineWidth = outline.width * 2;
+		context.lineJoin = 'round';
+		for (const facet of facets) {
+			trace(facet);
+			context.stroke();
+		}
+	}
+	for (const facet of facets) {
+		trace(facet);
+		context.fillStyle = ETH_TONES[facet.tone];
+		context.fill();
+	}
 }
 
 /** A short label in a dark box, just above a square, in screen space. */

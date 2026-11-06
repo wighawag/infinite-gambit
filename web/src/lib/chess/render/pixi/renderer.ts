@@ -26,10 +26,12 @@ import {ExitLayer} from './exits';
 import {Overlays} from './overlays';
 import {FOOT} from './piece-art';
 import {PieceTextures} from './pieces';
-import {isDots} from './squares';
+import {pieceMode, type PieceMode} from './squares';
+import {kingBadge} from '../eth-diamond';
 import {
 	cssColourToHex,
 	exitBlocks,
+	glyphOfLook,
 	labelsOf,
 	looksDiffer,
 	overlayModel,
@@ -45,8 +47,14 @@ const LABEL_TEXT = {live: 0xffffff, frozen: 0xcfe8ff, stone: 0xd9d2c5};
 
 type PieceObject = {
 	glow: Sprite;
+	/** The army-coloured felt pad the piece stands on: who it belongs to. */
+	pad: Sprite;
 	sprite: Sprite;
 	dot: Sprite;
+	/** The glyph on the dot, when zoomed out (`pieceMode` 'glyphs'). */
+	glyph: Sprite;
+	/** The ETH diamond on a king or stone: click it for the stake. */
+	badge: Sprite;
 	look: PieceLook;
 };
 
@@ -71,7 +79,7 @@ export function createChessPixiRenderer(params: {
 	const labels = new Container();
 	let labelPool: Text[] = [];
 	let latestLabels: Label[] = [];
-	let dots = false;
+	let mode: PieceMode = 'pieces';
 	let unsubscribe: (() => void) | undefined;
 
 	function texture(look: PieceLook): Texture {
@@ -92,6 +100,16 @@ export function createChessPixiRenderer(params: {
 		glow.position.set(px, py + c * 0.34);
 		glow.zIndex = look.y * 3;
 
+		// The pad: solid, rimmed, in the army colour, so whose piece it is
+		// reads at a glance without the thin band on the wood.
+		const {pad} = object;
+		pad.tint = tone;
+		pad.alpha = look.alpha;
+		pad.width = c * 0.82;
+		pad.height = c * 0.34;
+		pad.position.set(px, py + c * 0.33);
+		pad.zIndex = look.y * 3 + 0.5;
+
 		sprite.texture = texture(look);
 		sprite.alpha = look.alpha;
 		sprite.width = sprite.height = c * 0.94;
@@ -110,16 +128,36 @@ export function createChessPixiRenderer(params: {
 
 		dot.tint = tone;
 		dot.alpha = look.alpha;
-		dot.width = dot.height = c * 0.78;
+		dot.width = dot.height = c * 0.86;
 		dot.position.set(px, py);
 		dot.zIndex = look.y * 3;
-		showDots(object);
+
+		const {glyph} = object;
+		glyph.texture = textures!.glyph(glyphOfLook(look));
+		glyph.alpha = look.alpha;
+		glyph.width = glyph.height = c * 0.7;
+		glyph.position.set(px, py);
+		glyph.zIndex = look.y * 3 + 0.5;
+
+		const {badge} = object;
+		const at = kingBadge({x: look.x, y: look.y});
+		badge.alpha = look.alpha;
+		// the texture's diamond is 0.44 of its side per unit
+		badge.width = badge.height = (at.unit / 0.44) * c;
+		badge.position.set(at.centre.x * c, at.centre.y * c);
+		badge.zIndex = look.y * 3 + 2;
+		showMode(object);
 	}
 
-	function showDots(object: PieceObject): void {
-		object.sprite.visible = !dots;
-		object.glow.visible = !dots && !object.look.stone;
-		object.dot.visible = dots;
+	function showMode(object: PieceObject): void {
+		const turned = mode === 'pieces';
+		object.sprite.visible = turned;
+		object.pad.visible = turned;
+		object.glow.visible = turned && !object.look.stone;
+		object.dot.visible = !turned;
+		object.glyph.visible = mode === 'glyphs';
+		// kings and stones (a stone is the king's silhouette)
+		object.badge.visible = mode !== 'dots' && object.look.kind === 'king';
 	}
 
 	function drawLabels(scale: number): void {
@@ -134,7 +172,14 @@ export function createChessPixiRenderer(params: {
 				text = new Text({
 					text: '',
 					resolution: 2,
-					style: {fontFamily: 'sans-serif', fontSize: 12, fill: 0xffffff},
+					style: {
+						fontFamily: 'sans-serif',
+						fontSize: 13,
+						fontWeight: 'bold',
+						fill: 0xffffff,
+						// bare text vanished on the wood
+						stroke: {color: 0x0b1020, width: 4, join: 'round'},
+					},
 				});
 				text.anchor.set(0.5, 1);
 				labelPool.push(text);
@@ -164,23 +209,39 @@ export function createChessPixiRenderer(params: {
 		add: ({entity}) => {
 			const object: PieceObject = {
 				glow: new Sprite(textures!.glow),
+				pad: new Sprite(textures!.dot),
 				sprite: new Sprite(),
 				dot: new Sprite(textures!.dot),
+				glyph: new Sprite(),
+				badge: new Sprite(textures!.badge),
 				look: entity,
 			};
+			object.badge.anchor.set(0.5);
 			object.glow.anchor.set(0.5);
+			object.pad.anchor.set(0.5);
+			object.glyph.anchor.set(0.5);
 			// the piece stands on the lower part of its square
 			object.sprite.anchor.set(0.5, FOOT);
 			object.dot.anchor.set(0.5);
-			pieces.addChild(object.glow, object.sprite, object.dot);
+			pieces.addChild(
+				object.glow,
+				object.pad,
+				object.sprite,
+				object.dot,
+				object.glyph,
+				object.badge,
+			);
 			apply(object, entity);
 			return object;
 		},
 		update: ({object, entity}) => apply(object, entity),
 		remove: ({object}) => {
 			object.glow.destroy();
+			object.pad.destroy();
 			object.sprite.destroy();
 			object.dot.destroy();
+			object.glyph.destroy();
+			object.badge.destroy();
 		},
 
 		onStarted(surface) {
@@ -223,10 +284,10 @@ export function createChessPixiRenderer(params: {
 
 		tick({frame, objects}) {
 			tickBoard(frame);
-			const nowDots = isDots(frame.transform.scale);
-			if (nowDots !== dots) {
-				dots = nowDots;
-				for (const object of objects) showDots(object);
+			const now = pieceMode(frame.transform.scale);
+			if (now !== mode) {
+				mode = now;
+				for (const object of objects) showMode(object);
 			}
 		},
 	});

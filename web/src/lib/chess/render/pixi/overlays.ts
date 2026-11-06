@@ -158,13 +158,15 @@ export class Overlays {
 				]) {
 					const px = cx + sx * h;
 					const py = cy + sy * h;
-					g.poly([px, py, px - sx * k, py, px, py - sy * k]).fill({
-						color: INK,
-						alpha: 0.45,
-					});
+					// Gold, edged in ink: ink alone vanished on the dark wood.
+					g.poly([px, py, px - sx * k, py, px, py - sy * k])
+						.fill({color: GOLD, alpha: 0.9})
+						.stroke({color: INK, width: c * 0.02, alpha: 0.7});
 				}
 			} else {
-				g.circle(cx, cy, c * 0.15).fill({color: INK, alpha: 0.38});
+				g.circle(cx, cy, c * 0.16)
+					.fill({color: GOLD, alpha: 0.85})
+					.stroke({color: INK, width: c * 0.025, alpha: 0.7});
 			}
 		}
 

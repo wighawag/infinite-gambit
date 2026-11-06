@@ -21,6 +21,7 @@ import {
 	type Finish,
 	type Kind,
 } from './piece-art';
+import {BADGE_OUTLINE, ETH_TONES, ethDiamond} from '../eth-diamond';
 
 async function rasterise(svg: string, size: number): Promise<Texture> {
 	const url = URL.createObjectURL(new Blob([svg], {type: 'image/svg+xml'}));
@@ -88,8 +89,69 @@ function dotTexture(): Texture {
 	});
 }
 
+/**
+ * A glyph in ink on a transparent square, for the zoomed-out discs: the same
+ * character and font as the canvas board draws, so both read the same.
+ */
+function glyphTexture(glyph: string): Texture {
+	const size = 64;
+	const canvas = document.createElement('canvas');
+	canvas.width = canvas.height = size;
+	const c = canvas.getContext('2d')!;
+	c.fillStyle = '#0b1020';
+	c.font = `${Math.round(size * 0.82)}px serif`;
+	c.textAlign = 'center';
+	c.textBaseline = 'middle';
+	c.fillText(glyph, size / 2, size / 2 + size * 0.05);
+	return new Texture({
+		source: new CanvasSource({
+			resource: canvas,
+			autoGenerateMipmaps: true,
+			scaleMode: 'linear',
+		}),
+	});
+}
+
+/**
+ * The ETH diamond badge a king or stone wears (`../eth-diamond`), outlined, on
+ * a transparent square: the canvas board's badge, so both say the same.
+ */
+function badgeTexture(): Texture {
+	const size = 64;
+	const canvas = document.createElement('canvas');
+	canvas.width = canvas.height = size;
+	const c = canvas.getContext('2d')!;
+	const facets = ethDiamond({x: size / 2, y: size / 2}, size * 0.44);
+	const trace = (points: Array<[number, number]>) => {
+		c.beginPath();
+		points.forEach(([x, y], i) => (i === 0 ? c.moveTo(x, y) : c.lineTo(x, y)));
+		c.closePath();
+	};
+	c.strokeStyle = BADGE_OUTLINE;
+	c.lineWidth = size * 0.08;
+	c.lineJoin = 'round';
+	for (const f of facets) {
+		trace(f.points);
+		c.stroke();
+	}
+	for (const f of facets) {
+		trace(f.points);
+		c.fillStyle = ETH_TONES[f.tone];
+		c.fill();
+	}
+	return new Texture({
+		source: new CanvasSource({
+			resource: canvas,
+			autoGenerateMipmaps: true,
+			scaleMode: 'linear',
+		}),
+	});
+}
+
 export class PieceTextures {
+	readonly badge = badgeTexture();
 	readonly dot = dotTexture();
+	private readonly glyphs = new Map<string, Texture>();
 	readonly glow = glowTexture();
 	readonly seal: Promise<Texture> = rasterise(SEAL_SVG, 128);
 	private readonly pending = new Map<string, Promise<Texture>>();
@@ -104,6 +166,16 @@ export class PieceTextures {
 				return t;
 			});
 			this.pending.set(key, texture);
+		}
+		return texture;
+	}
+
+	/** A glyph's texture, made the first time it is asked for (synchronous). */
+	glyph(glyph: string): Texture {
+		let texture = this.glyphs.get(glyph);
+		if (!texture) {
+			texture = glyphTexture(glyph);
+			this.glyphs.set(glyph, texture);
 		}
 		return texture;
 	}

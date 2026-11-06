@@ -3,11 +3,12 @@ import {PIECE_KIND, type PieceKind} from '$lib/chess/board';
 import {exitsIn} from '$lib/chess/exits';
 import {squareAt} from '$lib/chess/squares';
 import type {BoardView, PieceView} from '$lib/chess/view';
-import {armyColour, YOUR_COLOUR} from '$lib/chess/render/style';
+import {armyColour, glyphOf, YOUR_COLOUR} from '$lib/chess/render/style';
 import {
 	attackedThatMatter,
 	cssColourToHex,
 	exitBlocks,
+	glyphOfLook,
 	labelsOf,
 	lookOf,
 	looksDiffer,
@@ -60,6 +61,22 @@ describe('colours as tints', () => {
 });
 
 describe('pieces', () => {
+	it('show the canvas board\u2019s glyph when zoomed out, a stone its own', () => {
+		const view = viewOf();
+		for (const kind of [
+			PIECE_KIND.Pawn,
+			PIECE_KIND.Knight,
+			PIECE_KIND.Bishop,
+			PIECE_KIND.Rook,
+			PIECE_KIND.Queen,
+			PIECE_KIND.King,
+			PIECE_KIND.Stone,
+		]) {
+			const look = lookOf(piece(0, 0, THEM, kind), view)!;
+			expect(glyphOfLook(look)).toBe(glyphOf(kind));
+		}
+	});
+
 	it('draw every kind as a turned piece, a stone as a king', () => {
 		expect(silhouetteOf(PIECE_KIND.Pawn)).toBe('pawn');
 		expect(silhouetteOf(PIECE_KIND.Knight)).toBe('knight');
@@ -302,10 +319,15 @@ describe('labels', () => {
 				{army: 33n, position2d: {x: 7, y: 7}, stake: 1n, stakeLabel: 'c'},
 			],
 		});
-		expect(labelsOf(view)).toEqual([
-			{x: 0, y: 0, text: 'a', tone: 'live'},
+		// Hidden until a king or stone is clicked: always shown, they covered
+		// the pieces around them.
+		expect(labelsOf(view)).toEqual([]);
+		expect(labelsOf({...view, inspected: {x: 4, y: 0}})).toEqual([
 			{x: 4, y: 0, text: 'b', tone: 'frozen'},
+		]);
+		expect(labelsOf({...view, inspected: {x: 7, y: 7}})).toEqual([
 			{x: 7, y: 7, text: 'c', tone: 'stone'},
 		]);
+		expect(labelsOf({...view, inspected: {x: 1, y: 1}})).toEqual([]);
 	});
 });
