@@ -1,0 +1,91 @@
+name: Build and Pin to IPFS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build_and_pin:
+    runs-on: ubuntu-latest
+    name: Build and Pin to IPFS
+    steps:
+      - uses: actions/checkout@v4
+
+      # no `version:` here on purpose: the pnpm version comes from the
+      # packageManager field in package.json. Specifying both errors with
+      # ERR_PNPM_BAD_PM_VERSION.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      # Also generates web/src/lib/deployments.ts (scripts/ensure-deployments.mjs).
+      # With no committed deployment records that comes from a throwaway deploy,
+      # which is what the offline-only build below runs against.
+      - name: Install dependencies
+        run: pnpm install
+
+      # WHICH CHAIN THE SITE TALKS TO is the repo variable DEPLOY_ENV.
+      #
+      # Unset (the state until a real deployment is committed): the site is built
+      # with no chain behind it. The offline world still works, since it deploys
+      # this game's contracts onto an EVM running in the tab, so the pinned build
+      # is a playable demo; the online tables have nothing to connect to.
+      #
+      # Set (e.g. `sepolia`): `pnpm build <env>` exports the committed records in
+      # contracts/deployments/<env>, and fails if there are none, rather than
+      # quietly shipping an offline-only site under a name that promised a chain.
+      #
+      # The PUBLIC_* values are repo variables, exported only when set, so an
+      # unset one keeps the default from web/.env instead of overriding it with an
+      # empty string (an empty PUBLIC_ENS_NODE_URL would disable ENS).
+      - name: Build
+        env:
+          DEPLOY_ENV: ${{ vars.DEPLOY_ENV }}
+          VAR_PUBLIC_NODE_URL: ${{ vars.PUBLIC_NODE_URL }}
+          VAR_PUBLIC_CHAIN_INFO_NODE_URL: ${{ vars.PUBLIC_CHAIN_INFO_NODE_URL }}
+          VAR_PUBLIC_ENS_NODE_URL: ${{ vars.PUBLIC_ENS_NODE_URL }}
+          VAR_PUBLIC_FAUCET_LINK: ${{ vars.PUBLIC_FAUCET_LINK }}
+        run: |
+          set -euo pipefail
+          for name in PUBLIC_NODE_URL PUBLIC_CHAIN_INFO_NODE_URL PUBLIC_ENS_NODE_URL PUBLIC_FAUCET_LINK; do
+            value="$(printenv "VAR_$name" || true)"
+            if [ -n "$value" ]; then
+              export "$name=$value"
+            fi
+          done
+          if [ -n "$DEPLOY_ENV" ]; then
+            pnpm build "$DEPLOY_ENV"
+          else
+            pnpm web:build production
+          fi
+
+      # Pinned on our OWN node (pinnace), not a paid pinning service.
+      #
+      # It deploys to a STAGING id. In ipfs mode a site on the node means "the cid
+      # this name resolves to", and that cid only changes when a human moves the
+      # ENS contenthash, so CI must not write the live id: the node would warm a
+      # build nobody resolves and leave the cid ENS points at untracked. The job
+      # summary prints this build's cid and the contenthash to set.
+      #
+      # No `promote-to` yet, because the game has no ENS name. Once it has one,
+      # add `promote-to: <name>.eth` and the summary prints the exact promote
+      # command next to the ENS hash, as ../mandalas does.
+      #
+      # Only on a real push: a PR build has no business moving even the staging
+      # pointer. PRs still build above, which is what they are checked for.
+      - name: Deploy to IPFS (staging)
+        id: deploy
+        if: github.event_name != 'pull_request'
+        uses: wighawag/pinnace/actions/deploy@main
+        with:
+          endpoint: https://ipfs-publisher.ska.sh
+          site: infinite-gambit-staging
+          mode: ipfs
+          dir: web/build
+        env:
+          PINNACE_HOST_PUBLISHER_TOKEN: ${{ secrets.PINNACE_HOST_PUBLISHER_TOKEN }}
