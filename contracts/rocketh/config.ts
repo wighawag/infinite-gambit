@@ -257,6 +257,22 @@ export const config = {
 			},
 			tags: ['local', 'memory', 'testnet'],
 		},
+		// sepolia
+		11155111: {
+			properties: {
+				// Measured 2026-11-06 over the last 1024 blocks: base fee 14-26
+				// WEI, the node's suggested tip 2 wei, the median tip actually
+				// paid about 1 gwei (blocks are far from full, so that is habit,
+				// not competition). Half a gwei is still millions of times the
+				// base fee, and it is ALSO the most fuzd may pay per gas for a
+				// scheduled reveal (web/src/lib/fuzd/config.ts), so it must stay a
+				// worst case and not a typical one. Higher costs players faucet
+				// ETH: it prices their credits and fuzd's prepayment.
+				expectedWorstGasPrice: parseEther('0.5', 'gwei'),
+				creditsGasMultiplier: COMMIT_GAS + REVEAL_GAS,
+				supportsSendRawTransactionSync: false,
+			},
+		},
 		// mega-eth testnet
 		6342: {
 			properties: {
@@ -366,6 +382,27 @@ export const config = {
 				revealGas: REVEAL_GAS,
 				expectedActionsPerTurn: EXPECTED_ACTIONS_PER_TURN,
 			},
+			/**
+			 * SEPOLIA: 10 minutes to commit, 5 to reveal. Blocks are about 12
+			 * seconds, and fuzd reveals from a once-a-minute cron after waiting
+			 * for a drand round, so a scheduled reveal can land a minute or two
+			 * into the phase; the browser's own fallback fires at half of it.
+			 * Five minutes leaves room for both. The slow-chain alternative
+			 * settled on for this game is 23h+1h (a move a day), which suits a
+			 * persistent world but not a demo someone watches resolve.
+			 */
+			11155111: {
+				commitPhaseDuration: 600n,
+				revealPhaseDuration: 300n,
+				actionsPerReveal: 1n,
+				stake: parseEther('10'),
+				spawnSpacing: 16n,
+				openSpawnPoints: 8n,
+				cyclePolicy: CYCLE_POLICY.Timed,
+				commitGas: COMMIT_GAS,
+				revealGas: REVEAL_GAS,
+				expectedActionsPerTurn: EXPECTED_ACTIONS_PER_TURN,
+			},
 			default: {
 				commitPhaseDuration: 30n,
 				revealPhaseDuration: 10n,
@@ -398,6 +435,23 @@ export const config = {
 		 * about 173,000.
 		 */
 		Lobby: {
+			/**
+			 * SEPOLIA: the same reasoning as the world's, shorter because a table
+			 * advances early once every member has acted, so the clock only runs
+			 * out on the absent. Two minutes still covers fuzd's minute of lag.
+			 */
+			11155111: {
+				commitPhaseDuration: 180n,
+				revealPhaseDuration: 120n,
+				actionsPerReveal: 1n,
+				stake: parseEther('10'),
+				spawnSpacing: 10n,
+				openSpawnPoints: 8n,
+				cyclePolicy: CYCLE_POLICY.TimedWithEarlyAdvance,
+				commitGas: COMMIT_GAS,
+				revealGas: LOBBY_REVEAL_GAS,
+				expectedActionsPerTurn: EXPECTED_ACTIONS_PER_TURN,
+			},
 			default: {
 				commitPhaseDuration: 45n,
 				revealPhaseDuration: 15n,
