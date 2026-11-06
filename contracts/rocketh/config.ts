@@ -120,10 +120,13 @@ export const CYCLE_POLICY = {
  * The reveal's worst case is a move whose two resolved pieces (the mover and
  * its destination) each sit behind the longest chain of merges a read follows
  * (`MAX_CHAIN` in `UsingGameBoard.sol`, `chess-king-capture-merge`): about
- * 690,000, priced per merge in `GasBudget.test.ts`.
+ * 690,000, priced per merge in `GasBudget.test.ts`. Dearer still is a slider
+ * whose own army is that far behind taking the king of a capture loop of
+ * `MAX_CHAIN` armies (`chess-capture-loops`), which reads the whole loop and
+ * folds it, writing every army of it: about 1,040,000, priced per army there.
  */
 const COMMIT_GAS = 430_000n;
-const REVEAL_GAS = 800_000n;
+const REVEAL_GAS = 1_200_000n;
 
 /**
  * How many actions a player is EXPECTED to submit in one turn.

@@ -151,6 +151,17 @@ library ChessRules {
         }
     }
 
+    /// @notice The square of row `r`, column `c` of the layout of an army
+    ///         deployed at `spawnPoint` (see {layout}); a corner of the
+    ///         rectangle, where both are on its edge, holds no piece.
+    function layoutSquare(
+        uint64 spawnPoint,
+        uint256 r,
+        uint256 c
+    ) internal pure returns (uint64) {
+        return _place(spawnPoint, facing(spawnPoint), r, c);
+    }
+
     /// @notice Where the king of an army deployed at `spawnPoint` stands.
     function kingOf(uint64 spawnPoint) internal pure returns (uint64) {
         return _place(spawnPoint, facing(spawnPoint), 2, 1);
@@ -500,6 +511,11 @@ library ChessRules {
     ///        (`docs/adr/0003-collision-table-king-survives-a-crowd.md`)
     /// @param arriver the first piece other than a king that arrived,
     ///        meaningful when it is the only one
+    /// @param looped whether the king captured here is part of a capture loop
+    ///        of the cycle, which no one square's facts can say: the caller
+    ///        works it out from the closed cycle's facts of every king in the
+    ///        loop. Only ever true for a king that stayed and exactly one
+    ///        arrival other than a king: a loop has no other shape.
     /// @dev FROM COUNTS AND IDENTITIES ALONE, so it cannot depend on the order
     ///      the reveals landed in. THE COLLISION TABLE
     ///      (`docs/adr/0003-collision-table-king-survives-a-crowd.md`), its
@@ -509,6 +525,9 @@ library ChessRules {
     ///        piece that stayed, and the others die;
     ///      - a moving king and exactly 1 other piece: both die, and the square
     ///        is left as if none had come (see {kingCapture} for the merge);
+    ///      - a king that stayed, taken by one arrival that is part of a capture
+    ///        LOOP (`looped`): the arrival dies and the king stays
+    ///        (`docs/adr/0004-capture-loops-rotate-ownership.md`);
     ///      - one arrival takes the square, whatever stood there (a capture, or
     ///        a plain move onto an empty square);
     ///      - two or more arrivals without a king all fail, and the square is
@@ -521,9 +540,11 @@ library ChessRules {
         bool departed,
         uint256 arrivals,
         T.Piece memory king,
-        T.Piece memory arriver
+        T.Piece memory arriver,
+        bool looped
     ) internal pure returns (T.Piece memory) {
         bool kingCame = king.kind != T.PieceKind.None;
+        if (looped) return standing;
         if (arrivals == 1 || (kingCame && arrivals > 2)) {
             T.Piece memory lands = kingCame ? king : arriver;
             lands.position = standing.position;
@@ -544,6 +565,8 @@ library ChessRules {
     /// @param departed whether that piece moved away in the cycle
     /// @param arrivals how many pieces arrived in the cycle, a king included
     /// @param kingCame whether one of them was a king
+    /// @param looped as for {settle}: the king that stayed is part of a capture
+    ///        loop, so nothing is captured and its lone captor dies
     /// @return captured the piece that stayed and was taken, by a lone arrival
     ///         or by a king arriving with two or more others; kind `None` (at
     ///         the square) if nothing was captured. A piece that moved away is
@@ -560,9 +583,11 @@ library ChessRules {
         T.Piece memory standing,
         bool departed,
         uint256 arrivals,
-        bool kingCame
+        bool kingCame,
+        bool looped
     ) internal pure returns (T.Piece memory captured, uint256 died) {
         captured.position = standing.position;
+        if (looped) return (captured, 1);
         bool kingWins = kingCame && arrivals > 2;
         if (arrivals == 1 || kingWins) {
             if (!departed && standing.kind != T.PieceKind.None) {
@@ -591,20 +616,25 @@ library ChessRules {
     ///      the pieces given is the army each one played for at the START of
     ///      the cycle: a captor taken in the same cycle is followed later, when
     ///      the chain is resolved.
+    ///
+    ///      Only kinds and armies matter here, so it takes those alone: the
+    ///      standing piece's, and the arriving king's and arriver's armies
+    ///      (`kingArmy` zero when no king arrived).
     function kingCapture(
-        T.Piece memory standing,
+        T.PieceKind standingKind,
+        uint256 standingArmy,
         bool departed,
         uint256 arrivals,
-        T.Piece memory king,
-        T.Piece memory arriver
+        uint256 kingArmy,
+        uint256 arriverArmy
     ) internal pure returns (uint256 victim, uint256 captor) {
-        bool kingCame = king.kind != T.PieceKind.None;
-        if (kingCame && arrivals == 2) return (king.army, arriver.army);
-        if (departed || standing.kind != T.PieceKind.King) return (0, 0);
+        bool kingCame = kingArmy != 0;
+        if (kingCame && arrivals == 2) return (kingArmy, arriverArmy);
+        if (departed || standingKind != T.PieceKind.King) return (0, 0);
         if (arrivals == 1) {
-            return (standing.army, kingCame ? king.army : arriver.army);
+            return (standingArmy, kingCame ? kingArmy : arriverArmy);
         }
-        if (kingCame && arrivals > 2) return (standing.army, king.army);
+        if (kingCame && arrivals > 2) return (standingArmy, kingArmy);
         return (0, 0);
     }
 

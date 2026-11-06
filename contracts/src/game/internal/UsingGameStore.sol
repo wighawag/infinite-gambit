@@ -36,6 +36,10 @@ abstract contract UsingGameStore is
     ///      (its status, its king) or is the base's (its reserve, which is its
     ///      stake).
     struct ArmyRecord {
+        /// @notice who plays it, as last folded: the account that created it,
+        ///         until a capture loop hands it to its captor's owner (see
+        ///         `docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`;
+        ///         resolved by `UsingGameBoard-_ownerOf`)
         address owner;
         /// @notice the cycle its deployment was committed in
         uint64 deployCycle;
@@ -61,6 +65,17 @@ abstract contract UsingGameStore is
         ///      every cycle anybody can still read, which is why the capture's
         ///      cycle is not kept beside it.
         uint256 capturedInto;
+        // ---- fourth slot: the last capture loop it was in
+        /// @notice the cycle of the last capture LOOP its king was in, once a
+        ///         later reveal has folded it; zero until then
+        ///         (`docs/adr/0004-capture-loops-rotate-ownership.md`)
+        /// @dev A CACHE OF A CLOSED CYCLE'S FACTS, like `capturedInto`, but
+        ///      written for EVERY army of the loop at once, together with its
+        ///      new `owner` (`UsingGameBoard-_foldLoop`), so a loop is either
+        ///      folded for all its armies or for none. Its cycle is kept, unlike
+        ///      `capturedInto`'s, because an army survives a loop and its
+        ///      king's square later holds the facts of other cycles.
+        uint64 loopedIn;
     }
 
     /// @notice What the reveals have recorded about one square.

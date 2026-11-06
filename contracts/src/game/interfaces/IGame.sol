@@ -215,6 +215,10 @@ interface IGameRegistry is UsingGameTypes {
     ) external view returns (ArmyView[] memory armies, uint256 total);
 
     /// @notice Every army `owner` has created, resolved.
+    /// @dev CREATED, not played: an army a capture loop handed to another
+    ///      account is listed here under its creator, with its new `owner`,
+    ///      and not under the account that now plays it
+    ///      (`docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`).
     function getArmiesOf(
         address owner
     ) external view returns (ArmyView[] memory armies);

@@ -64,7 +64,11 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             return super._playerOf(sender, id);
         }
         address owner = _armies[id].owner;
-        if (owner == address(0)) {
+        if (owner != address(0)) {
+            // Resolved: a capture loop hands an army to its captor's owner.
+            (uint64 cycleNumber, ) = _cycleNumber();
+            owner = _ownerOf(id, cycleNumber);
+        } else {
             owner = address(uint160(id));
             if (owner == address(0) || id >> 160 != _armyCountOf[owner] + 1) {
                 revert InvalidPlayer(id);
@@ -96,7 +100,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             kingTo: 0,
             kingFrom: 0,
             cancelled: false,
-            capturedInto: 0
+            capturedInto: 0,
+            loopedIn: 0
         });
         _armyIds.push(army);
         // Only a cycle that advances reads who it waits for, so only there is
@@ -498,7 +503,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         ArmyRecord memory army = _armies[id];
         view_.id = id;
         if (army.owner == address(0)) return view_;
-        view_.owner = army.owner;
+        view_.owner = _ownerOf(id, cycleNumber);
         view_.deployedIn = army.deployCycle;
         view_.stake = _reserveOf(id);
         view_.mergedInto = id;
@@ -515,7 +520,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         if (into != id) {
             view_.status = ArmyStatus.Captured;
             view_.mergedInto = into;
-            view_.owner = _armies[into].owner;
+            view_.owner = _ownerOf(into, cycleNumber);
             view_.stake = 0;
             return view_;
         }
@@ -596,18 +601,12 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         for (uint256 k = 0; k < touched.length; k++) {
             SquareRecord storage record = _squares[touched[k]];
             if (record.cycle != cycleNumber || record.arrivals == 0) continue;
-            Piece memory standing = Piece({
-                position: touched[k],
-                army: record.army,
-                kind: record.kind,
-                forward: record.forward,
-                moved: record.moved
-            });
             (Piece memory captured, uint256 died) = ChessRules.outcome(
-                standing,
+                _standingOf(record, touched[k]),
                 record.departed,
                 record.arrivals,
-                record.kingArrived
+                record.kingArrived,
+                _loopedSquare(record, cycleNumber + 1)
             );
             captured.army = _armyOf(captured.army, cycleNumber);
             if (died == 0 && captured.kind == PieceKind.None) continue;

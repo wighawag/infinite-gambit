@@ -16,6 +16,7 @@ import {
 } from './utils/index.js';
 import {parseEther, zeroAddress} from 'viem';
 import {movesWorld, move} from './utils/moves-world.js';
+import {fourArmies, threeArmyLoop, twoArmyLoop} from './utils/capture-loops.js';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -96,7 +97,7 @@ const MINIMUM_HEADROOM_PERCENT = 10n;
 const MAX_CHAIN = 8n;
 
 /** The worst reveals of the first case, for the capture-chain case to build on. */
-const measured: {king?: bigint; slider?: bigint} = {};
+const measured: {king?: bigint; slider?: bigint; perMerge?: bigint} = {};
 
 describe('the declared gas budget', function () {
 	it('covers the worst commit and the worst reveal these contracts can produce', async function () {
@@ -305,6 +306,7 @@ describe('the declared gas budget', function () {
 			move([7, 0], [8, 0]),
 		);
 		const perMerge = (twoMerges - noMerge) / 2n;
+		measured.perMerge = perMerge;
 
 		// A king meeting exactly one piece notes the capture it may make, for
 		// the captor's stake (`UsingGameBoard._noteCandidate`): one entry pushed
@@ -324,6 +326,67 @@ describe('the declared gas budget', function () {
 			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
 			`a reveal resolving two chains of ${MAX_CHAIN} merges costs about ${worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
 				`Raise it in contracts/rocketh/config.ts, or lower MAX_CHAIN: a reveal that runs out of gas is a missed reveal.`,
+		);
+	});
+
+	it('covers the worst reveal that folds a capture loop', async function () {
+		// THE LOOPS ARE PRICED PER ARMY, then multiplied by the bound, like the
+		// chains: folding a loop writes the owner and `loopedIn` of every army
+		// of it (`UsingGameBoard._foldLoop`), and reading it walks them all
+		// (`_walk`). Measured on the loops of `CaptureLoops.test.ts`, by the
+		// reveal that steps the first king off its square, which folds them.
+		assert.ok(
+			measured.slider && measured.perMerge,
+			'runs after the first two cases',
+		);
+		const world = movesWorld({
+			deployAll,
+			loadFixture: networkHelpers.loadFixture,
+		});
+		const declaredReveal = BigInt(
+			(await networkHelpers.loadFixture(deployAll)).linkedData.revealGas,
+		);
+		const step = move([6, 1], [7, 2]);
+		async function revealGas(
+			w: Awaited<ReturnType<typeof world>>,
+			owner: `0x${string}`,
+			army: bigint,
+		) {
+			await w.commit(owner, army, [step]);
+			await w.toRevealPhase();
+			const receipt = await w.reveal(owner, army, [step]);
+			await w.toNextCycle();
+			return BigInt(receipt!.gasUsed);
+		}
+		// bob's king steps off (6,1): played by bob with no loop, by dave once
+		// it is a loop of two, and by carol once it is a loop of three.
+		const fresh = await fourArmies(world);
+		const noLoop = await revealGas(fresh.w, fresh.w.bob, fresh.b);
+		const two = await twoArmyLoop(world, 'forward');
+		const loopOfTwo = await revealGas(two.w, two.w.dave, two.b);
+		const three = await threeArmyLoop(world, 'forward');
+		const loopOfThree = await revealGas(three.w, three.w.carol, three.b);
+		const perArmy = loopOfThree - loopOfTwo;
+		const loopOf = (n: bigint) => loopOfTwo - noLoop + (n - 2n) * perArmy;
+
+		// THE WORST: a slider whose own army is MAX_CHAIN merges behind, taking
+		// the king of a loop of MAX_CHAIN armies. Its destination costs what the
+		// king's own square cost above (the loop read, walked and folded), and
+		// taking a king notes a capture, as in the case above. A king never
+		// reaches another king's square: kings never stand side by side.
+		const note = 2n * 22_100n + 1_000n;
+		const worst =
+			measured.slider! +
+			MAX_CHAIN * measured.perMerge! +
+			note +
+			loopOf(MAX_CHAIN);
+		console.log(
+			`gas budget: folding a loop: of two ${loopOf(2n)}, per army ${perArmy}, of ${MAX_CHAIN} ${loopOf(MAX_CHAIN)}; worst looped reveal ${worst}, declared ${declaredReveal}`,
+		);
+		assert.ok(
+			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`a reveal folding a capture loop of ${MAX_CHAIN} armies costs about ${worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
+				`Raise it in contracts/rocketh/config.ts, or bound the loops a reveal folds: a reveal that runs out of gas is a missed reveal.`,
 		);
 	});
 
