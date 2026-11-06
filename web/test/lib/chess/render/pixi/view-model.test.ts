@@ -219,7 +219,7 @@ describe('highlights', () => {
 		]);
 	});
 
-	it('show attacked squares only around your king, on your destinations and on every planned target', () => {
+	it('border attacked squares around your king, on your destinations and on every planned target', () => {
 		const view = viewOf({
 			kings: [
 				{
@@ -256,18 +256,13 @@ describe('highlights', () => {
 	});
 
 	it('border the attacked squares your own pieces stand on, and wash in every attacked square', () => {
-		const mine = {position: 1n, army: ME, kind: 1, position2d: {x: 4, y: 4}};
-		const theirs = {
-			position: 2n,
-			army: ME + 1n,
-			kind: 1,
-			position2d: {x: 6, y: 6},
-		};
+		const mine = piece(4, 4, ME, PIECE_KIND.Pawn);
+		const theirs = piece(6, 6, THEM, PIECE_KIND.Pawn);
 		const view = viewOf({
 			pieces: new Map([
 				[mine.position, mine],
 				[theirs.position, theirs],
-			]) as unknown as BoardView['pieces'],
+			]),
 			kings: [
 				{
 					army: ME,

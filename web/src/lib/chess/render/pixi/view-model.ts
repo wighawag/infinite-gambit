@@ -6,7 +6,7 @@
  * NO RULE OF THE GAME IS HERE (`docs/adr/0007-rules-live-only-in-the-contract.md`):
  * destinations, attacked squares, outcomes and exit squares all arrive already
  * decided, and this module only chooses how they look. The one judgement it
- * makes is which attacked squares are worth showing, which changes nothing
+ * makes is which attacked squares are worth emphasising, which changes nothing
  * anyone may do.
  */
 import {PIECE_KIND, type PieceKind} from '../../board';
