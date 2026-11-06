@@ -1,5 +1,7 @@
 # Spike: the Devcon wooden board on pixi.js
 
+> **Implementing this in the game?** Start with [`HANDOFF.md`](HANDOFF.md) and the task drafts in [`handoff/`](handoff/).
+
 **Status: spike.** It answers one question: can the game look like the Devcon swag board (maple and rosewood squares, the Ethereum marquetry inlay, turned boxwood and sheesham pieces with unicorn knights) on an infinite board, in pixi, cheaply enough to keep, with everything the board has to show? Yes. Nothing in `web/` uses it yet; this README says how it would.
 
 ![board](screenshots/board.png)

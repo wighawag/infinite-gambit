@@ -78,6 +78,9 @@ function bakeInlay(renderer: Renderer, board: WoodBoard, cellSize: number, size:
 		resolution: 2,
 		antialias: true,
 	});
+	// the game's pixi assets.ts makes `nearest` the default for every texture
+	// (its art is pixel art); this art is smooth
+	texture.source.scaleMode = 'linear';
 	layer.destroy({children: true});
 	return texture;
 }
