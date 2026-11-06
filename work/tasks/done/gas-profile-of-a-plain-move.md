@@ -45,3 +45,10 @@ FIRST, check this task against current reality: are the figures above still roug
 Work in small steps (one decision, then edit and run a test), and grow files with edits of at most about 300 lines: earlier builds in this repo died on the 16,384-token output limit when a single reply tried to plan everything.
 
 RECORD non-obvious in-scope decisions in a `## Decisions` block at the end of your FINAL REPORT (the runner transcribes it into the done record). Do not write the done record, commit message or PR body yourself, and do not edit this task body.
+
+## Decisions
+
+- **The profiler is a test file, not a standalone script.** It runs as `contracts/test/js/GasProfile.test.ts`, so it reuses the existing fixtures and runs inside `verify` (about 2 seconds), which stops it rotting. The alternative was a script under `contracts/scripts/` that nobody would run. This touches nothing else.
+- **Only the per-category table prints by default.** The slot and function lists (about 800 lines) come only with `GAS_PROFILE=slots` or `GAS_PROFILE=functions`. I chose this so `verify` output stays short. The alternative was printing everything every run. It affects only this test's output.
+- **The breakdown table reports the test build, with a production row and total alongside.** The test build is what `GasBudget.test.ts` measures. Storage costs are identical between the two builds except for a few hundred gas of repeated warm reads; compute differs. The alternative was reporting the production build only. Running in production mode recompiles `artifacts/` (gitignored), and the next plain `pnpm test` recompiles them back.
+- **The function breakdown is only meaningful on the test build.** The optimiser inlines functions, so its jumps no longer say which function they enter; under production everything lands in one "(compiler-generated helper)" bucket. I documented this rather than building a second method.
