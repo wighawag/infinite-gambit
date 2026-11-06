@@ -530,6 +530,7 @@ export function createGameContext(core: CoreServices): GameContext {
 				viewState,
 				// A table has no exits (`chess-tables`).
 				spawnSpacing: core.table ? undefined : config.spawnSpacing,
+				cellSize: config.cellSize,
 			}),
 		// The canvas reports WHERE, in squares and unsnapped; which spawn point or
 		// square that picks is this game's. Rounded because squares are centred

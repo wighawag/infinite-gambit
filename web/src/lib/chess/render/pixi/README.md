@@ -1,6 +1,6 @@
-# The wooden board on pixi (built, not selected yet)
+# The wooden board on pixi (built, not the default yet)
 
-The Devcon wooden board, ported from `spikes/pixi-wood-board/` (see its `HANDOFF.md` and `README.md`) and written as a chess renderer on the template's pixi host. **The game does not use it yet:** `../index.ts` still selects the canvas-2d renderer. Selecting this one is the task `chess-pixi-switch` (`work/tasks/`), which waits for the lean-rules board (`lean-rules-square-army-on-a-9-grid`) because that changes what has to be drawn and edits the canvas renderer meanwhile.
+The Devcon wooden board, ported from `spikes/pixi-wood-board/` (see its `HANDOFF.md` and `README.md`) and written as a chess renderer on the template's pixi host. **The game does not use it by default yet:** `../index.ts` selects the canvas-2d renderer unless `PUBLIC_RENDERER=pixi` is set (see `web/.env`; put it in `web/.env.local` to try it). Making this one the default is the task `chess-pixi-switch` (`work/tasks/`), which waits for the lean-rules board (`lean-rules-square-army-on-a-9-grid`) because that changes what has to be drawn and edits the canvas renderer meanwhile.
 
 | File                       | What it is                                                                                                                                                                       | Needs              |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |

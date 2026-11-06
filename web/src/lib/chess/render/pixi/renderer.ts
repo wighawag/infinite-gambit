@@ -10,8 +10,9 @@
  * and decides nothing (`docs/adr/0007-rules-live-only-in-the-contract.md`):
  * every mapping from the view to the screen is in `view-model.ts`.
  *
- * NOT SELECTED YET: `../index.ts` still names the canvas-2d host. Switching is
- * `chess-pixi-switch` in `work/tasks/`.
+ * NOT THE DEFAULT YET: `../index.ts` selects it only with `PUBLIC_RENDERER=pixi`
+ * (see `web/.env`). Making it the default is `chess-pixi-switch` in
+ * `work/tasks/`.
  */
 import {Container, Sprite, Text, Texture} from 'pixi.js';
 import type {Frame, GameRenderer} from '$lib/game/core/seams';
