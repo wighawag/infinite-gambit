@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" style="color: #f6efe4">
+  <g id="prism" fill="#f5b83d">
+    <path d="M128 4 L155 48 L128 63 L101 48 Z"/>
+    <path d="M101 55 L128 70 L155 55 L128 92 Z"/>
+  </g>
+  <g id="king" fill="currentColor">
+    <path d="M74 98 L100 122 L128 94 L156 122 L182 98 L170 152 L86 152 Z"/>
+    <rect x="92" y="158" width="72" height="14" rx="4"/>
+    <path d="M106 178 L150 178 Q152 204 170 222 L86 222 Q104 204 106 178 Z"/>
+    <rect x="62" y="228" width="132" height="20" rx="6"/>
+  </g>
+</svg>
