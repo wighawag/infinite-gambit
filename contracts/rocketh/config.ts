@@ -133,6 +133,13 @@ export const CYCLE_POLICY = {
  */
 const COMMIT_GAS = 430_000n;
 const REVEAL_GAS = 1_345_000n;
+/**
+ * A TABLE'S REVEAL: the world's, plus listing every zone a reveal touches first
+ * (`UsingGameTable._tally` counts the material at the cap from that list).
+ * About 67,000 at worst (two zones, a slot each), so a table's worst reveal is
+ * about 1,265,000 and this keeps 10% over it; priced in `GasBudget.test.ts`.
+ */
+const LOBBY_REVEAL_GAS = 1_400_000n;
 
 /**
  * How many actions a player is EXPECTED to submit in one turn.
@@ -361,10 +368,11 @@ export const config = {
 		 * are longer than the world's because two people at two screens are
 		 * slower than one, and only the absent pay for the length.
 		 *
-		 * The gas figures are the world's: a table runs the same routes behind
-		 * a clone. Measured 2026-10-31 by `test/js/Lobby.test.ts`: a table's
-		 * first commit 115,102, its worst reveal 533,795, and the start of a
-		 * two-member table 149,932.
+		 * The commit gas is the world's: a table runs the same routes behind a
+		 * clone. Its reveal gas is `LOBBY_REVEAL_GAS`, the world's worst plus a
+		 * table's listing of the zones it touches (`test/js/GasBudget.test.ts`).
+		 * Measured by `test/js/Lobby.test.ts`: the start of a two-member table
+		 * about 173,000.
 		 */
 		Lobby: {
 			default: {
@@ -372,11 +380,13 @@ export const config = {
 				revealPhaseDuration: 15n,
 				actionsPerReveal: 1n,
 				stake: parseEther('10'),
-				spawnSpacing: 16n,
+				// A TIGHTER GRID than the world's, so a table's armies meet
+				// quickly: a gap of four squares between two footprints.
+				spawnSpacing: 10n,
 				openSpawnPoints: 8n,
 				cyclePolicy: CYCLE_POLICY.TimedWithEarlyAdvance,
 				commitGas: COMMIT_GAS,
-				revealGas: REVEAL_GAS,
+				revealGas: LOBBY_REVEAL_GAS,
 				expectedActionsPerTurn: EXPECTED_ACTIONS_PER_TURN,
 			},
 		},

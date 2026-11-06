@@ -6,6 +6,7 @@ import {
 	commitmentHashFor,
 	fundAccount,
 	idOf,
+	squareAt,
 	revealTurn,
 	setupFixtures,
 	TURN_BOND,
@@ -17,11 +18,10 @@ import {
  * GAMES FOR A FIXED SET OF PLAYERS: the factory, the game's lobby
  * implementation, and one table played from its creation to a forfeit.
  *
- * UNTIL CHESS SEATS ITS ARMIES AT A TABLE (`work/tasks/backlog/chess-tables.md`)
- * a table keeps the template's rule: buying in seats the ACCOUNT, which has no
- * pieces and so can only pass. What is pinned here is the mechanism (the
- * clone, the roster, the start, the early advance, the forfeit, the end), not
- * a game of chess.
+ * AT A TABLE THE SEAT IS THE ARMY: buying in creates an army for the buyer,
+ * which is the member. What is pinned here is the mechanism (the clone, the
+ * roster, the start, the early advance, the forfeit, the end) with every army
+ * passing; the game of chess at a table is `Tables.test.ts`'s.
  *
  * The roster's rules are pinned on the base by `CommitRevealRoster.test.ts`;
  * this pins that the reference game's deployment carries them: a table is an
@@ -108,12 +108,43 @@ async function createTable(
 		},
 	};
 
+	/** The army each account's seat created, in the order they joined. */
+	const armies = new Map<string, bigint>();
+	const armyOf = (account: `0x${string}`) => {
+		const army = armies.get(account.toLowerCase());
+		if (army === undefined) throw new Error(`${account} has no seat`);
+		return army;
+	};
+	/** Buy a seat through the world's sale: a new army for `account`. */
+	async function join(account: `0x${string}`) {
+		const army = (await env.read(Table, {
+			functionName: 'getNextArmy',
+			args: [account],
+		})) as bigint;
+		const price = BigInt(
+			(fixtures.StakeSale.linkedData as {price: string}).price,
+		);
+		await env.execute(fixtures.StakeSale, {
+			account,
+			functionName: 'purchaseAt',
+			args: [
+				Table.address,
+				account,
+				'0x0000000000000000000000000000000000000000',
+				0n,
+			],
+			value: price,
+		});
+		armies.set(account.toLowerCase(), army);
+		return army;
+	}
+
 	async function commit(account: `0x${string}`, moves: Move[]) {
 		await env.execute(Table, {
 			account,
 			functionName: 'makeCommitment',
 			args: [
-				idOf(account),
+				armyOf(account),
 				commitmentHashFor(moves, SECRET, fixtures.actionsPerReveal),
 				TURN_BOND,
 				'0x0000000000000000000000000000000000000000',
@@ -124,7 +155,7 @@ async function createTable(
 	async function reveal(account: `0x${string}`, moves: Move[]) {
 		await revealTurn(tableFixtures, {
 			account,
-			identity: idOf(account),
+			identity: armyOf(account),
 			moves,
 			secret: SECRET,
 			actionsPerReveal: fixtures.actionsPerReveal,
@@ -149,14 +180,15 @@ async function createTable(
 		commit,
 		reveal,
 		advance,
-		join: (account: `0x${string}`) => fundAccount(tableFixtures, account),
+		join,
+		armyOf,
 		start: (account: `0x${string}`) =>
 			env.execute(Table, {account, functionName: 'start'}),
 		forfeit: (member: `0x${string}`) =>
 			env.execute(Table, {
 				account: creator,
 				functionName: 'forfeitMember',
-				args: [idOf(member)],
+				args: [armyOf(member)],
 			}),
 	};
 }
@@ -210,8 +242,22 @@ describe('games for a fixed set of players', function () {
 			],
 			value: price,
 		});
+		// The seat is a new army of hers, on the table's first spawn point.
 		const [, members] = await table.read.roster();
-		expect(members).toEqual([idOf(table.alice)]);
+		const army = (1n << 160n) | BigInt(table.alice);
+		expect(members).toEqual([army]);
+		const view = (await table.env.read(table.Table, {
+			functionName: 'getArmy',
+			args: [army],
+		})) as {owner: string; spawnPoint: bigint};
+		expect(view.owner.toLowerCase()).toEqual(table.alice.toLowerCase());
+		expect(view.spawnPoint).toEqual(0n);
+		// The next seat takes the next spawn point of the table's tighter grid.
+		const second = (await table.env.read(table.Table, {
+			functionName: 'getArmy',
+			args: [await table.join(table.bob)],
+		})) as {spawnPoint: bigint};
+		expect(second.spawnPoint).toEqual(squareAt(10, 0));
 		const worldReserve = (await table.env.read(table.Game, {
 			functionName: 'getReserve',
 			args: [idOf(table.alice)],
@@ -242,7 +288,7 @@ describe('games for a fixed set of players', function () {
 		expect(attendance.waitedFor).toEqual(0n);
 		// The table's seat is its own: the world's stake seated nobody there.
 		const [, members] = await table.read.roster();
-		expect(members).toEqual([idOf(table.alice)]);
+		expect(members).toEqual([table.armyOf(table.alice)]);
 	});
 
 	it('plays a three-seat table from its creation to a forfeit: a cycle advanced early, one by the clock', async function () {
@@ -367,11 +413,11 @@ describe('games for a fixed set of players', function () {
 		await table.env.execute(table.Table, {
 			account: table.alice,
 			functionName: 'forfeitMissedReveal',
-			args: [idOf(table.alice)],
+			args: [table.armyOf(table.alice)],
 		});
 		const commitment = (await table.env.read(table.Table, {
 			functionName: 'getCommitment',
-			args: [idOf(table.alice)],
+			args: [table.armyOf(table.alice)],
 		})) as {cycleNumber: bigint};
 		expect(commitment.cycleNumber).toEqual(0n);
 		// The persistent world beside it never ends.
@@ -387,14 +433,14 @@ describe('games for a fixed set of players', function () {
 		await table.join(table.alice);
 		const startReceipt = await table.start(table.creator);
 
-		// A seated account can only pass until chess seats armies here, so a
-		// pass is the only submission there is to measure.
+		// A pass: what the clone adds to a submission's cost is the same for
+		// every one. The worst move at a table is `GasBudget.test.ts`'s.
 		const moves: Move[] = [];
 		const commitReceipt = await table.env.execute(table.Table, {
 			account: table.creator,
 			functionName: 'makeCommitment',
 			args: [
-				idOf(table.creator),
+				table.armyOf(table.creator),
 				commitmentHashFor(moves, SECRET, table.actionsPerReveal),
 				TURN_BOND,
 				'0x0000000000000000000000000000000000000000',
@@ -406,7 +452,7 @@ describe('games for a fixed set of players', function () {
 			account: table.creator,
 			functionName: 'reveal',
 			args: [
-				idOf(table.creator),
+				table.armyOf(table.creator),
 				moves,
 				SECRET,
 				'0x000000000000000000000000000000000000000000000000',

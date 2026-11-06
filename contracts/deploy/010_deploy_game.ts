@@ -67,6 +67,10 @@ export default deployScript(
 			// board reads under the deployed-size limit.
 			{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 			{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
+			// Buying in (`addToReserve`), and a table's seats and payout: its own
+			// route because a table's seat creates an army, which no longer fits
+			// beside the commitments under the deployed-size limit.
+			{name: 'Table', artifact: artifacts.GameTable, args: [config]},
 			{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 			// A deployment's reveal, beside the move's: both no longer fit in one
 			// route under the deployed-size limit.

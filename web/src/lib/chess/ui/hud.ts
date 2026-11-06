@@ -25,6 +25,7 @@ import {SignerOutOfFundsError} from '$lib/game/core/commit-reveal/errors';
 import type {SetupNeeded} from '../context';
 import {ARMY_STATUS, type ArmyView} from '../armies';
 import type {ExitPayoutState} from '../exits';
+import type {TableClaim} from '../table-payout';
 import {nearestLabel, type SpawnPointView} from '../spawn-points';
 import {positionOf} from '../squares';
 import type {BoardView} from '../view';
@@ -676,6 +677,9 @@ export function describeRevealDeadline(params: {
 	};
 }
 
+/** For a game that is not a table, which has no claim to read. */
+const NO_TABLE_CLAIM: Readable<TableClaim | undefined> = readable(undefined);
+
 /** No scheduled reveal: what a context without the layer's member reads. */
 const NO_REVEAL_SCHEDULE: Readable<ScheduledReveal | undefined> =
 	readable(undefined);
@@ -841,6 +845,42 @@ export function describeExitPayout(params: {
 	};
 }
 
+/**
+ * What the played army may claim of a table that is over, in the same shape
+ * as an exit's payout, whose button sends the table's `claim` at a table.
+ */
+export function describeTableClaim(params: {
+	claim: TableClaim | undefined;
+	payout: ExitPayoutState;
+	sale: {price: bigint; amount: bigint};
+	symbol: string;
+}): HudModel['exitPayout'] {
+	const {claim, payout, sale} = params;
+	if (!claim) return undefined;
+	const valueLabel =
+		claim.share === undefined || sale.amount === 0n
+			? undefined
+			: `${formatBalance((claim.share * sale.price) / sale.amount)} ${params.symbol}`;
+	return {
+		army: claim.army,
+		headline: claim.winner
+			? 'Your king is the last one standing.'
+			: 'The table has played its last cycle.',
+		detail: claim.winner
+			? 'Every stake at the table is yours, paid out to your account.'
+			: 'The stakes are split by the material each army has left: pawn 1, knight and bishop 3, rook 5, queen 9.',
+		actionLabel: payout.busy
+			? 'Paying out...'
+			: valueLabel
+				? `Collect ${valueLabel}`
+				: claim.winner
+					? 'Collect every stake'
+					: 'Collect your share',
+		busy: payout.busy,
+		error: payout.error,
+	};
+}
+
 /** A spawn point's coordinates, as a player reads them. */
 export function spawnPointLabel(
 	point: Pick<SpawnPointView, 'position'>,
@@ -945,6 +985,7 @@ export function createHud(context: Context): Readable<HudModel> {
 			game.armies.pendingRefund,
 			game.armies.unpaidExit,
 			game.exitPayout,
+			game.tableClaim ?? NO_TABLE_CLAIM,
 		],
 		([
 			$twoPhase,
@@ -969,6 +1010,7 @@ export function createHud(context: Context): Readable<HudModel> {
 			$refund,
 			$unpaidExit,
 			$exitPayout,
+			$tableClaim,
 		]): HudModel => {
 			const savedTurn = describeSavedTurn($savedTurn as SavedTurn);
 			const revealSchedule = describeRevealSchedule(
@@ -1074,12 +1116,19 @@ export function createHud(context: Context): Readable<HudModel> {
 				submissionLabel: submission.label,
 				submissionTone: submission.tone,
 				missedReveal: describeMissedReveal($missedReveal as MissedRevealState),
-				exitPayout: describeExitPayout({
-					army: $unpaidExit as ArmyView | undefined,
-					payout: $exitPayout as ExitPayoutState,
-					sale: game.config.sale,
-					symbol: context.deployments.get().chain.nativeCurrency.symbol,
-				}),
+				exitPayout:
+					describeExitPayout({
+						army: $unpaidExit as ArmyView | undefined,
+						payout: $exitPayout as ExitPayoutState,
+						sale: game.config.sale,
+						symbol: context.deployments.get().chain.nativeCurrency.symbol,
+					}) ??
+					describeTableClaim({
+						claim: $tableClaim as TableClaim | undefined,
+						payout: $exitPayout as ExitPayoutState,
+						sale: game.config.sale,
+						symbol: context.deployments.get().chain.nativeCurrency.symbol,
+					}),
 				recovery: describeRecovery($recovery as RecoveryState, $count),
 				savedTurn,
 				revealSchedule,

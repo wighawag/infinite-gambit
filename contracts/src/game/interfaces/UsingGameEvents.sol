@@ -48,4 +48,25 @@ interface UsingGameEvents is UsingGameTypes, UsingCommitRevealEvents {
 
     /// @notice An exited army's whole stake was paid, in ETH, to its owner.
     event ExitPaid(uint256 indexed army, address indexed owner, uint256 amount);
+
+    /// @notice A table's army took spawn point `spawnPoint`, bought in.
+    event TableSeatTaken(uint256 indexed army, uint64 indexed spawnPoint);
+
+    /// @notice A table's army left before it started, its stake returned.
+    event TableLeft(
+        uint256 indexed army,
+        address indexed owner,
+        uint256 amount
+    );
+
+    /// @notice A table's outcome is written: its winner (zero for a split by
+    ///         material) and every stake on it.
+    event TableSettled(uint256 indexed winner, uint256 pot, uint256 material);
+
+    /// @notice A table paid `army`'s share to `owner`.
+    event TablePaid(
+        uint256 indexed army,
+        address indexed owner,
+        uint256 amount
+    );
 }

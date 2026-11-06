@@ -102,9 +102,30 @@ export function isLive(army: Pick<ArmyView, 'status'>): boolean {
 export function chooseArmy(
 	armies: readonly Pick<ArmyView, 'id' | 'status'>[],
 	next: GameIdentity,
+	atTable = false,
 ): GameIdentity {
+	if (atTable) return chooseSeat(armies, next);
 	for (let i = armies.length - 1; i >= 0; i--) {
 		if (isLive(armies[i])) return armies[i].id;
+	}
+	return next;
+}
+
+/**
+ * AT A TABLE THE SEAT IS THE ARMY: bought in, never deployed. The account's
+ * most recent army that has not left the table is its seat, whatever became of
+ * it (captured or frozen, it is still the seat its member holds), and with
+ * none the next army, which the next purchase creates.
+ */
+export function chooseSeat(
+	armies: readonly Pick<ArmyView, 'id' | 'status'>[],
+	next: GameIdentity,
+): GameIdentity {
+	for (let i = armies.length - 1; i >= 0; i--) {
+		const {status} = armies[i];
+		if (status !== ARMY_STATUS.Cancelled && status !== ARMY_STATUS.None) {
+			return armies[i].id;
+		}
 	}
 	return next;
 }
@@ -183,8 +204,11 @@ export function createArmies(params: {
 	contract: {address: `0x${string}`; abi: Abi};
 	/** WHO IS SIGNED IN: the account whose armies these are. */
 	account: Readable<`0x${string}` | undefined>;
+	/** Whether this game is a table, where the seat is the army. */
+	atTable?: boolean;
 }): ArmiesStore {
 	const {publicClient, contract, account} = params;
+	const atTable = params.atTable ?? false;
 	const state = writable<ArmiesState>({step: 'Unloaded'});
 	let reading = 0;
 
@@ -221,12 +245,12 @@ export function createArmies(params: {
 
 	const active: ActiveIdentityStore = derived(state, ($armies) =>
 		$armies.step === 'Loaded'
-			? chooseArmy($armies.armies, $armies.next)
+			? chooseArmy($armies.armies, $armies.next, atTable)
 			: undefined,
 	);
 	const activeArmy = derived(state, ($armies) => {
 		if ($armies.step !== 'Loaded') return undefined;
-		const id = chooseArmy($armies.armies, $armies.next);
+		const id = chooseArmy($armies.armies, $armies.next, atTable);
 		return $armies.armies.find((army) => army.id === id);
 	});
 

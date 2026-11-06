@@ -319,6 +319,10 @@ export async function deployGameWith(
 		{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
 		{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 		{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
+		// Buying in (`addToReserve`), and a table's seats and payout: its own
+		// route because a table's seat creates an army, which no longer fits
+		// beside the commitments under the deployed-size limit.
+		{name: 'Table', artifact: artifacts.GameTable, args: [config]},
 		{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 		{
 			name: 'DeploymentReveal',
@@ -346,8 +350,8 @@ export async function deployGameWith(
 /**
  * The id an ACCOUNT's reserve is kept under: its address, widened.
  *
- * Accounts hold stake not yet deployed (`addToReserve` credits one), and only
- * at a table are they members. Deliberately not applied to `GameToken.mint`
+ * Accounts hold stake not yet deployed (`addToReserve` credits one), and are
+ * never members: at a table too the seat is an army. Deliberately not applied to `GameToken.mint`
  * or `approve`: those really do take an address.
  */
 export function idOf(account: `0x${string}`): bigint {
@@ -432,8 +436,8 @@ export async function mintTokens(
 
 /**
  * PUT STAKE IN AN ACCOUNT'S RESERVE, paid by `payer` (the account itself by
- * default). Stake bought, not yet deployed: it makes nobody a member, except
- * at a table, where the credited account takes a seat.
+ * default). Stake bought, not yet deployed: it makes nobody a member. At a
+ * table the same call buys a seat, which is a new army (`utils/table-world.ts`).
  */
 export async function fundAccount(
 	fixtures: {env: any; Game: any; GameToken: any},

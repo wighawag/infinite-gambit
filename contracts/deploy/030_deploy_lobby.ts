@@ -49,6 +49,10 @@ export default deployScript(
 				{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
 				{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 				{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
+				// Buying in (`addToReserve`), and a table's seats and payout: its own
+				// route because a table's seat creates an army, which no longer fits
+				// beside the commitments under the deployed-size limit.
+				{name: 'Table', artifact: artifacts.GameTable, args: [config]},
 				{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
 				{
 					name: 'DeploymentReveal',

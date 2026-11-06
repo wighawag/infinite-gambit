@@ -185,8 +185,16 @@ An army that can never act again, so no cycle waits for it: a deployment that fa
 _Avoid_: eliminated, gone, inactive
 
 **Exit**:
-A square where a king may leave the world with its stake, at the centre of each spawn-grid cell (half the spacing off a spawn point on both axes). It is the only way a stake leaves. A king that lands on one ALONE has left at the close of that cycle: its army's own pieces leave the board with it, the pieces of the armies it had merged stay as rocks, and `exit(army)`, which anyone may call afterwards, pays the whole merged stake in ETH to the army's owner (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`). A king that arrives with others follows the collision table.
+A square where a king may leave the world with its stake, at the centre of each spawn-grid cell (half the spacing off a spawn point on both axes). It is the only way a stake leaves. A king that lands on one ALONE has left at the close of that cycle: its army's own pieces leave the board with it, the pieces of the armies it had merged stay as rocks, and `exit(army)`, which anyone may call afterwards, pays the whole merged stake in ETH to the army's owner (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`). A king that arrives with others follows the collision table. A table has no exits: there, a king on an exit square is only a king on a square.
 _Avoid_: withdraw, cash out, escape
+
+**Table seat**:
+At a table the seat IS the army: buying a seat creates a new army for the buyer, funded with one stake, on the table's next spawn point (a tighter grid, from a counter that only increases, so a seat that leaves leaves a gap and moves nobody). That purchase is the deployment; there is no deployment commit at a table. The armies stand inert and hidden until the creator starts the table. Before the start the owner may leave with the whole stake (`leaveTable`), the one time an army's stake is withdrawn directly.
+_Avoid_: player slot, seat account
+
+**Material**:
+What a table's stakes are split by at its cycle cap: pawn 1, knight 3, bishop 3, rook 5, queen 9, the king nothing, counted for the army each piece resolves to (a rock counts for nobody). Before the cap, the last king standing takes every stake instead. Each army's share is paid in ETH by `claim(army)`, which anyone may call (`docs/adr/0012-a-table-counts-material-from-the-zones-its-reveals-list.md`).
+_Avoid_: score, points, value
 
 **Rock**:
 A piece no army can ever play again: one of an army merged into an army that has exited, or one more than eight captures from the army that holds it. It stays on its square, blocks paths and footprints like any piece, never moves, can be captured by anyone, and capturing it gives nothing. Drawn greyed out; nobody's (army zero) on the board read.

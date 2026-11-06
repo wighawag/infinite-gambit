@@ -24,17 +24,6 @@ import "./UsingGameErrors.sol";
 ///      name the army its next deployment creates before committing it. See
 ///      `web/src/lib/game/identity.ts` for the client's half of the same rule.
 interface IGameCommit is UsingGameTypes {
-    /// @notice Credit an ACCOUNT's reserve: stake bought, not yet deployed.
-    /// @dev Takes `player` rather than crediting msg.sender, so that the stake
-    ///      can be paid from the wallet holding the funds. Anyone may top up
-    ///      anyone; only the owner can withdraw.
-    ///
-    ///      AN ACCOUNT RESERVE NEVER MAKES ITS ACCOUNT A MEMBER: only armies are
-    ///      waited for (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
-    ///      Refuses an army id with {InvalidPlayer}, so nobody can pre-fund a
-    ///      future army or slip extra stake into an existing one.
-    function addToReserve(uint256 player, uint256 amount) external;
-
     /// @notice Take tokens back out of the CALLER'S ACCOUNT reserve.
     /// @dev Deliberately NOT delegable: a delegate may spend the reserve on
     ///      playing and may never withdraw it. And it only ever reaches an
@@ -106,6 +95,72 @@ interface IGameCommit is UsingGameTypes {
     function advanceCycle()
         external
         returns (uint64 cycleNumber, bool commiting);
+}
+
+/// @notice BUYING IN: what `StakeSale` calls with every purchase.
+/// @dev Its own interface (on the `GameTable` route) so the sale names the one
+///      function it calls, for the world and for every table alike.
+interface IGameStake is UsingGameTypes {
+    /// @notice Credit an ACCOUNT's reserve: stake bought, not yet deployed;
+    ///         AT A TABLE, buy a seat: a new army for that account.
+    /// @dev Takes `player` rather than crediting msg.sender, so that the stake
+    ///      can be paid from the wallet holding the funds. Anyone may top up
+    ///      anyone; only the owner can withdraw.
+    ///
+    ///      AN ACCOUNT RESERVE NEVER MAKES ITS ACCOUNT A MEMBER: only armies are
+    ///      waited for (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
+    ///      Refuses an army id with {InvalidPlayer}, so nobody can pre-fund a
+    ///      future army or slip extra stake into an existing one.
+    ///
+    ///      AT A TABLE THE SEAT IS THE ARMY. Each purchase of exactly one stake
+    ///      creates a new army owned by `player`'s account, funded with it, on
+    ///      the table's next spawn point: that purchase IS the deployment
+    ///      (`UsingGameTable-_joinTable`). Any other amount reverts
+    ///      {WrongStake}; a started table {GameAlreadyStarted}; a full one
+    ///      {GameFull}.
+    function addToReserve(uint256 player, uint256 amount) external;
+}
+
+/// @notice A TABLE: leaving before it starts, and its payout once it is over
+///         (`work/specs/tasked/infinite-chess.md`, stories 38 to 42).
+interface IGameTable is UsingGameTypes {
+    /// @notice Leave the table before it starts: `army`'s whole stake back
+    ///         to its owner, in tokens, its seat freed and the army removed.
+    /// @dev The owner only, never a delegate, like {IGameCommit-withdrawFromReserve}.
+    ///      The one exception to "an army's reserve is never withdrawn"
+    ///      (`docs/adr/0006-stake-erc20-reserve-exit-only.md`): before the
+    ///      start nothing has been played. Reverts {GameAlreadyStarted} after.
+    function leaveTable(uint256 army) external returns (uint256 amount);
+
+    /// @notice Count up to `maxSteps` steps of the material on the board at
+    ///         the cap, and say whether the count is complete. Anyone may call
+    ///         it, once the table's last cycle is over.
+    /// @dev Only needed when the count is too big for one {claim}, which runs
+    ///      whatever is left of it first.
+    function tally(uint256 maxSteps) external returns (bool done);
+
+    /// @notice Pay `army`'s share of the table's stakes, in ETH, to its
+    ///         current owner, through the token's minter (`StakeSale.redeem`).
+    ///         Anyone may call it, once per army.
+    /// @dev The table is over once one king stands (it takes every stake) or
+    ///      once its last cycle is over (every standing army takes a share in
+    ///      proportion to its material: pawn 1, knight 3, bishop 3, rook 5,
+    ///      queen 9; evenly between the standing kings if none has any).
+    ///      Reverts {TableNotOver} before, {NothingToClaim} for an army owed
+    ///      nothing, {AlreadyPaid} the second time.
+    function claim(uint256 army) external returns (uint256 paid);
+
+    /// @notice The table's outcome as it stands: whether it is over, the last
+    ///         king standing (zero if none), and once settled, every stake on
+    ///         it and the material counted at the cap.
+    function getTableOutcome() external view returns (TableOutcome memory);
+
+    /// @notice What {claim} pays `army` once the outcome is written (by the
+    ///         first claim), zero before or if it is owed nothing; and whether
+    ///         it was paid.
+    function getTableShare(
+        uint256 army
+    ) external view returns (uint256 share, bool paid);
 }
 
 interface IGameReveal is UsingGameTypes {
@@ -306,6 +361,8 @@ interface IGameSimulation is UsingGameTypes {
 }
 
 interface IGame is
+    IGameStake,
+    IGameTable,
     IGameCommit,
     IGameReveal,
     IGameDeploymentReveal,

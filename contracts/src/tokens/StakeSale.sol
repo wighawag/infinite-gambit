@@ -52,7 +52,7 @@ contract StakeSale {
     );
 
     GameToken public immutable TOKENS;
-    IGameCommit public immutable GAME;
+    IGameStake public immutable GAME;
     /// @notice What one stake costs, in the chain's own currency. May be zero.
     uint256 public immutable PRICE;
     /// @notice How much stake one purchase credits.
@@ -71,7 +71,7 @@ contract StakeSale {
         uint256 amount;
     }
 
-    constructor(GameToken tokens, IGameCommit game, Config memory config) {
+    constructor(GameToken tokens, IGameStake game, Config memory config) {
         TOKENS = tokens;
         GAME = game;
         PRICE = config.price;
@@ -124,7 +124,7 @@ contract StakeSale {
     ///      purchase alone and approved to `game` alone, so a `game` that is not
     ///      one only ever takes what its own buyer paid for.
     function purchaseAt(
-        IGameCommit game,
+        IGameStake game,
         address owner,
         address payable stipendTo,
         uint256 stipend
@@ -133,7 +133,7 @@ contract StakeSale {
     }
 
     function _purchase(
-        IGameCommit game,
+        IGameStake game,
         address owner,
         address payable stipendTo,
         uint256 stipend
