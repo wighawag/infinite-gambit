@@ -40,3 +40,10 @@ FIRST, check this task against current reality: is "Leave this table" still show
 Work in small steps (one decision, then edit and run a test), and grow files with edits of at most about 300 lines: earlier builds in this repo died on the 16,384-token output limit when a single reply tried to plan everything.
 
 RECORD non-obvious in-scope decisions in a `## Decisions` block at the end of your FINAL REPORT (the runner transcribes it into the done record). Do not write the done record, commit message or PR body yourself, and do not edit this task body.
+
+## Decisions
+
+- **The seat count shows only once the lobby step is `Sat`.** "Known" needed a definition. The lobby always has a `seats` number, but before a sit-down or a restore it is a default, not this world's table. In `Ready` the lobby is always `Sat`, so the `Ready` navbar looks exactly as before. The alternative was to always show `$offlineLobby.seats`, which could display a wrong default for a world that failed early. This only affects the navbar.
+- **The failed card is its own component, with its exits passed in as data.** This keeps the page and the card free of logic, as AGENTS.md asks, and lets a browser test render the card without booting a chain. The alternative was to keep the markup inline in `+page.svelte`, which is meant to stay identical across template branches, so the inline version would have made it differ more from upstream.
+- **The card's leave button has its own test id, `leave-the-failed-table`.** It is different from the navbar's `leave-the-table`, so in a failed state both buttons are on screen without an e2e locator matching two elements. "Try again" is `try-the-world-again`. These ids are new names for future e2e tests.
+- **A component test, not an e2e, is the coverage for a failed boot.** The task allowed either. Forcing a real failed boot in a browser needs a chain that refuses to deploy every seat, which isn't scriptable today, and the e2e suites aren't part of `verify` anyway.
