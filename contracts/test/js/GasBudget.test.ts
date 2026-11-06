@@ -18,6 +18,7 @@ import {parseEther, zeroAddress} from 'viem';
 import {movesWorld, move} from './utils/moves-world.js';
 import {fourArmies, threeArmyLoop, twoArmyLoop} from './utils/capture-loops.js';
 import {tableWorld} from './utils/table-world.js';
+import {OFFLINE_OPEN_SPAWN_POINTS} from '../../rocketh/config.js';
 
 /**
  * THE DECLARED GAS BUDGET IS A CLAIM ABOUT THESE CONTRACTS, so these contracts
@@ -639,6 +640,79 @@ describe('the declared gas budget', function () {
 		);
 		console.log(
 			`gas budget: manual world: first paid commit ${firstUsed[0]}, settling commit ${settlingUsed}, declared ${declaredCommit}`,
+		);
+	});
+
+	it('covers a whole table deploying in the first cycle of the offline world, which opens more spawn points', async function () {
+		// THE OFFLINE WORLD OPENS `OFFLINE_OPEN_SPAWN_POINTS` (K), more than the
+		// online world's 8, so that every seat of the largest table deploys on its
+		// own spawn point in its first cycle (`offline-world-pre-deploys-every-seat`).
+		// It spends the SAME declared figures, and the first deployment reveal
+		// writes the whole open set, so a larger K is a dearer reveal: measured
+		// here as that boot is, every one of K first deployments committed and
+		// revealed in one manual cycle, the first reveal at the far end of the set.
+		const fixtures = await networkHelpers.loadFixture(deployAll);
+		const {env, GameToken, linkedData, actionsPerReveal, unnamedAccounts} =
+			fixtures;
+		const declaredCommit = BigInt(linkedData.commitGas);
+		const declaredReveal = BigInt(linkedData.revealGas);
+		const Game = await deployGameWith(fixtures, {
+			name: 'Game_gas_offline',
+			cyclePolicy: CYCLE_POLICY.Manual,
+			commitPhaseDuration: 0n,
+			revealPhaseDuration: 0n,
+			openSpawnPoints: OFFLINE_OPEN_SPAWN_POINTS,
+		});
+		const [open] = (await env.read(Game, {
+			functionName: 'getOpenSpawnPoints',
+		})) as readonly [readonly bigint[], bigint];
+		assert.strictEqual(BigInt(open.length), OFFLINE_OPEN_SPAWN_POINTS);
+		const seats = (unnamedAccounts as `0x${string}`[]).slice(0, open.length);
+		assert.strictEqual(seats.length, open.length, 'not enough accounts');
+		const spawnPoints = [...open].reverse();
+		const armies: bigint[] = [];
+		let commitUsed = 0n;
+		for (const [i, owner] of seats.entries()) {
+			await fundAccount({env, Game, GameToken}, owner);
+			const {army, receipt} = await commitDeployment(
+				{env, Game},
+				{owner, spawnPoint: spawnPoints[i], secret: SECRET, actionsPerReveal},
+			);
+			armies.push(army);
+			const used = BigInt(receipt.gasUsed);
+			if (used > commitUsed) commitUsed = used;
+		}
+		await env.execute(Game, {
+			account: seats[0],
+			functionName: 'advanceCycle',
+			args: [],
+		});
+		let revealUsed = 0n;
+		for (const [i, owner] of seats.entries()) {
+			const receipt = await revealDeployment(
+				{env, Game},
+				{
+					account: owner,
+					army: armies[i],
+					spawnPoint: spawnPoints[i],
+					secret: SECRET,
+					actionsPerReveal,
+				},
+			);
+			const used = BigInt(receipt.gasUsed);
+			if (used > revealUsed) revealUsed = used;
+		}
+		console.log(
+			`gas budget: offline world, K = ${open.length}: worst first-cycle deployment commit ${commitUsed}/${declaredCommit}, reveal ${revealUsed}/${declaredReveal}`,
+		);
+		assert.ok(
+			declaredCommit >= (commitUsed * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`a first deployment commit at K = ${open.length} costs ${commitUsed} gas and commitGas is ${declaredCommit}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom.`,
+		);
+		assert.ok(
+			declaredReveal >= (revealUsed * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`a first deployment reveal at K = ${open.length} costs ${revealUsed} gas and revealGas is ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
+				`Lower OFFLINE_OPEN_SPAWN_POINTS or raise revealGas in contracts/rocketh/config.ts.`,
 		);
 	});
 

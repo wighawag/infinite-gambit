@@ -140,7 +140,8 @@ const PASS: readonly Move[] = [];
  * WHERE A SEAT DEPLOYS, from the open set the cycle started with: seat `k`
  * takes the `k`th from the FAR end, so two seats never pick the same spawn
  * point and a person, who is likelier to pick one near the origin, rarely
- * collides with a seat.
+ * collides with a seat. A fresh world's opening deployments of the PEOPLE use
+ * the same rule, numbered after the world's seats (`$lib/offline-boot`).
  */
 export function spawnPointForSeat(
 	seat: number,

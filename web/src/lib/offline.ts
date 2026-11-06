@@ -3,6 +3,7 @@ import {
 	config,
 	extensions,
 	CYCLE_POLICY,
+	OFFLINE_OPEN_SPAWN_POINTS,
 } from 'chess-battleground-contracts/rocketh/config.js';
 import deployToken from 'chess-battleground-contracts/deploy/001_deploy_token.js';
 import deployGame from 'chess-battleground-contracts/deploy/010_deploy_game.js';
@@ -24,7 +25,8 @@ import {createIndexedDBDeploymentStore} from '@rocketh/web';
 import {createContext} from '$lib/context/index';
 import type {Context} from '$lib/context/types';
 import {createOfflinePlayers, type OfflinePlayer} from '$lib/offline-players';
-import {createPublicClient, custom} from 'viem';
+import {createPublicClient, createWalletClient, custom} from 'viem';
+import {deployEverySeat, humanBootSeat} from '$lib/offline-boot';
 import {createPlayedTurnStore, type AiLevel} from '$lib/game/core/strategy';
 import {
 	createBytecodeSandbox,
@@ -95,11 +97,16 @@ export {firstArmyOf};
  *    the declared limits keep their measured headroom here. Restating them
  *    would be a second copy of a measurement, which is exactly how the identity
  *    branches once came to price a credit 58% above what a step there costs.
+ *    The ONE exception is the open set (`openSpawnPoints`), raised to
+ *    `OFFLINE_OPEN_SPAWN_POINTS` so every seat of the largest table can start
+ *    deployed in one cycle; it lives beside the gas figures because
+ *    `GasBudget.test.ts` measures them at it.
  *
  * 3. **What the player is given**, which for this game is ONE ARMY'S STAKE in
  *    the account's reserve, bought through the same rail a purchase uses. It
  *    makes nobody a member: only armies are, so every seat, the person's
- *    included, then DEPLOYS an army with it.
+ *    included, then DEPLOYS an army with it, and a fresh world does that for
+ *    every seat before the board shows (`$lib/offline-boot`).
  *
  * 4. **Who else is in it**, which is the difference between a commit-reveal
  *    game and a demonstration of one. A cycle with a single waited-for member
@@ -221,6 +228,11 @@ export const OFFLINE_DEPLOYMENT = {
 			cyclePolicy: CYCLE_POLICY.Manual,
 			commitPhaseDuration: 0n,
 			revealPhaseDuration: 0n,
+			// ENOUGH SPAWN POINTS FOR EVERY SEAT AT ONCE: a fresh world starts with
+			// every seat of the table deployed, each on its own spawn point, in one
+			// cycle (`$lib/offline-boot`), and a table has up to `MOST_SEATS`. The
+			// gas budget is measured at exactly this K (`GasBudget.test.ts`).
+			openSpawnPoints: OFFLINE_OPEN_SPAWN_POINTS,
 		},
 		Lobby: config.data.Lobby.default,
 	},
@@ -511,6 +523,34 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 		...(decider ? {strategy: decider.strategy, turns: decider.turns} : {}),
 	});
 
+	/**
+	 * EVERY SEAT STARTS ON THE BOARD (`$lib/offline-boot`): the people's
+	 * deployments signed by the world's own wallet, the seats the world plays
+	 * deploying through their own loop in the same cycle. AFTER provisioning
+	 * (the stakes are bought) and BEFORE the world is ready and its loops start,
+	 * so neither the seats' loop nor the advance client ever sees a half-done
+	 * boot. Decided from the chain, so a restore that already has its armies
+	 * sends nothing and an interrupted boot is finished here.
+	 */
+	if (wallet) {
+		status.set({step: 'Booting', what: 'deploying every army'});
+		await deployEverySeat({
+			provider: world.provider,
+			deployments: world.deployments,
+			config: resolveChessConfig(world.deployments.get()),
+			humans: humans.map((human, index) => ({
+				address: wallet.accounts[human.account],
+				seat: humanBootSeat(index, played.length),
+			})),
+			seats: [
+				...humans.map((human) => wallet.accounts[human.account]),
+				...played.map((seat) => seat.address),
+			],
+			sendAs: walletSender(world, wallet),
+			machines: players,
+		});
+	}
+
 	const ready: OfflineWorldStatus = {
 		step: 'Ready',
 		world,
@@ -634,6 +674,45 @@ export function playedSeatDecider(
 		format: MOVE_STORAGE,
 	});
 	return {strategy, turns, sandbox};
+}
+
+/**
+ * Send one call to the game as one of the world's wallet's accounts, and wait
+ * for it to be mined. The burner signs for whichever of its accounts `from`
+ * names and asks nobody (it auto-approves), so this is the people's own
+ * account acting, without a prompt and without switching the selected one.
+ */
+function walletSender(
+	world: Pick<EmbeddedWorld, 'provider' | 'deployments'>,
+	wallet: EmbeddedWallet,
+) {
+	const chain = worldChain(world);
+	const records = world.deployments.get();
+	const publicClient = createPublicClient({
+		chain,
+		transport: custom(world.provider as never),
+	});
+	const walletClient = createWalletClient({
+		chain,
+		transport: custom(wallet.handle.walletProvider.underlyingProvider as never),
+	});
+	return async (
+		address: `0x${string}`,
+		request: Record<string, unknown>,
+	): Promise<void> => {
+		const hash = await walletClient.writeContract({
+			address: records.contracts.Game.address,
+			abi: records.contracts.Game.abi,
+			account: address,
+			...request,
+		} as never);
+		const receipt = await publicClient.waitForTransactionReceipt({hash});
+		if (receipt.status !== 'success') {
+			throw new Error(
+				`the offline world's ${String(request.functionName)} reverted`,
+			);
+		}
+	};
 }
 
 /** The world's chain as viem wants it, for the clients the world's own loops build. */
@@ -785,8 +864,9 @@ let announcedWallet: EmbeddedWallet | undefined;
  *    puts at risk. Bought through `StakeSale.purchase`, the same rail the
  *    online purchase uses, so the offline world exercises the contract path the
  *    online one depends on. It makes nobody a member: only armies are, so the
- *    person deploys an army with it from the board, and every seat the world
- *    plays deploys one too (`$lib/offline-players`).
+ *    world deploys an army with it for the person before the board shows
+ *    (`$lib/offline-boot`), and every seat the world plays deploys one too
+ *    (`$lib/offline-players`).
  * 4. **EVERYONE ELSE AT THE TABLE**, which is gas and a stake for every seat
  *    the lobby laid out and is the same three things over again. They are given
  *    exactly what the human is given and nothing more, so what the world can

@@ -173,7 +173,7 @@ A point on a fixed grid where an army may be deployed. Only the few free spawn p
 _Avoid_: slot, start position, base
 
 **Deployment**:
-Placing a new army, committed and revealed like a move so nobody knows which spawn point was chosen until it is on the board. It FAILS, and its stake is refunded to the account's reserve, if another deployment reveals the same spawn point in the same cycle or its footprint is not clear; the refund is written by `settleDeployment` (anyone may call it, and the account's next deployment or withdrawal does). Cancelling one in its commit phase is free. One never revealed has its stake burned.
+Placing a new army, committed and revealed like a move so nobody knows which spawn point was chosen until it is on the board. It FAILS, and its stake is refunded to the account's reserve, if another deployment reveals the same spawn point in the same cycle or its footprint is not clear; the refund is written by `settleDeployment` (anyone may call it, and the account's next deployment or withdrawal does). Cancelling one in its commit phase is free. One never revealed has its stake burned. A fresh offline world makes every seat's first deployment itself, the people's included, before the board first shows, each seat on its own spawn point (`web/src/lib/offline-boot.ts`); a later deployment is chosen as usual.
 _Avoid_: spawn (as a noun for the act), join, enter
 
 **Footprint**:
