@@ -9,10 +9,10 @@ import {test, expect, describe} from '../fixtures/test';
  * What it holds: the handover screen REPLACES the game between turns (no canvas
  * is mounted while the device changes hands); the second person is shown
  * nothing of the first person's plan (an empty submission, no planned spawn
- * point, no ghost of the first person's army); both deployments land on the
- * board when the cycle closes, the world waiting for every seat to deploy
- * before it turns over, revealed by the world's own revealer key
- * rather than by either person's; and a reload in the middle of a commit phase
+ * point, no ghost of the first person's army); every seat, both people's
+ * included, starts deployed before the board first shows (`$lib/offline-boot`);
+ * the people's turns are revealed by the world's own revealer key rather than
+ * by either person's; and a reload in the middle of a commit phase
  * lands on the handover for the right person, never on a plan, and the turn
  * committed before it is still revealed (the revealer forgot it; the handover
  * reveals it as that person, behind its screen).
@@ -125,20 +125,6 @@ async function dataLoadedForWhoPlays(page: Page): Promise<boolean> {
 	})()`) as Promise<boolean>;
 }
 
-/** Pick the `index`th open spawn point and deploy there; the spawn point. */
-async function deploy(page: Page, index: number): Promise<string> {
-	await expect
-		.poll(async () => (await planned(page)).submission, {timeout: 60_000})
-		.toMatch(/Idle|Planning|Revealed/);
-	await page.getByTestId('spawn-point').nth(index).click();
-	await expect
-		.poll(async () => (await planned(page)).spawnPoint, {timeout: 15_000})
-		.toBeDefined();
-	const {spawnPoint} = await planned(page);
-	await page.getByTestId('commit-deployment').click();
-	return spawnPoint!;
-}
-
 /** Commit a pass: the army is deployed and the cycle waits for everyone. */
 async function pass(page: Page): Promise<void> {
 	await expect(page.getByTestId('pass')).toBeVisible({timeout: 60_000});
@@ -169,34 +155,13 @@ describe('Hotseat in the offline world', () => {
 		await expect(page.getByText('Player 2', {exact: true})).toBeVisible();
 		await page.getByTestId('sit-down').click();
 
-		// CYCLE ONE. Player 1 takes the device and deploys.
+		// A FRESH WORLD STARTS WITH EVERY SEAT DEPLOYED (`$lib/offline-boot`):
+		// Player 1 takes the device and both people's armies, and the seat the
+		// world plays, already stand on the board, so nobody is offered the
+		// deploy controls.
 		await begin(page, 'Player 1');
 		const first = await whoPlays(page);
 		expect(first).toBeTruthy();
-		const firstSpawn = await deploy(page, 0);
-
-		// Player 2's turn although Player 1 is the only MEMBER so far: the world
-		// waits for every seat to deploy before the cycle turns over.
-		await begin(page, 'Player 2');
-		await expect.poll(() => whoPlays(page), {timeout: 30_000}).not.toBe(first);
-		const second = await whoPlays(page);
-		// Nothing of Player 1's deployment is shown: the spawn point is hidden.
-		const shown = await planned(page);
-		expect(shown.spawnPoint).toBeUndefined();
-		expect(shown.ghost).toBe(0);
-		const secondSpawn = await deploy(page, 1);
-		expect(secondSpawn).not.toBe(firstSpawn);
-
-		// Both reveals sent by the world's revealer, and the armies stand.
-		await begin(page, 'Player 1');
-		await expect.poll(() => whoPlays(page), {timeout: 30_000}).toBe(first);
-		await expect
-			.poll(async () => (await armies(page))[first!], {timeout: 60_000})
-			.toBe(DEPLOYED);
-		await expect
-			.poll(async () => (await armies(page))[second!], {timeout: 60_000})
-			.toBe(DEPLOYED);
-		// And the seat the world plays deployed beside them.
 		await expect
 			.poll(
 				async () =>
@@ -205,7 +170,7 @@ describe('Hotseat in the offline world', () => {
 				{timeout: 60_000},
 			)
 			.toBe(3);
-		expect(await revealerSends(page)).toBeGreaterThanOrEqual(2);
+		await expect(page.getByTestId('commit-deployment')).toHaveCount(0);
 		const sentInCycleOne = await revealerSends(page);
 
 		// A cycle of passes, with a reload between the two people.
@@ -216,7 +181,11 @@ describe('Hotseat in the offline world', () => {
 		);
 		await page.reload();
 		await begin(page, 'Player 2');
-		await expect.poll(() => whoPlays(page), {timeout: 30_000}).toBe(second);
+		await expect.poll(() => whoPlays(page), {timeout: 30_000}).not.toBe(first);
+		// Nothing of Player 1's turn is shown.
+		const shown = await planned(page);
+		expect(shown.spawnPoint).toBeUndefined();
+		expect(shown.ghost).toBe(0);
 		await pass(page);
 
 		await begin(page, 'Player 1');

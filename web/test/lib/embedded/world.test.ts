@@ -5,6 +5,7 @@ import buildTimeDeployments from '$lib/deployments';
 import {
 	config,
 	extensions,
+	OFFLINE_OPEN_SPAWN_POINTS,
 } from 'chess-battleground-contracts/rocketh/config.js';
 import {
 	OFFLINE_DEPLOYMENT,
@@ -129,7 +130,11 @@ describe('this game\u2019s offline world', () => {
 		expect(chess.expectedActionsPerTurn).toBe(onNode.expectedActionsPerTurn);
 		expect(chess.stake).toBe(onNode.stake);
 		expect(chess.spawnSpacing).toBe(onNode.spawnSpacing);
-		expect(chess.openSpawnPoints).toBe(onNode.openSpawnPoints);
+		// THE ONE OTHER THING IT CHANGES: enough open spawn points for every seat
+		// of the largest table to start deployed in one cycle (`$lib/offline-boot`).
+		expect(chess.openSpawnPoints).toBe(Number(OFFLINE_OPEN_SPAWN_POINTS));
+		expect(chess.openSpawnPoints).toBeGreaterThanOrEqual(MOST_SEATS);
+		expect(onNode.openSpawnPoints).toBe(8);
 	});
 
 	it('gives the context the world it was handed, member for member', async () => {

@@ -170,25 +170,21 @@ describe('Playing offline', () => {
 		await expect(page.getByText('3 seats at this table')).toBeVisible();
 		await expect(page.getByTestId('leave-the-table')).toBeVisible();
 
-		// A manual cycle starts at 2 and moves for no reason except a transaction.
-		await expect(page.getByText('cycle 2')).toBeVisible({timeout: 30_000});
+		// A manual cycle starts at 2 and moves for no reason except a transaction:
+		// the boot's two advances (every seat's deployment committed, then
+		// revealed) leave a fresh world at 3.
+		await expect(page.getByText('cycle 3')).toBeVisible({timeout: 30_000});
 
 		const canvas = page.locator('canvas');
 		await expect(canvas).toBeVisible({timeout: 30_000});
 
-		// ONLY ARMIES ARE MEMBERS, so the person's first submission is a
-		// DEPLOYMENT: pick an open spawn point (nearest the origin first) and
-		// deploy. The seats the world plays deploy beside them.
-		const spawnPoints = page.getByTestId('spawn-point');
-		await expect(spawnPoints.first()).toBeVisible({timeout: 30_000});
-		await spawnPoints.first().click();
-		await page.getByTestId('commit-deployment').click();
-
-		// The deployment lands at the end of its cycle, and the army stands on the
-		// board from the next one.
+		// ONLY ARMIES ARE MEMBERS, and a fresh world deploys every seat's before
+		// the board shows (`$lib/offline-boot`): the person lands on a board with
+		// their army on it, and is not offered the deploy controls.
 		await expect(page.getByTestId('army-status')).toHaveText('On the board.', {
 			timeout: 60_000,
 		});
+		await expect(page.getByTestId('commit-deployment')).toHaveCount(0);
 		await expect
 			.poll(
 				() =>

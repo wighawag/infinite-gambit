@@ -142,6 +142,23 @@ const REVEAL_GAS = 1_345_000n;
 const LOBBY_REVEAL_GAS = 1_400_000n;
 
 /**
+ * HOW MANY SPAWN POINTS THE OFFLINE WORLD OPENS (K), which is the one thing
+ * `web/src/lib/offline.ts` changes about the open set: enough for every seat
+ * of the largest table the lobby offers (`MOST_SEATS` in
+ * `web/src/lib/game/lobby/seats.ts`, ten) to deploy on its own spawn point in
+ * one cycle, which is how a fresh offline world starts
+ * (`offline-world-pre-deploys-every-seat`). The online world and tables keep
+ * their 8.
+ *
+ * HERE rather than in the web app, because the gas budget is measured against
+ * it: the first deployment reveal writes the whole open set, so a larger K is a
+ * dearer reveal under the same declared `revealGas`, and
+ * `test/js/GasBudget.test.ts` measures a whole table deploying at exactly this
+ * K. A copy in either place would be a measurement of a number nobody uses.
+ */
+export const OFFLINE_OPEN_SPAWN_POINTS = 10n;
+
+/**
  * How many actions a player is EXPECTED to submit in one turn.
  *
  * AN EXPECTATION AND NOT A MAXIMUM, which is the whole reason it has to be

@@ -294,6 +294,8 @@ export async function deployGameWith(
 		 * moves deploys at 6, the tightest grid, so armies meet in a cycle.
 		 */
 		spawnSpacing?: bigint;
+		/** How many spawn points are open at once (8 by default, the world's). */
+		openSpawnPoints?: bigint;
 	},
 ) {
 	const {env} = fixtures;
@@ -310,7 +312,7 @@ export async function deployGameWith(
 		tokens: fixtures.GameToken.address,
 		stake: DEFAULT_STAKE,
 		spawnSpacing: options.spawnSpacing ?? 16n,
-		openSpawnPoints: 8n,
+		openSpawnPoints: options.openSpawnPoints ?? 8n,
 		actionsPerReveal: options.actionsPerReveal ?? DEFAULT_ACTIONS_PER_REVEAL,
 		cyclePolicy: BigInt(options.cyclePolicy),
 	};
