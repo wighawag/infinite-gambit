@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" style="color: #f6efe4">
+  <defs>
+    <radialGradient id="glow" cx="18%" cy="82%" r="62%">
+      <stop offset="0" stop-color="#f5b83d" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#f5b83d" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="checker" width="160" height="160" patternUnits="userSpaceOnUse" x="40" y="0">
+      <rect width="80" height="80" fill="#f6efe4"/>
+      <rect x="80" y="80" width="80" height="80" fill="#f6efe4"/>
+    </pattern>
+    <radialGradient id="fade" cx="78%" cy="50%" r="70%">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="fadeMask"><rect width="1280" height="640" fill="url(#fade)"/></mask>
+  </defs>
+  <rect width="1280" height="640" fill="#16110d"/>
+  <rect width="1280" height="640" fill="url(#checker)" opacity="0.045" mask="url(#fadeMask)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+  <!-- the Devcon board's centre: an Ethereum inlay across the four squares that meet at a corner -->
+  <g opacity="0.07" fill="#f6efe4" transform="translate(1080 480) scale(1.1) translate(-128 -48)">
+    <path d="M128 4 L155 48 L128 63 L101 48 Z"/>
+    <path d="M101 55 L128 70 L155 55 L128 92 Z"/>
+  </g>
+  <!-- mark: the geometry of logo.svg, scale 1.3 -->
+  <g transform="translate(131.4 156.2) scale(1.3)">
+    <g id="prism" fill="#f5b83d">
+      <path d="M128 4 L155 48 L128 63 L101 48 Z"/>
+      <path d="M101 55 L128 70 L155 55 L128 92 Z"/>
+    </g>
+    <g id="king" fill="currentColor">
+      <path d="M74 98 L100 122 L128 94 L156 122 L182 98 L170 152 L86 152 Z"/>
+      <rect x="92" y="158" width="72" height="14" rx="4"/>
+      <path d="M106 178 L150 178 Q152 204 170 222 L86 222 Q104 204 106 178 Z"/>
+      <rect x="62" y="228" width="132" height="20" rx="6"/>
+    </g>
+  </g>
+  <text id="wordmark" x="445" y="285" fill="currentColor" style="font-family:Cinzel;font-weight:700;font-size:67.7px">INFINITE GAMBIT</text>
+  <rect x="448" y="309" width="120" height="6" fill="#f5b83d"/>
+  <g fill="#b8a993" style="font-family:Cinzel;font-weight:400;font-size:32px">
+    <text x="446" y="362">Everyone moves at once.</text>
+    <text x="446" y="404">Gas never decides a fight.</text>
+  </g>
+</svg>
