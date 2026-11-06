@@ -13,7 +13,7 @@ import type {VisibleCells} from './board';
 
 export type ViewTransform = {centerX: number; centerY: number; scale: number};
 
-export const MIN_SCALE = 14;
+export const MIN_SCALE = 4;
 export const MAX_SCALE = 220;
 
 export function applyTransform(world: Container, t: ViewTransform, screen: {width: number; height: number}, cellSize: number): void {
