@@ -50,7 +50,7 @@ const army = (id: bigint, status: number): ArmyView => ({
 	spawnPoint: 0n,
 	king: 0n,
 	stake: 10n,
-	mergedInto: id,
+	capturedBy: 0n,
 });
 
 const board = (pieces: Piece[], armies: ArmyView[]) =>

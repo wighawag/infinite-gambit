@@ -75,11 +75,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             return super._playerOf(sender, id);
         }
         address owner = _armies[id].owner;
-        if (owner != address(0)) {
-            // Resolved: a capture loop hands an army to its captor's owner.
-            (uint64 cycleNumber, ) = _cycleNumber();
-            owner = _ownerOf(id, cycleNumber);
-        } else {
+        if (owner == address(0)) {
             owner = address(uint160(id));
             if (owner == address(0) || id >> 160 != _armyCountOf[owner] + 1) {
                 revert InvalidPlayer(id);
@@ -116,8 +112,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             paid: false,
             frozen: false,
             atTable: false,
-            capturedInto: 0,
-            loopedIn: 0
+            fallen: false,
+            capturedBy: 0,
+            fellIn: 0
         });
         _armyIds.push(army);
         // Only a cycle that advances reads who it waits for, so only there is
@@ -185,11 +182,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     /// @notice THE ONE "DEAD" PREDICATE: whether `id` is an army that can never
     ///         act again, so that no cycle should wait for it.
     /// @dev A deployment that failed, was cancelled, or was never revealed,
-    ///      an army whose king was taken, whose pieces its captor now moves
-    ///      with the captor's own one move per cycle, an army whose king has
-    ///      exited, which resolves to nobody ({_armyOf}), so the same
-    ///      comparison covers it, and a FROZEN army ({_isFrozen}), which never
-    ///      commits again. An account is never dead by it: only armies can be.
+    ///      an army whose king was taken or has exited, whose pieces have left
+    ///      the board ({_fellIn}, one predicate for both), and a FROZEN army
+    ///      ({_isFrozen}), which never commits again. An account is never dead by it: only armies can be.
     function _isDead(
         uint256 id,
         uint64 cycleNumber
@@ -197,7 +192,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         if (!_isArmyId(id)) return false;
         ArmyStatus status = _deploymentStatus(id, cycleNumber);
         if (status == ArmyStatus.Deployed) {
-            return _isFrozen(id, cycleNumber) || _armyOf(id, cycleNumber) != id;
+            return _isFrozen(id, cycleNumber) || _fellIn(id, cycleNumber) != 0;
         }
         return
             status == ArmyStatus.Failed ||
@@ -368,21 +363,24 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     }
 
     // ------------------------------------------------------------------------
-    // EXITS (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`)
+    // EXITS (`docs/adr/0006-stake-erc20-reserve-exit-only.md`)
     // ------------------------------------------------------------------------
 
-    /// @notice Collect up to `budget` armies of `army`'s merged tree into its
-    ///         payout, and say whether the whole tree is collected.
+    /// @notice Collect up to `budget` armies of the tree of stakes `army`
+    ///         took into its payout, and say whether the whole tree is
+    ///         collected.
     /// @dev NEVER A TRUNCATED PAYOUT, AND NEVER TWICE. A depth-first walk of
-    ///      the tree of who took whom, kept in storage ({_toCollect}) so it can
-    ///      run over several transactions, unbounded in depth: a victim counts
-    ///      when its king really was taken by the army it is listed under
-    ///      ({_captureOf}), which is a closed-cycle fact, and an exited tree
-    ///      never changes. Each army's whole reserve is DEBITED as it is
-    ///      collected, so nothing is paid twice, and before that every victim
-    ///      of it is folded (`capturedInto`), so no later fold can move a
-    ///      reserve into an army already collected ({_foldCapture} skips a
-    ///      folded one).
+    ///      the tree of who took whose stake, kept in storage ({_toCollect})
+    ///      so it can run over several transactions, unbounded in depth: a
+    ///      victim counts when its stake really went to the army it is listed
+    ///      under ({_captureOf}), which is a closed-cycle fact, and an exited
+    ///      tree never changes. A STONE's stake went to nobody, so it is
+    ///      skipped: it stays on the board as prey (`docs/adr/0014`). Each
+    ///      army's whole reserve is DEBITED as it is collected, so nothing is
+    ///      paid twice, and before that every victim of it has its taker
+    ///      written (`capturedBy`), so no later fold can move a reserve into
+    ///      an army already collected (`UsingGameBoard-_take` skips a written
+    ///      one).
     function _collect(
         uint256 army,
         uint64 cycleNumber,
@@ -411,7 +409,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
                 }
                 if (seen) continue;
                 ArmyRecord storage taken = _armies[victim];
-                if (taken.capturedInto == 0) taken.capturedInto = node;
+                if (taken.capturedBy == 0) taken.capturedBy = node;
                 stack.push(victim);
             }
             pot += CommitReveal.debit(node, type(uint256).max);
@@ -422,9 +420,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
 
     /// @notice Pay `army`'s whole collected stake to its current owner, in
     ///         ETH, through the token's minter (`StakeSale.redeem`).
-    /// @dev The owner is {_ownerOf}: a capture loop may have handed the army to
-    ///      another account (`docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`).
-    ///      Marked paid before the external call.
+    /// @dev Marked paid before the external call.
     function _payExit(
         uint256 army,
         uint64 cycleNumber
@@ -435,7 +431,7 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         _armies[army].paid = true;
         paid = _collected[army];
         delete _collected[army];
-        address payable owner = payable(_ownerOf(army, cycleNumber));
+        address payable owner = payable(_armies[army].owner);
         if (paid != 0) {
             IStakeRedeemer(IMintedToken(address(TOKENS)).minter()).redeem(
                 paid,
@@ -682,10 +678,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         ArmyRecord memory army = _armies[id];
         view_.id = id;
         if (army.owner == address(0)) return view_;
-        view_.owner = _ownerOf(id, cycleNumber);
+        view_.owner = army.owner;
         view_.deployedIn = army.deployCycle;
         view_.stake = _reserveOf(id);
-        view_.mergedInto = id;
         view_.status = _deploymentStatus(id, cycleNumber);
         if (army.spawnIndexPlusOne == 0) return view_;
         view_.spawnPoint = ChessRules.spawnPointAt(
@@ -693,26 +688,26 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             SPAWN_SPACING
         );
         if (view_.status != ArmyStatus.Deployed) return view_;
-        // RESOLVED THROUGH THE MERGES, like its pieces: who plays it, and
-        // what it holds, whichever squares have been read or folded yet.
+        // RESOLVED FROM THE FACTS, like its pieces: what it holds, whichever
+        // squares have been read or folded yet. The stake is the bounded
+        // view's ({_treeStake}).
         if (_exited(id, cycleNumber)) {
             view_.status = ArmyStatus.Exited;
             view_.stake =
                 army.paid
                     ? 0
-                    : _collected[id] + _treeStake(id, cycleNumber, MAX_CHAIN);
+                    : _collected[id] +
+                        _treeStake(id, cycleNumber, STAKE_VIEW_DEPTH);
             return view_;
         }
-        uint256 into = _armyOf(id, cycleNumber);
-        if (into != id) {
-            view_.status = ArmyStatus.Captured;
-            view_.mergedInto = into;
-            view_.owner = _ownerOf(into, cycleNumber);
-            view_.stake = 0;
-            return view_;
-        }
-        view_.stake = _stakeOf(id, cycleNumber);
         view_.king = _kingAt(id, view_.spawnPoint, cycleNumber);
+        view_.stake = _stakeOf(id, cycleNumber);
+        if (_fellIn(id, cycleNumber) != 0) {
+            // Taken: its stake is its taker's, or, a stone's, its own.
+            view_.status = ArmyStatus.Captured;
+            view_.capturedBy = _captureOf(id, cycleNumber);
+            return view_;
+        }
         // Frozen, it stays on the board with its stake (story 37).
         if (_isFrozen(id, cycleNumber)) view_.status = ArmyStatus.Frozen;
     }
@@ -750,16 +745,13 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         );
         uint256 n = 0;
         for (uint256 k = 0; k < spawnPoints.length; k++) {
-            // An exited army's own pieces have left the board.
-            if (_exited(armies[k], cycleNumber)) continue;
+            // A fallen army's pieces have left the board.
+            if (_fellIn(armies[k], cycleNumber) != 0) continue;
             n = _appendArmy(
                 pieces,
                 n,
                 rect,
-                ChessRules.layout(
-                    spawnPoints[k],
-                    _armyOf(armies[k], cycleNumber)
-                )
+                ChessRules.layout(spawnPoints[k], armies[k])
             );
         }
         for (uint256 k = 0; k < touched.length; k++) {
@@ -798,10 +790,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
                 _standingOf(record, touched[k]),
                 record.departed,
                 record.arrivals,
-                record.kingArrived,
-                _loopedSquare(record, cycleNumber + 1)
+                record.kingArrived
             );
-            captured.army = _armyOf(captured.army, cycleNumber);
             if (died == 0 && captured.kind == PieceKind.None) continue;
             outcomes[n++] = SquareOutcome({
                 position: touched[k],

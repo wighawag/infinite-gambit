@@ -24,7 +24,7 @@ const army = (
 	spawnPoint: 0n,
 	king: squareAt(...(opts.king ?? [0, 0])),
 	stake: opts.stake ?? 0n,
-	mergedInto: id,
+	capturedBy: 0n,
 });
 
 describe('the kings and their stakes', () => {

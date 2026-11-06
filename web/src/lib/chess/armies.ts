@@ -18,11 +18,14 @@ export const ARMY_STATUS = {
 	Failed: 3,
 	Unrevealed: 4,
 	Cancelled: 5,
-	/** Its king was taken: its pieces and stake are `mergedInto`'s now. */
+	/**
+	 * Its king was taken: its pieces left the board, and its stake is
+	 * `capturedBy`'s, or its own while it is a stone nobody has taken.
+	 */
 	Captured: 6,
 	/**
-	 * Its king landed alone on an exit: its own pieces left the board, those it
-	 * merged are rocks, and `stake` is what `exit(army)` still has to pay.
+	 * Its king landed alone on an exit: its pieces left the board, and `stake`
+	 * is what `exit(army)` still has to pay.
 	 */
 	Exited: 7,
 	/**
@@ -47,12 +50,16 @@ export type ArmyView = {
 	/** Where its king stands, while it is deployed. */
 	king: bigint;
 	/**
-	 * What it holds: its own stake plus those of the armies it merged in;
-	 * zero once captured, its stake being its captor's then.
+	 * What it holds: its own stake plus those of the armies whose king or
+	 * stone it took; zero once captured and taken, its stake being its
+	 * captor's then.
 	 */
 	stake: bigint;
-	/** The army it plays for: itself, or once captured, the one it merged into. */
-	mergedInto: bigint;
+	/**
+	 * Once captured, the army its stake went to; zero for a stone nobody has
+	 * taken, and for an army that was not captured.
+	 */
+	capturedBy: bigint;
 };
 
 /** Normalise what viem hands back (numbers as `number`, ids as `bigint`). */
@@ -64,7 +71,7 @@ export function armyViewOf(raw: {
 	spawnPoint: bigint;
 	king: bigint;
 	stake: bigint;
-	mergedInto: bigint;
+	capturedBy: bigint;
 }): ArmyView {
 	return {
 		id: raw.id,
@@ -74,7 +81,7 @@ export function armyViewOf(raw: {
 		spawnPoint: raw.spawnPoint,
 		king: raw.king,
 		stake: raw.stake,
-		mergedInto: raw.mergedInto,
+		capturedBy: raw.capturedBy,
 	};
 }
 

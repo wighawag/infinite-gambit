@@ -42,7 +42,7 @@ for tests: `pnpm test`
 
 # The words
 
-**`CONTEXT.md` is the glossary.** Its first part is the framework's vocabulary (cycle, submission, commitment, stake, forfeit, identity, ...) and is game-neutral on purpose. Its "This game" section holds chess-battleground's own words (army, move, spawn point, deployment, exit, capture, merge, collision, capture loop, freeze). Read it before naming anything, and extend that section when the game settles a new word.
+**`CONTEXT.md` is the glossary.** Its first part is the framework's vocabulary (cycle, submission, commitment, stake, forfeit, identity, ...) and is game-neutral on purpose. Its "This game" section holds chess-battleground's own words (army, move, spawn point, deployment, exit, capture, stone, promotion, collision, freeze). Read it before naming anything, and extend that section when the game settles a new word.
 
 - The interval is a `cycle` (`cycleNumber`), never `epoch`. `round` and `turn` are reserved for games by the framework, and this game deliberately uses neither, so they cannot be confused with a cycle.
 - `web/src/lib/core/transaction/in-flight.ts` says `ms since epoch`: that is the UNIX epoch, not a renamed interval. Leave it.

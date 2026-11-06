@@ -9,7 +9,8 @@ import "../interfaces/IGame.sol";
 ///      landed alone on an exit has left the board at the close of that cycle,
 ///      whether or not anyone calls anything; these only PAY, in their own
 ///      transactions and never inside the reveal's gas
-///      (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`).
+///      (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`,
+///      without its rocks since `docs/adr/0013`).
 contract GameExit is IGameExit, UsingGameInternal {
     constructor(Config memory config) UsingGameInternal(config) {}
 

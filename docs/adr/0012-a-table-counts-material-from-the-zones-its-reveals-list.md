@@ -1,5 +1,7 @@
 # A table counts the material at its cap from the zones its reveals list, in a payout that can run in parts
 
+> Amended by `docs/adr/0013-no-merges-a-captured-army-vanishes-and-its-captor-is-promoted.md`: there are no rocks; a promoted queen counts 9 and a stone nothing, and the pot includes a stone's stake.
+
 At a table's cycle cap the stakes are split in proportion to the material each standing army has left (pawn 1, knight 3, bishop 3, rook 5, queen 9), so the contract has to find every piece on the board, and the board is facts resolved lazily (`docs/adr/0002-order-free-lazy-resolution.md`): the zone index holds a bit per touched square but cannot be listed, and nothing runs at the end of a cycle to keep a count. So we decided:
 
 - **At a table, the first touch of a zone lists it** (`_tableZones`, in `UsingGameBoard._touch`), and only under a roster, so the world's reveals never pay for it (they read the roster only on a zone nobody has touched yet). The list's order depends on the order of reveals; its SET does not, and the count is a sum, so nobody's share can.

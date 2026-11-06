@@ -205,14 +205,15 @@ interface IGameExit is UsingGameTypes {
     /// @notice Pay an exited army's whole stake, in ETH, to its owner.
     /// @dev Anyone may call it, once the cycle in which its king landed alone
     ///      on an exit has closed: the army left the board then, and this only
-    ///      PAYS. Every reserve of its merged tree is debited and the sum is
-    ///      redeemed at `StakeSale`'s fixed price for the army's current owner.
+    ///      PAYS. Its reserve and that of every army whose stake it took
+    ///      (down the tree of captures, a stone's excepted) are debited and
+    ///      the sum is redeemed at `StakeSale`'s fixed price for its owner.
     ///      Reverts {NotExited} before, and {AlreadyPaid} once paid. A tree too
     ///      big for one transaction is first {collect}ed.
     function exit(uint256 army) external returns (uint256 paid);
 
-    /// @notice Collect up to `maxArmies` armies of an exited army's merged tree
-    ///         towards its payout, and say whether the whole tree is collected.
+    /// @notice Collect up to `maxArmies` armies of an exited army's tree of
+    ///         captured stakes towards its payout, and say whether the whole tree is collected.
     /// @dev Permissionless and incremental, for a tree too big for one
     ///      transaction; never needed to have exited, only to be paid in one go.
     function collect(
@@ -293,10 +294,10 @@ interface IGameGetters is UsingGameTypes {
         returns (uint64[] memory spawnPoints, uint64 cycleNumber);
 }
 
-/// @dev THE ARMY REGISTRY, resolved through every capture: who plays each
-///      army, and what it holds. Its own route because resolving a stake walks
-///      the captures (`docs/adr/0001-one-move-per-army-merge-on-capture.md`),
-///      and that does not fit beside the board reads.
+/// @dev THE ARMY REGISTRY, resolved through every capture: whether each army
+///      stands, and what it holds. Its own route because resolving a stake
+///      walks the captures not yet folded (`docs/adr/0013`), and that does not
+///      fit beside the board reads.
 interface IGameRegistry is UsingGameTypes {
     /// @notice One army, resolved.
     function getArmy(uint256 army) external view returns (ArmyView memory);
@@ -309,10 +310,7 @@ interface IGameRegistry is UsingGameTypes {
     ) external view returns (ArmyView[] memory armies, uint256 total);
 
     /// @notice Every army `owner` has created, resolved.
-    /// @dev CREATED, not played: an army a capture loop handed to another
-    ///      account is listed here under its creator, with its new `owner`,
-    ///      and not under the account that now plays it
-    ///      (`docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`).
+    /// @dev Every army is played by the account that created it.
     function getArmiesOf(
         address owner
     ) external view returns (ArmyView[] memory armies);

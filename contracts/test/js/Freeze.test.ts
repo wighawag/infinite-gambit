@@ -49,7 +49,7 @@ const isFrozen = (w: World, army: bigint) =>
 	read<boolean>(w, 'isFrozen', [army]);
 const reserveOf = (w: World, id: bigint) => read<bigint>(w, 'getReserve', [id]);
 const armyView = (w: World, army: bigint) =>
-	read<{status: number; stake: bigint; mergedInto: bigint; king: bigint}>(
+	read<{status: number; stake: bigint; capturedBy: bigint; king: bigint}>(
 		w,
 		'getArmy',
 		[army],
@@ -204,7 +204,7 @@ describe('a missed reveal', function () {
 		).toBeRejectedWith(/NotExited/);
 	});
 
-	it('lets a frozen army be captured: its pieces come back to life under the captor, with its stake', async function () {
+	it("lets a frozen army be captured like any army: its pieces leave the board, and its stake is the captor's", async function () {
 		const w = await world();
 		const [, b, , d] = await w.deploy([
 			[w.alice, [0, 0]],
@@ -212,7 +212,6 @@ describe('a missed reveal', function () {
 			[w.carol, [0, 1]],
 			[w.dave, [1, 1]],
 		]);
-		const bobPieces = (await piecesOf(w, b)).length;
 		// bob commits a move and goes quiet; dave's queen walks over.
 		await w.commit(w.bob, b, [move([6, 1], [7, 2])]);
 		await w.commit(w.dave, d, [move([7, 5], [8, 4])]);
@@ -226,14 +225,12 @@ describe('a missed reveal', function () {
 		await w.play([{owner: w.dave, army: d, moves: [move([8, 3], [6, 1])]}]);
 
 		const bob = await armyView(w, b);
-		expect([bob.status, bob.mergedInto, bob.stake]).toEqual([CAPTURED, d, 0n]);
+		expect([bob.status, bob.capturedBy, bob.stake]).toEqual([CAPTURED, d, 0n]);
 		const dave = await armyView(w, d);
 		expect([dave.status, dave.stake]).toEqual([DEPLOYED, 2n * DEFAULT_STAKE]);
 		expect(await piecesOf(w, b)).toEqual([]);
-		expect((await piecesOf(w, d)).length).toEqual(2 * bobPieces - 1);
-		// A piece that was frozen moves again, with dave's one move.
-		await w.play([{owner: w.dave, army: d, moves: [move([4, 0], [3, 0])]}]);
-		expect(await w.pieceAt(3, 0)).toEqual(`P@3,0#${d}:W*`);
+		expect((await piecesOf(w, d)).length).toEqual(20);
+		expect(await w.pieceAt(4, 0)).toEqual(undefined);
 	});
 
 	it('still burns the stake of a deployment never revealed, which is not a freeze', async function () {

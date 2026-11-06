@@ -64,7 +64,12 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         Bishop,
         Rook,
         Queen,
-        King
+        King,
+        /// @notice A king taken by a piece whose own army's king fell in the
+        ///         same cycle (`docs/adr/0014`): still labelled with the army
+        ///         it was, holding that army's stake. It never moves, blocks
+        ///         like any piece, attacks nothing and is not a king.
+        Stone
     }
 
     /// @notice A direction on the board. Only a pawn's is meaningful: it is the
@@ -128,13 +133,13 @@ interface UsingGameTypes is UsingCommitRevealTypes {
         /// @notice its deployment was cancelled in its commit phase, and its
         ///         stake went back to its owner's account reserve
         Cancelled,
-        /// @notice its king was taken: its pieces and its stake are now those
-        ///         of the army in `mergedInto`, which its owner plays
-        ///         (`docs/adr/0001-one-move-per-army-merge-on-capture.md`)
+        /// @notice its king was taken: its pieces have left the board, and its
+        ///         stake is the army's in `capturedBy`, or, if that is zero,
+        ///         its own, held by the stone its king became
+        ///         (`docs/adr/0013`, `docs/adr/0014`)
         Captured,
         /// @notice its king landed alone on an exit in a cycle that is over:
-        ///         its own pieces left the board, those of the armies it had
-        ///         merged are rocks, and its whole stake is paid out by
+        ///         its pieces left the board, and its whole stake is paid out by
         ///         {IGameExit-exit} (`stake` is what is still to be paid)
         Exited,
         /// @notice on the board, FROZEN for good by a missed reveal: it never
@@ -151,23 +156,26 @@ interface UsingGameTypes is UsingCommitRevealTypes {
     struct ArmyView {
         uint256 id;
         /// @notice the account that owns it, and the only one that may act for
-        ///         it (directly or through a delegate); for a `Captured` army,
-        ///         the owner of the army it merged into
+        ///         it (directly or through a delegate)
         address owner;
         ArmyStatus status;
         /// @notice the cycle its deployment was committed in
         uint64 deployedIn;
         /// @notice where it was revealed, once it has been
         uint64 spawnPoint;
-        /// @notice where its king stands; meaningful while `Deployed`
+        /// @notice where its king stands; meaningful while `Deployed`, and
+        ///         where it fell once `Captured` (a stone's square)
         uint64 king;
-        /// @notice what it holds: its own reserve, plus those of every army
-        ///         that merged into it; zero once `Captured`, because its stake is
-        ///         then part of the stake of the army in `mergedInto`
+        /// @notice what it holds: its own reserve, plus the stakes of the
+        ///         armies whose king or stone it took (a lower bound past
+        ///         `STAKE_VIEW_DEPTH` captures not yet folded); zero once
+        ///         `Captured` and taken, because its stake is then part of the
+        ///         stake of the army in `capturedBy`
         uint256 stake;
-        /// @notice the army it plays for: itself, or once `Captured`, the army
-        ///         its pieces and stake merged into, at the end of the chain
-        uint256 mergedInto;
+        /// @notice once `Captured`, the army its stake went to: the one that
+        ///         took its king, or its stone; zero for a stone nobody has
+        ///         taken yet, and for an army that was not captured
+        uint256 capturedBy;
     }
 
     /// @notice How a table ended, as far as it has.

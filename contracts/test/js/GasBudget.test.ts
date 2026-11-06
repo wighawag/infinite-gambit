@@ -16,7 +16,6 @@ import {
 } from './utils/index.js';
 import {parseEther, zeroAddress} from 'viem';
 import {movesWorld, move} from './utils/moves-world.js';
-import {fourArmies, threeArmyLoop, twoArmyLoop} from './utils/capture-loops.js';
 import {tableWorld} from './utils/table-world.js';
 import {OFFLINE_OPEN_SPAWN_POINTS} from '../../rocketh/config.js';
 
@@ -91,19 +90,11 @@ const GENEROSITY_CEILING = 3n;
  */
 const MINIMUM_HEADROOM_PERCENT = 10n;
 
-/**
- * How many merges `UsingGameBoard._armyOf` follows at most for one piece
- * (`MAX_CHAIN` there). A reveal resolves the army of two pieces, the mover and
- * its destination, so this bounds the merges one reveal walks.
- */
-const MAX_CHAIN = 8n;
-
-/** The worst reveals of the first case, for the capture-chain case to build on. */
+/** The worst reveals of the first case, for the capture case to build on. */
 const measured: {
 	king?: bigint;
 	slider?: bigint;
-	perMerge?: bigint;
-	/** The worst reveal of the world, as the capture-loop case prices it. */
+	/** The worst reveal of the world, as the capture case prices it. */
 	worst?: bigint;
 } = {};
 
@@ -252,12 +243,18 @@ describe('the declared gas budget', function () {
 		);
 	});
 
-	it('covers the worst reveal with a long capture chain behind both pieces it resolves', async function () {
-		// THE CHAINS ARE PRICED PER MERGE, then multiplied by the bound: building
-		// two chains of MAX_CHAIN merges each on a board would take hundreds of
-		// cycles, and every merge followed costs the same reads (the army's
-		// record, and the square its king was taken on, whose facts were never
-		// folded: the dearer of the two ways a merge is kept).
+	it('covers the worst reveal that makes, folds or takes a stone, and the two-victim square', async function () {
+		// NO REVEAL WALKS A CHAIN ANY MORE (`docs/adr/0013`, `docs/adr/0014`):
+		// what a capture adds to a reveal is bounded by the two squares it
+		// touches. Each may FOLD the captures of its facts (at most two
+		// victims, the two-victim square: each victim's fall written, its
+		// stake's taker written and its reserve moved up, after reading
+		// whether the captor's own king fell, one level deep), and the move
+		// may NOTE candidates for the captor's stake. And every occupied
+		// square a reveal reads asks whether its army has fallen (the VANISH
+		// check: the army record and its king's square). Measured here on the
+		// stones of `Stones.test.ts` and the two-victim square of
+		// `KingCapture.test.ts`, then put together on the dearest move.
 		assert.ok(measured.king && measured.slider, 'runs after the first case');
 		const world = movesWorld({
 			deployAll,
@@ -267,150 +264,133 @@ describe('the declared gas budget', function () {
 			(await networkHelpers.loadFixture(deployAll)).linkedData.revealGas,
 		);
 		type W = Awaited<ReturnType<typeof world>>;
-		async function revealGas(
-			w: W,
-			owner: `0x${string}`,
-			army: bigint,
-			m: Move,
-		) {
-			await w.commit(owner, army, [m]);
+		type Play = {owner: `0x${string}`; army: bigint; moves: Move[]};
+		/** One cycle; the gas of each reveal, in the order given. */
+		async function cycleGas(w: W, plays: Play[]): Promise<bigint[]> {
+			for (const p of plays) await w.commit(p.owner, p.army, p.moves);
 			await w.toRevealPhase();
-			const receipt = await w.reveal(owner, army, [m]);
+			const used: bigint[] = [];
+			for (const p of plays) {
+				used.push(BigInt((await w.reveal(p.owner, p.army, p.moves))!.gasUsed));
+			}
 			await w.toNextCycle();
-			return BigInt(receipt!.gasUsed);
+			return used;
 		}
-		// The chain of `KingCapture.test.ts`: dave takes bob's king while carol
-		// takes dave's, so a piece that was bob's is carol's two merges on.
-		async function chain() {
-			const w = await world();
-			const [, b, c, d] = await w.deploy([
-				[w.alice, [0, 0]],
-				[w.bob, [1, 0]],
-				[w.carol, [0, 1]],
-				[w.dave, [1, 1]],
-			]);
-			await w.play([{owner: w.dave, army: d, moves: [move([7, 5], [8, 4])]}]);
-			await w.play([{owner: w.dave, army: d, moves: [move([8, 4], [8, 3])]}]);
-			await w.play([{owner: w.dave, army: d, moves: [move([4, 6], [3, 7])]}]);
-			await w.play([
-				{owner: w.dave, army: d, moves: [move([8, 3], [6, 1])]},
-				{owner: w.carol, army: c, moves: [move([2, 6], [3, 7])]},
-			]);
-			return {w, b, c, d};
-		}
-		// One pawn step each: carol's own pawn, then one that was bob's.
-		let s = await chain();
-		const noMerge = await revealGas(
-			s.w,
-			s.w.carol,
-			s.c,
-			move([-2, 7], [-2, 8]),
-		);
-		s = await chain();
-		const twoMerges = await revealGas(
-			s.w,
-			s.w.carol,
-			s.c,
-			move([7, 0], [8, 0]),
-		);
-		const perMerge = (twoMerges - noMerge) / 2n;
-		measured.perMerge = perMerge;
+		const max = (xs: bigint[]) => xs.reduce((a, b) => (a > b ? a : b));
 
-		// A king meeting exactly one piece notes the capture it may make, for
-		// the captor's stake (`UsingGameBoard._noteCandidate`): one entry pushed
-		// onto a fresh list, two storage slots written from zero. Priced as
-		// that, since the king case above never meets anybody.
+		// THE CHAIN: dave's queen takes bob's king while carol's pawn takes
+		// dave's, so bob's king is a stone. Then carol's queen leaves (3,7),
+		// folding dave's capture, and alice's pawn walks up and takes the stone.
+		const w = await world();
+		const [a, b, c, d] = await w.deploy([
+			[w.alice, [0, 0]],
+			[w.bob, [1, 0]],
+			[w.carol, [0, 1]],
+			[w.dave, [1, 1]],
+		]);
+		for (const m of [
+			move([7, 5], [8, 4]),
+			move([8, 4], [8, 3]),
+			move([4, 6], [3, 7]),
+		]) {
+			await w.play([{owner: w.dave, army: d, moves: [m]}]);
+		}
+		const making = await cycleGas(w, [
+			{owner: w.carol, army: c, moves: [move([2, 6], [3, 7])]},
+			{owner: w.dave, army: d, moves: [move([8, 3], [6, 1])]},
+		]);
+		const [foldingCapture] = await cycleGas(w, [
+			{owner: w.carol, army: c, moves: [move([3, 7], [6, 4])]},
+		]);
+		for (const m of [
+			move([2, 0], [3, 0]),
+			move([3, 0], [4, 0]),
+			move([4, 0], [5, 0]),
+		]) {
+			await w.play([{owner: w.alice, army: a, moves: [m]}]);
+		}
+		const [takingStone] = await cycleGas(w, [
+			{owner: w.alice, army: a, moves: [move([5, 0], [6, 1])]},
+		]);
+		void b;
+
+		// THE TWO-VICTIM SQUARE: alice's king steps onto carol's while dave's
+		// pawn arrives too, revealed in both orders, then dave's queen leaves
+		// the square, folding both captures. A plain step of a piece that
+		// captured nothing is the baseline of that fold.
+		async function faceToFace() {
+			const v = await world();
+			const [va, vc, vd] = await v.deploy([
+				[v.alice, [0, 0]],
+				[v.carol, [0, 1]],
+				[v.dave, [-1, 1]],
+			]);
+			for (const [am, cm] of [
+				[move([-2, 0], [-3, 1]), move([-3, 5], [-4, 6])],
+				[move([-3, 1], [-2, 2]), move([-2, 6], [-3, 5])],
+				[move([-2, 2], [-2, 3]), move([-3, 5], [-3, 4])],
+			]) {
+				await v.play([
+					{owner: v.alice, army: va, moves: [am]},
+					{owner: v.carol, army: vc, moves: [cm]},
+				]);
+			}
+			return {v, va, vd};
+		}
+		const kingMoves: Play[] = [];
+		let twoVictims: bigint[] = [];
+		let s = await faceToFace();
+		kingMoves.push(
+			{owner: s.v.alice, army: s.va, moves: [move([-2, 3], [-3, 4])]},
+			{owner: s.v.dave, army: s.vd, moves: [move([-4, 5], [-3, 4])]},
+		);
+		twoVictims = await cycleGas(s.v, kingMoves);
+		const [foldingTwo] = await cycleGas(s.v, [
+			{owner: s.v.dave, army: s.vd, moves: [move([-3, 4], [-2, 4])]},
+		]);
+		const [plainStep] = await cycleGas(s.v, [
+			{owner: s.v.dave, army: s.vd, moves: [move([-5, 4], [-5, 3])]},
+		]);
+		s = await faceToFace();
+		twoVictims = [
+			...twoVictims,
+			...(await cycleGas(s.v, [
+				{owner: s.v.dave, army: s.vd, moves: [move([-4, 5], [-3, 4])]},
+				{owner: s.v.alice, army: s.va, moves: [move([-2, 3], [-3, 4])]},
+			])),
+		];
+
+		const captures = max([
+			...making,
+			foldingCapture,
+			takingStone,
+			...twoVictims,
+			foldingTwo,
+		]);
+		// THE WORST, put together: the dearest plain move of the first case
+		// whose origin AND destination each fold a two-victim square, which
+		// notes two candidates (a king and an arriver already there), and
+		// whose every square read meets a piece of a fallen army not yet
+		// folded, a distinct one each, cold: its record's two slots, the four
+		// slots of its king's square, and finding that square. A slider reads
+		// 7 such squares (one holding such a piece reads as empty, so the path
+		// is legal), a king its destination's 8 neighbours.
+		const fold = foldingTwo > plainStep ? foldingTwo - plainStep : 0n;
 		const note = 2n * 22_100n + 1_000n;
-
-		// A slider resolves two chained pieces; a king resolves only its
-		// destination, since a king's own army never merged.
-		const slider = measured.slider! + 2n * MAX_CHAIN * perMerge;
-		const king = measured.king! + note + MAX_CHAIN * perMerge;
+		const vanish = 6n * 2_100n + 3_000n;
+		const extras = 2n * fold + 2n * note;
+		const slider = measured.slider! + extras + 7n * vanish;
+		const king = measured.king! + extras + 8n * vanish;
 		const worst = slider > king ? slider : king;
+		measured.worst = worst > captures ? worst : captures;
 		console.log(
-			`gas budget: per merge followed ${perMerge}, noting a capture ${note}; worst chained reveals: slider ${slider}, king ${king}, declared ${declaredReveal}`,
+			`gas budget: captures: making a stone ${max(making)}, folding a capture ${foldingCapture}, taking a stone ${takingStone}, the two-victim square ${max(twoVictims)}, folding it ${foldingTwo} (a plain step ${plainStep}); worst reveal ${measured.worst} (slider ${slider}, king ${king}), declared ${declaredReveal}`,
 		);
 		assert.ok(
-			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
-			`a reveal resolving two chains of ${MAX_CHAIN} merges costs about ${worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
-				`Raise it in contracts/rocketh/config.ts, or lower MAX_CHAIN: a reveal that runs out of gas is a missed reveal.`,
-		);
-	});
-
-	it('covers the worst reveal that folds a capture loop', async function () {
-		// THE LOOPS ARE PRICED PER ARMY, then multiplied by the bound, like the
-		// chains: folding a loop writes the owner and `loopedIn` of every army
-		// of it (`UsingGameBoard._foldLoop`), and reading it walks them all
-		// (`_walk`). Measured on the loops of `CaptureLoops.test.ts`, by the
-		// reveal that steps the first king off its square, which folds them.
-		assert.ok(
-			measured.slider && measured.perMerge,
-			'runs after the first two cases',
-		);
-		const world = movesWorld({
-			deployAll,
-			loadFixture: networkHelpers.loadFixture,
-		});
-		const declaredReveal = BigInt(
-			(await networkHelpers.loadFixture(deployAll)).linkedData.revealGas,
-		);
-		const step = move([6, 1], [7, 2]);
-		async function revealGas(
-			w: Awaited<ReturnType<typeof world>>,
-			owner: `0x${string}`,
-			army: bigint,
-		) {
-			await w.commit(owner, army, [step]);
-			await w.toRevealPhase();
-			const receipt = await w.reveal(owner, army, [step]);
-			await w.toNextCycle();
-			return BigInt(receipt!.gasUsed);
-		}
-		// bob's king steps off (6,1): played by bob with no loop, by dave once
-		// it is a loop of two, and by carol once it is a loop of three.
-		const fresh = await fourArmies(world);
-		const noLoop = await revealGas(fresh.w, fresh.w.bob, fresh.b);
-		const two = await twoArmyLoop(world, 'forward');
-		const loopOfTwo = await revealGas(two.w, two.w.dave, two.b);
-		const three = await threeArmyLoop(world, 'forward');
-		const loopOfThree = await revealGas(three.w, three.w.carol, three.b);
-		const perArmy = loopOfThree - loopOfTwo;
-		const loopOf = (n: bigint) => loopOfTwo - noLoop + (n - 2n) * perArmy;
-
-		// THE WORST: a slider whose own army is MAX_CHAIN merges behind, taking
-		// the king of a loop of MAX_CHAIN armies. Its destination costs what the
-		// king's own square cost above (the loop read, walked and folded), and
-		// taking a king notes a capture, as in the case above. A king never
-		// reaches another king's square: kings never stand side by side.
-		const note = 2n * 22_100n + 1_000n;
-		// EXITS AND THE RESERVE MOVE-UP
-		// (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`),
-		// priced like `note` since no measured case hits them all at once. Each
-		// of the two squares a reveal touches may fold a capture, which moves
-		// the victim's reserve into its captor's (two reserve slots, the second
-		// written from zero at worst, and an event), and may fold an exit (one
-		// army record written). And every occupied square the move reads asks
-		// whether its army has exited: one cold army record each, plus the
-		// cold facts of the exit square its king last moved to, for each of the
-		// 7 squares of a slider's path (a king reads 8 neighbours, but only
-		// their army records: a king's path is its destination).
-		const foldUps = 2n * (2n * 22_100n + 2_000n + 22_100n);
-		const exitReads = 7n * (2_100n + 2_100n);
-		const worst =
-			measured.slider! +
-			MAX_CHAIN * measured.perMerge! +
-			note +
-			loopOf(MAX_CHAIN) +
-			foldUps +
-			exitReads;
-		measured.worst = worst;
-		console.log(
-			`gas budget: folding a loop: of two ${loopOf(2n)}, per army ${perArmy}, of ${MAX_CHAIN} ${loopOf(MAX_CHAIN)}; exits and reserve move-ups ${foldUps + exitReads}; worst looped reveal ${worst}, declared ${declaredReveal}`,
-		);
-		assert.ok(
-			declaredReveal >= (worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
-			`a reveal folding a capture loop of ${MAX_CHAIN} armies costs about ${worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
-				`Raise it in contracts/rocketh/config.ts, or bound the loops a reveal folds: a reveal that runs out of gas is a missed reveal.`,
+			declaredReveal >=
+				(measured.worst * (100n + MINIMUM_HEADROOM_PERCENT)) / 100n,
+			`the worst capture reveal costs about ${measured.worst} gas, and revealGas is declared at ${declaredReveal}, with less than ${MINIMUM_HEADROOM_PERCENT}% of headroom. ` +
+				`Raise it in contracts/rocketh/config.ts: a reveal that runs out of gas is a missed reveal.`,
 		);
 	});
 
@@ -422,7 +402,7 @@ describe('the declared gas budget', function () {
 		// bob's pawn (7,0) to (8,0), from zone 0 into zone 1, the first touch of
 		// both. The list is packed four zones a slot, so this second push shared
 		// the first's slot; at worst it opens one of its own.
-		assert.ok(measured.worst && measured.king, 'runs after the loop case');
+		assert.ok(measured.worst && measured.king, 'runs after the capture case');
 		const lobby = BigInt(
 			(
 				(await networkHelpers.loadFixture(deployAll)).env.get('GameFactory')

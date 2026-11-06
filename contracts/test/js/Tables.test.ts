@@ -304,3 +304,99 @@ describe('a table', function () {
 		expect((await t.outcome()).over).toEqual(false);
 	});
 });
+
+/**
+ * THE CHAIN OF `Stones.test.ts` AT A TABLE: seat 2's queen takes seat 1's king
+ * on (6,1) while seat 3's pawn takes seat 2's king, stepped to (3,7): seat 1's
+ * king is a stone holding its stake, and seat 3's pawn is a queen.
+ */
+async function chainAtATable(
+	t: Awaited<ReturnType<Awaited<ReturnType<typeof world>>['create']>>,
+	owners: {
+		b: [`0x${string}`, bigint];
+		d: [`0x${string}`, bigint];
+		c: [`0x${string}`, bigint];
+	},
+	others: {owner: `0x${string}`; army: bigint; moves: []}[],
+) {
+	const [bob, b] = owners.b;
+	const [dave, d] = owners.d;
+	const [carol, c] = owners.c;
+	const pass = (owner: `0x${string}`, army: bigint) => ({
+		owner,
+		army,
+		moves: [],
+	});
+	for (const step of [
+		move([7, 5], [8, 4]),
+		move([8, 4], [8, 3]),
+		move([4, 6], [3, 7]),
+	]) {
+		await t.play([
+			{owner: dave, army: d, moves: [step]},
+			pass(bob, b),
+			pass(carol, c),
+			...others,
+		]);
+	}
+	await t.play([
+		{owner: dave, army: d, moves: [move([8, 3], [6, 1])]},
+		{owner: carol, army: c, moves: [move([2, 6], [3, 7])]},
+		pass(bob, b),
+		...others,
+	]);
+}
+
+describe('a table with a stone on it', function () {
+	it("counts a promoted queen as 9 and a stone as nothing at the cap, and splits the untaken stone's stake with the rest", async function () {
+		const w = await world();
+		const t = await w.create(4, 4);
+		const a = await t.buy(w.alice);
+		const b = await t.buy(w.bob);
+		const d = await t.buy(w.dave);
+		const c = await t.buy(w.carol);
+		await t.start();
+		await chainAtATable(t, {b: [w.bob, b], d: [w.dave, d], c: [w.carol, c]}, [
+			{owner: w.alice, army: a, moves: []},
+		]);
+		expect(await t.pieceAt(6, 1)).toEqual(`S@6,1#${b}:N`);
+		expect(await t.pieceAt(3, 7)).toEqual(`Q@3,7#${c}:N*`);
+		expect((await t.outcome()).over).toEqual(true);
+		await t.claim(a);
+		await t.claim(c);
+		// carol's army lost a pawn and gained a queen; the stone counts for
+		// nobody, and the pot is all four stakes, the stone's included.
+		const carolMaterial = ARMY_MATERIAL - 1n + 9n;
+		const total = ARMY_MATERIAL + carolMaterial;
+		const pot = 4n * DEFAULT_STAKE;
+		const settled = await t.outcome();
+		expect([settled.totalMaterial, settled.pot]).toEqual([total, pot]);
+		expect(await t.share(a)).toEqual((pot * ARMY_MATERIAL) / total);
+		expect(await t.share(c)).toEqual((pot * carolMaterial) / total);
+		await expect(t.claim(b)).toBeRejectedWith('NothingToClaim');
+		await expect(t.claim(d)).toBeRejectedWith('NothingToClaim');
+	});
+
+	it("pays the last king standing every stake, the stone's included", async function () {
+		const w = await world();
+		const t = await w.create(4);
+		// alice takes seat 0 and leaves, so seats 1 to 3 stand where they play.
+		const a = await t.buy(w.alice);
+		const b = await t.buy(w.bob);
+		const d = await t.buy(w.dave);
+		const c = await t.buy(w.carol);
+		await t.execute(w.alice, 'leaveTable', [a]);
+		await t.start();
+		await chainAtATable(
+			t,
+			{b: [w.bob, b], d: [w.dave, d], c: [w.carol, c]},
+			[],
+		);
+		const outcome = await t.outcome();
+		expect([outcome.over, outcome.winner]).toEqual([true, c]);
+		const eth = await t.ethOf(w.carol);
+		await t.claim(c, w.bob);
+		expect((await t.ethOf(w.carol)) - eth).toEqual(3n * t.price);
+		expect((await t.outcome()).pot).toEqual(3n * DEFAULT_STAKE);
+	});
+});

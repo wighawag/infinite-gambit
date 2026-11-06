@@ -156,12 +156,12 @@ the word: what the framework calls a submission, its HUD calls a turn.
 
 ## This game: infinite chess
 
-chess-battleground is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), capturing a king takes its stake and absorbs its army, and the stake only leaves through an exit square. It also runs online as closed tables with a winner, and offline as a hotseat world where each seat is a human at the same device or a machine-played seat (single player is the latter).
+chess-battleground is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), capturing a king takes its stake and removes its army from the board, and the stake only leaves through an exit square. It also runs online as closed tables with a winner, and offline as a hotseat world where each seat is a human at the same device or a machine-played seat (single player is the latter).
 
 Everything above this heading is the framework's and stays game-neutral. The words below are this game's own. The full rule set is in `work/specs/`, and the decisions behind it are in `docs/adr/`.
 
 **Army**:
-One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit (a capture moves it into the captor's reserve only once the capture is folded, and until then the captor's stake counts the reserves of every army merged into it), while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
+One king, the stake it holds, and every piece under it. An army is this game's **identity**: one army is one player as the cycle counts players, owned by an account and acted for by its signer. An account may stake several armies, each one its own identity. Its stake is its OWN reserve, funded from the account's reserve at deployment: the army's reserve leaves only through an exit (a capture moves it into the captor's reserve only once the capture is folded, and until then the captor's stake counts the reserves of every army whose king or stone it took), while the account's reserve (stake not yet deployed, refunds) stays redeemable (`docs/adr/0006-stake-erc20-reserve-exit-only.md`).
 _Avoid_: player, faction, team, side
 
 **Move**:
@@ -185,7 +185,7 @@ An army that can never act again, so no cycle waits for it: a deployment that fa
 _Avoid_: eliminated, gone, inactive
 
 **Exit**:
-A square where a king may leave the world with its stake, at the centre of each spawn-grid cell (half the spacing off a spawn point on both axes). It is the only way a stake leaves. A king that lands on one ALONE has left at the close of that cycle: its army's own pieces leave the board with it, the pieces of the armies it had merged stay as rocks, and `exit(army)`, which anyone may call afterwards, pays the whole merged stake in ETH to the army's owner (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`). A king that arrives with others follows the collision table. A table has no exits: there, a king on an exit square is only a king on a square.
+A square where a king may leave the world with its stake, at the centre of each spawn-grid cell (half the spacing off a spawn point on both axes). It is the only way a stake leaves. A king that lands on one ALONE has left at the close of that cycle: its army's pieces leave the board with it, and `exit(army)`, which anyone may call afterwards, pays its whole stake in ETH to the army's owner, the stakes of the armies it took included but not a stone's (`docs/adr/0013`). A king that arrives with others follows the collision table. A table has no exits: there, a king on an exit square is only a king on a square.
 _Avoid_: withdraw, cash out, escape
 
 **Table seat**:
@@ -193,39 +193,35 @@ At a table the seat IS the army: buying a seat creates a new army for the buyer,
 _Avoid_: player slot, seat account
 
 **Greedy level**:
-How a played seat of the offline world plays by default: each cycle it captures the most valuable enemy piece one of its pieces can reach (a king above any material, then by material; a rock is never a target), and otherwise makes a random legal move. Legality and material are the contract's, run from the Simulation route (`legalMoves`, `materialOf`). A played seat whose army is gone (failed, captured, frozen) deploys its account's NEXT army, buying a stake with its play money when the reserve cannot pay. The other level, `random`, deploys and then passes.
+How a played seat of the offline world plays by default: each cycle it captures the most valuable enemy piece one of its pieces can reach (a king above any material, then by material), and otherwise makes a random legal move. Legality and material are the contract's, run from the Simulation route (`legalMoves`, `materialOf`). A played seat whose army is gone (failed, captured, frozen) deploys its account's NEXT army, buying a stake with its play money when the reserve cannot pay. The other level, `random`, deploys and then passes.
 _Avoid_: AI, difficulty, bot
 
 **Material**:
-What a table's stakes are split by at its cycle cap: pawn 1, knight 3, bishop 3, rook 5, queen 9, the king nothing, counted for the army each piece resolves to (a rock counts for nobody). Before the cap, the last king standing takes every stake instead. Each army's share is paid in ETH by `claim(army)`, which anyone may call (`docs/adr/0012-a-table-counts-material-from-the-zones-its-reveals-list.md`).
+What a table's stakes are split by at its cycle cap: pawn 1, knight 3, bishop 3, rook 5, queen 9, the king nothing, counted for the army each piece is labelled with: a promoted queen counts 9, and a stone nothing. Before the cap, the last king standing takes every stake instead, a stone's included. Each army's share is paid in ETH by `claim(army)`, which anyone may call (`docs/adr/0012-a-table-counts-material-from-the-zones-its-reveals-list.md`).
 _Avoid_: score, points, value
 
-**Rock**:
-A piece no army can ever play again: one of an army merged into an army that has exited, or one more than eight captures from the army that holds it. It stays on its square, blocks paths and footprints like any piece, never moves, can be captured by anyone, and capturing it gives nothing. Drawn greyed out; nobody's (army zero) on the board read.
-_Avoid_: obstacle, wall, neutral piece
+**Stone**:
+A king taken by a piece whose own army's king fell in the same cycle, taken or leaving through an exit (`docs/adr/0014-a-capture-whose-captor-falls-the-same-cycle-leaves-a-stone.md`). The capturing piece is gone with its army, and the taken king stays on its square as a piece of its own kind, still labelled with the army it was, holding that army's whole stake. It never moves, blocks like any piece, attacks nothing and is not a king (a king may stand next to it). Whoever captures it takes its stake, without promotion. Two armies of one owner taking each other's king in one cycle leave two stones, and gain that owner nothing.
+_Avoid_: rock, statue, corpse
+
+**Promotion**:
+The piece that takes a king lands as a queen; a king that takes a king stays a king, and a stone taken gives nothing (`docs/adr/0013`). The only promotion there is: pawns are never promoted.
+_Avoid_: upgrade
 
 **Capture**:
-Taking a piece that stayed put: by being the only piece to arrive on its square, or by being a moving king that survives a crowd of arrivals there (`docs/adr/0003-collision-table-king-survives-a-crowd.md`). Capturing a king takes its stake and merges its army.
+Taking a piece that stayed put: by being the only piece to arrive on its square, or by being a moving king that survives a crowd of arrivals there (`docs/adr/0003-collision-table-king-survives-a-crowd.md`). A moving king that meets exactly one other piece is captured by it. Capturing a king takes its whole stake, removes every piece of its army from the board from the next cycle, and promotes the capturing piece to a queen (`docs/adr/0013-no-merges-a-captured-army-vanishes-and-its-captor-is-promoted.md`).
 _Avoid_: kill, take (in code)
-
-**Merge**:
-What happens to an army whose king is captured, or dies in a collision with a single enemy piece: its pieces join the captor's army, which still makes one move per cycle. Resolved lazily: each army keeps who took its king, and a piece's army is followed through those to the end of the chain (A takes B while C takes A: C owns both), so it never matters which squares were read first.
-_Avoid_: absorb, conquer, annex
 
 **Collision**:
 Two or more pieces arriving on the same square in the same cycle. Who survives depends only on how many arrived and whether a king is among them, never on the order of reveals.
 _Avoid_: clash, conflict, bounce
 
-**Capture loop**:
-Kings capturing each other in a ring within one cycle (A takes B while B takes A, or longer). The king-capturing pieces die, every king survives where it stood, and each owner takes over the army they captured. Nothing merges: every army of the ring keeps its pieces and its stake and changes owner, so an owner of every army of a ring gains nothing.
-_Avoid_: mutual capture, swap, draw
-
 **Freeze**:
-What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured, its pieces then joining the captor. It takes nothing: the whole stake stays on the board as prey. An army is frozen as soon as its reveal window closes unrevealed, before anyone settles it (frozen flag OR an unrevealed commitment from a past cycle: `_isFrozen`, `isFrozen`, status `Frozen` in the registry). A commitment that cannot be revealed (an illegal move, a reveal out of gas) is a missed reveal too. In the framework's terms it is a forfeit, and the cycle stops waiting for it.
+What a missed reveal does to an army: it never moves again and its king cannot exit, but it can still be captured, its pieces then leaving the board and its stake going to the captor. It takes nothing: the whole stake stays on the board as prey. An army is frozen as soon as its reveal window closes unrevealed, before anyone settles it (frozen flag OR an unrevealed commitment from a past cycle: `_isFrozen`, `isFrozen`, status `Frozen` in the registry). A commitment that cannot be revealed (an illegal move, a reveal out of gas) is a missed reveal too. In the framework's terms it is a forfeit, and the cycle stops waiting for it.
 _Avoid_: ban, lock, penalty
 
 **Attacked square**:
-A square a piece of another army may legally move onto this cycle, judged on the board the cycle started with: a piece standing there can be captured, and one arriving there collides. Because every army moves at once this is not chess's attacked square: an enemy pawn's diagonal onto an empty square is not attacked (that pawn may not move there this cycle), and its step forward is. A frozen army and a rock attack nothing, since neither moves again. The client works it out only by running the contract's `legalMoves` over the enemy's pieces (`web/src/lib/chess/attacked.ts`).
+A square a piece of another army may legally move onto this cycle, judged on the board the cycle started with: a piece standing there can be captured, and one arriving there collides. Because every army moves at once this is not chess's attacked square: an enemy pawn's diagonal onto an empty square is not attacked (that pawn may not move there this cycle), and its step forward is. A frozen army and a stone attack nothing, since neither moves again. The client works it out only by running the contract's `legalMoves` over the enemy's pieces (`web/src/lib/chess/attacked.ts`).
 _Avoid_: threatened, controlled, in check
 
 ## The work/ contract

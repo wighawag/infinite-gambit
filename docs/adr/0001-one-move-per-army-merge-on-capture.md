@@ -1,3 +1,5 @@
 # One move per army per cycle, and a captured army merges into its captor
 
+> Amended by `docs/adr/0013-no-merges-a-captured-army-vanishes-and-its-captor-is-promoted.md`: a captured army no longer merges; its pieces leave the board and its stake goes to its captor. One move per army still holds.
+
 Each army (one king, its stake, its pieces) makes at most one move per cycle, and capturing a king merges its army into the captor's, which still makes one move per cycle. An account may stake several armies, each with its own move. We rejected one move per player because it is defeated by opening extra wallets, whereas a second army costs a second stake whichever wallet holds it. We rejected keeping a captured army's tempo because it lets the first big capture snowball: a merged empire has more material but no more tempo, so it is stretched thin and small armies can raid it.

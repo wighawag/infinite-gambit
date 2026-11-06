@@ -1,5 +1,7 @@
 # Collisions: arrivals that contest a square fail, and a king survives a crowd
 
+> Amended by `docs/adr/0013-no-merges-a-captured-army-vanishes-and-its-captor-is-promoted.md`: a moving king that meets exactly one other piece dies, and that piece lands as a queen with its stake, capturing what stayed there (both victims if a king or a stone stayed). `ChessRules.settle` holds the current table.
+
 Who survives a square depends only on how many pieces arrive, whether one stayed, and whether a moving king is among the arrivals:
 
 | On the square | Arrivals | Outcome |

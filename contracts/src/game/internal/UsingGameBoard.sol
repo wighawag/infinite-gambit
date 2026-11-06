@@ -97,9 +97,7 @@ abstract contract UsingGameBoard is UsingGameStore {
                 if ((r == 0 || r == 3) && (c == 0 || c == 5)) continue;
                 uint64 position = ChessRules.layoutSquare(spawnPoint, r, c);
                 if (_squares[position].cycle == 0) continue;
-                if (
-                    _rawSquareAt(position, cycleNumber).kind != PieceKind.None
-                ) {
+                if (_squareAt(position, cycleNumber).kind != PieceKind.None) {
                     return false;
                 }
             }
@@ -167,29 +165,14 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///      then would have blocked it), and when it lands later the square was
     ///      empty, so its piece simply takes it.
     ///
-    ///      THE PIECE'S ARMY IS RESOLVED: the army it plays for at the start of
-    ///      `cycleNumber`, following every merge since the facts were written
-    ///      ({_armyOf}). The facts keep the army as it was then.
+    ///      A FALLEN ARMY'S PIECES HAVE LEFT THE BOARD: a piece of an army
+    ///      whose king was taken or exited before `cycleNumber` reads as an
+    ///      empty square, except a stone, which is still labelled with the
+    ///      army it was (`docs/adr/0013`, `docs/adr/0014`). The facts keep the
+    ///      label they were written with; nothing is rewritten when an army
+    ///      falls. The check ({_fellIn}) is the army's record and its king's
+    ///      square, so it is paid once per distinct army a read meets.
     function _squareAt(
-        uint64 position,
-        uint64 cycleNumber
-    ) internal view returns (Piece memory piece) {
-        piece = _rawSquareAt(position, cycleNumber);
-        if (piece.kind != PieceKind.None) {
-            piece.army = _armyOf(piece.army, cycleNumber);
-        }
-    }
-
-    /// @notice {_squareAt} WITHOUT RESOLVING THE ARMY: the army is the one the
-    ///         facts were written with, which may since have merged.
-    /// @dev For a read that only needs the kind, or the army of a KING: a king
-    ///      on the board is never of an army that merged, because an army
-    ///      merges exactly when its king is taken. Resolving costs storage
-    ///      reads per merge followed, so a reveal resolves only the two squares
-    ///      whose army the rule compares (the moving piece and its
-    ///      destination), which is what bounds the chains a reveal walks
-    ///      ({MAX_CHAIN}).
-    function _rawSquareAt(
         uint64 position,
         uint64 cycleNumber
     ) internal view returns (Piece memory piece) {
@@ -198,7 +181,7 @@ abstract contract UsingGameBoard is UsingGameStore {
         SquareRecord storage record = _squares[position];
         uint64 touched = record.cycle;
         if (touched == 0) {
-            if (deployed && !_exited(laid.army, cycleNumber)) return laid;
+            if (deployed && _fellIn(laid.army, cycleNumber) == 0) return laid;
             return _emptyAt(position);
         }
 
@@ -210,16 +193,17 @@ abstract contract UsingGameBoard is UsingGameStore {
                 record.arrivals,
                 _kingOf(record, position),
                 _arriverOf(record, position),
-                _loopedSquare(record, cycleNumber)
+                _captorFell(record, position, cycleNumber)
             );
         }
         if (deployed && laidIn > touched) {
             piece = laid;
         }
-        // AN EXITED ARMY'S OWN PIECES HAVE LEFT THE BOARD: one comparison on
-        // the label the facts hold (`docs/adr/0011`). The pieces of the
-        // armies it merged keep their own label, and stay, as rocks.
-        if (piece.kind != PieceKind.None && _exited(piece.army, cycleNumber)) {
+        if (
+            piece.kind != PieceKind.None &&
+            piece.kind != PieceKind.Stone &&
+            _fellIn(piece.army, cycleNumber) != 0
+        ) {
             return _emptyAt(position);
         }
     }
@@ -301,7 +285,7 @@ abstract contract UsingGameBoard is UsingGameStore {
                 bits | (uint256(1) << PositionUtils.zoneLocalIndex(position));
         }
         if (touched != 0) {
-            _foldCapture(record, cycleNumber);
+            _foldCapture(record, position, cycleNumber);
             _foldExit(record, position);
         }
         Piece memory standing = _squareAt(position, cycleNumber);
@@ -320,34 +304,65 @@ abstract contract UsingGameBoard is UsingGameStore {
         if (record.kingArmy != 0) record.kingArmy = 0;
     }
 
-    /// @notice Before `record`'s facts are folded away, keep the one fact the
-    ///         board does not: whose king they took, and into whom
-    ///         ({ArmyRecord-capturedInto}).
-    /// @dev ORDER-FREE: the facts are of a cycle that is over. The captor
-    ///      written is the one the facts name, the army it played for at the
-    ///      start of the capture's cycle, and not the army that has it now:
-    ///      the stake is resolved down the tree of who took whom
-    ///      ({_treeStake}), which needs each army's own captor.
+    // ------------------------------------------------------------------------
+    // CAPTURES (`docs/adr/0013`, `docs/adr/0014`)
+    // ------------------------------------------------------------------------
+
+    /// @notice Before `record`'s facts are folded away, keep what the board
+    ///         does not: whose king fell there, and who took whose stake.
+    /// @dev ORDER-FREE: the facts are of a cycle that is over, and whether
+    ///      the captor's own king fell in that cycle is read one level deep
+    ///      ({_captorFell}), from facts of the same closed cycle or what their
+    ///      fold kept. Each victim's king that fell here gets `fallen` and the
+    ///      cycle. Its stake goes to the captor ({_take}), unless the captor's
+    ///      king fell in the same cycle: then a king or stone that stayed is a
+    ///      stone and keeps its own stake, and a moving king that met the
+    ///      captor is the stone, or, if a king or stone stayed there, gives its
+    ///      stake to that stone's army (one stone is all a square can hold).
     ///
-    ///      A king taken in a capture LOOP is not merged: the whole loop is
-    ///      folded instead ({_foldLoop}), once, by whichever of its squares is
-    ///      touched first.
+    ///      ONE CAPTURE PER CYCLE: a stake only ever moves into the army that
+    ///      took it, never on through a captor that fell with it.
     function _foldCapture(
         SquareRecord storage record,
+        uint64 position,
         uint64 cycleNumber
     ) private {
-        (uint256 victim, uint256 captor) = _kingCaptureAt(record);
-        if (victim == 0) return;
-        ArmyRecord storage army = _armies[victim];
+        (
+            uint256 standingVictim,
+            uint256 kingVictim,
+            uint256 captor
+        ) = _kingCaptureAt(record);
+        if (standingVictim == 0 && kingVictim == 0) return;
+        bool fell = _captorFell(record, position, cycleNumber);
         uint64 cycle = record.cycle;
-        if (army.capturedInto != 0 || army.loopedIn == cycle) return;
-        (, bool looped) = _walk(victim, cycleNumber);
-        if (looped) {
-            _foldLoop(victim, captor, cycle, cycleNumber);
-        } else {
-            army.capturedInto = captor;
-            _moveReserveUp(victim, captor);
+        if (kingVictim != 0) {
+            _fall(kingVictim, cycle);
+            _take(kingVictim, fell ? standingVictim : captor);
         }
+        if (standingVictim != 0) {
+            // A stone fell when it was made.
+            if (record.kind == PieceKind.King) _fall(standingVictim, cycle);
+            if (!fell) _take(standingVictim, captor);
+        }
+    }
+
+    /// @dev `army`'s king fell in `cycle`: the fold's copy of the facts that
+    ///      say so ({_fellIn}).
+    function _fall(uint256 army, uint64 cycle) private {
+        ArmyRecord storage record = _armies[army];
+        record.fallen = true;
+        record.fellIn = cycle;
+    }
+
+    /// @dev `victim`'s stake is `captor`'s: written once, and its reserve
+    ///      moves up. An exit's collection may have written it first, having
+    ///      collected the reserve itself ({UsingGameInternal-_collect}).
+    function _take(uint256 victim, uint256 captor) private {
+        if (captor == 0) return;
+        ArmyRecord storage record = _armies[victim];
+        if (record.capturedBy != 0) return;
+        record.capturedBy = captor;
+        _moveReserveUp(victim, captor);
     }
 
     /// @notice Move `victim`'s whole reserve into `captor`'s, once its capture
@@ -361,8 +376,156 @@ abstract contract UsingGameBoard is UsingGameStore {
         if (amount != 0) CommitReveal.deposit(captor, amount);
     }
 
+    /// @notice Whether the army that took a king or a stone on `position`, by
+    ///         `record`'s facts (of a cycle over before `cycleNumber`), lost
+    ///         its own king in that same cycle: then what it took is a stone
+    ///         (`captorFell` of {ChessRules-settle}).
+    /// @dev ONE LEVEL DEEP, never a walk. A captor that is the moving king
+    ///      here survived (or was alone) on this square, so it fell only by
+    ///      exiting through it. Any other captor moved a piece other than its
+    ///      king this cycle, so its king stood still, and fell only if it was
+    ///      taken where it stood, which its own record or square says
+    ///      ({_fellIn}) without asking who took it.
+    function _captorFell(
+        SquareRecord storage record,
+        uint64 position,
+        uint64 cycleNumber
+    ) internal view returns (bool) {
+        bool kingCame = record.kingArrived;
+        uint32 arrivals = record.arrivals;
+        bool meets = kingCame && arrivals == 2;
+        if (
+            !meets &&
+            (arrivals == 0 ||
+                record.departed ||
+                (record.kind != PieceKind.King &&
+                    record.kind != PieceKind.Stone))
+        ) {
+            return false;
+        }
+        (
+            uint256 standingVictim,
+            uint256 kingVictim,
+            uint256 captor
+        ) = _kingCaptureAt(record);
+        if (standingVictim == 0 && kingVictim == 0) return false;
+        if (kingCame && !meets) {
+            return
+                arrivals == 1 &&
+                _isExit(position) &&
+                !_armies[record.kingArmy].atTable;
+        }
+        return _fellIn(captor, cycleNumber) == record.cycle;
+    }
+
+    /// @notice The cycle `army`'s king fell in, taken or leaving through an
+    ///         exit, if that was before `cycleNumber`; zero if it stands.
+    /// @dev TWO SOURCES, ONE ANSWER, as {_exited}: once a later reveal has
+    ///      folded the square it fell on, the army record says it (`fallen`
+    ///      and `fellIn`, or `exited`, whose cycle is its king's last move);
+    ///      until then that square's facts do. A fallen king never moves
+    ///      again, so the square is where its last move took it, or where it
+    ///      was deployed ({_kingSquare}), and its facts there are the last
+    ///      ones: any later fact on that square was written by a touch that
+    ///      folded them first. Asks nothing about whoever took it, so it is
+    ///      never a walk.
+    function _fellIn(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal view returns (uint64) {
+        ArmyRecord storage record = _armies[army];
+        if (record.exited) return record.kingMovedIn;
+        if (record.fallen) return record.fellIn;
+        (bool placed, uint64 square) = _kingSquare(record, cycleNumber);
+        if (!placed) return 0;
+        SquareRecord storage facts = _squares[square];
+        uint64 touched = facts.cycle;
+        if (touched == 0 || touched >= cycleNumber) return 0;
+        if (facts.kingArrived && facts.kingArmy == army) {
+            uint32 arrivals = facts.arrivals;
+            if (arrivals == 2) return touched;
+            bool exits = arrivals == 1 && !record.atTable && _isExit(square);
+            return exits ? touched : 0;
+        }
+        if (
+            facts.departed || facts.kind != PieceKind.King || facts.army != army
+        ) {
+            return 0;
+        }
+        (uint256 standingVictim, , ) = _kingCaptureAt(facts);
+        return standingVictim == army ? touched : 0;
+    }
+
+    /// @dev Where `record`'s king stands at the start of `cycleNumber`, if it
+    ///      has been placed and did not move in a cycle that is not over (it
+    ///      was then alive at that cycle's start, where nothing yet says
+    ///      otherwise).
+    function _kingSquare(
+        ArmyRecord storage record,
+        uint64 cycleNumber
+    ) private view returns (bool, uint64) {
+        uint64 movedIn = record.kingMovedIn;
+        if (movedIn == 0) {
+            uint32 indexPlusOne = record.spawnIndexPlusOne;
+            if (indexPlusOne == 0) return (false, 0);
+            return (
+                true,
+                ChessRules.kingOf(
+                    ChessRules.spawnPointAt(indexPlusOne - 1, SPAWN_SPACING)
+                )
+            );
+        }
+        if (movedIn >= cycleNumber) return (false, 0);
+        return (true, record.kingTo);
+    }
+
+    /// @notice The army that holds `army`'s stake at the start of
+    ///         `cycleNumber` because it took `army`'s king or stone; zero if
+    ///         `army` holds its own (it stands, it exited, or it is a stone
+    ///         nobody has taken).
+    /// @dev TWO SOURCES, ONE ANSWER: `capturedBy` once a fold has written it
+    ///      ({_take}), else the facts of the square its king fell on, which
+    ///      is also where its stone stands. The answer for those facts is the
+    ///      fold's, so reads and folds in any order agree.
+    function _captureOf(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal view returns (uint256) {
+        ArmyRecord storage record = _armies[army];
+        uint256 by = record.capturedBy;
+        if (by != 0) return by;
+        (bool placed, uint64 square) = _kingSquare(record, cycleNumber);
+        if (!placed) return 0;
+        SquareRecord storage facts = _squares[square];
+        uint64 touched = facts.cycle;
+        if (touched == 0 || touched >= cycleNumber) return 0;
+        (
+            uint256 standingVictim,
+            uint256 kingVictim,
+            uint256 captor
+        ) = _kingCaptureAt(facts);
+        if (standingVictim != army && kingVictim != army) return 0;
+        if (!_captorFell(facts, square, cycleNumber)) return captor;
+        return kingVictim == army ? standingVictim : 0;
+    }
+
+    /// @dev {ChessRules-kingCapture} of `record`'s facts.
+    function _kingCaptureAt(
+        SquareRecord storage record
+    ) private view returns (uint256, uint256, uint256) {
+        return
+            ChessRules.kingCapture(
+                record.kind,
+                record.army,
+                record.departed,
+                record.arrivals,
+                record.kingArrived ? record.kingArmy : 0,
+                record.arriverArmy
+            );
+    }
+
     // ------------------------------------------------------------------------
-    // EXITS (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`)
+    // EXITS (`docs/adr/0006`; an exited army falls like a taken one)
     // ------------------------------------------------------------------------
 
     /// @notice Whether `position` is an exit: the centre of a spawn-grid
@@ -456,13 +619,8 @@ abstract contract UsingGameBoard is UsingGameStore {
         Piece[] memory contents = new Piece[](squares.length);
         legal = legal && piece.army == player;
         if (legal) {
-            // Only the destination's army is compared with the mover's: the
-            // other squares are a path, which only needs to be empty, or a
-            // king's neighbours, which only matter if they are kings
-            // ({_rawSquareAt}).
-            contents[0] = _squareAt(squares[0], cycleNumber);
-            for (uint256 i = 1; i < squares.length; i++) {
-                contents[i] = _rawSquareAt(squares[i], cycleNumber);
+            for (uint256 i = 0; i < squares.length; i++) {
+                contents[i] = _squareAt(squares[i], cycleNumber);
             }
             legal = ChessRules.isLegalMove(piece, move.to, contents);
         }
@@ -496,19 +654,27 @@ abstract contract UsingGameBoard is UsingGameStore {
         }
         target.arrivals = arrivals + 1;
         _markArrival(move.to, cycleNumber);
-        // A king that stood here at the start of the cycle could be taken.
-        Piece memory there = contents[0];
-        if (there.kind == PieceKind.King) _noteCandidate(player, there.army);
+        // A king or a stone that stood here at the start of the cycle could
+        // be taken.
+        PieceKind there = contents[0].kind;
+        if (there == PieceKind.King || there == PieceKind.Stone) {
+            _noteCandidate(player, contents[0].army);
+        }
     }
 
-    /// @notice Note that `captor` may have taken `victim`'s king, for the
-    ///         captor's stake ({UsingGameStore-_capturesBy}).
+    /// @notice Note that `captor` may have taken `victim`'s king or stone,
+    ///         for the captor's stake ({UsingGameStore-_capturesBy}).
     /// @dev WRITTEN AT REVEAL TIME, by whichever reveal can see that the
     ///      capture is possible, and never relied on alone: whether it
     ///      happened is {_captureOf}'s to say, from facts complete only once
     ///      the cycle is over. For a moving king meeting exactly one piece it
     ///      is the LATER of the two reveals that notes it (the earlier cannot
     ///      know), so it is noted once whichever order they land in.
+    ///
+    ///      Not noted: a moving king whose stake goes to the stone that stood
+    ///      where it died ({_foldCapture}). That capture is folded by the
+    ///      very touch that precedes any capture of the stone, so the stake
+    ///      is in the stone's reserve before anybody can be owed it.
     function _noteCandidate(uint256 captor, uint256 victim) private {
         _capturesBy[captor].push(victim);
     }
@@ -517,7 +683,7 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///         where it was deployed, if it has not been taken.
     /// @dev Only the army's own reveals write where its king went, so this is
     ///      order-free: it is where the king's last move took it. Whether the
-    ///      king is still there is {_captureOf}'s to say.
+    ///      king is still there is {_fellIn}'s to say.
     function _kingAt(
         uint256 army,
         uint64 spawnPoint,
@@ -530,263 +696,35 @@ abstract contract UsingGameBoard is UsingGameStore {
     }
 
     // ------------------------------------------------------------------------
-    // MERGES
+    // STAKES
     // ------------------------------------------------------------------------
 
-    /// @notice How many "captured into" pointers {_armyOf} follows at most.
-    /// @dev THE BOUND ON A CHAIN, which bounds what resolving one piece costs a
-    ///      reveal: a reveal resolves two pieces ({_rawSquareAt}), so it follows
-    ///      at most twice this many merges, and `GasBudget.test.ts` prices that
-    ///      against the declared reveal gas. Chains stay short without it: a
-    ///      touched square keeps its piece's army resolved as of then, so a hop
-    ///      is a merge since the square was last touched. A piece more than this
-    ///      many captures from its root is a ROCK, nobody's, for good: every
-    ///      read says so alike, and a touch writes it down as army zero
-    ///      (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`,
-    ///      replacing 0009's "walks on after a touch").
-    uint256 internal constant MAX_CHAIN = 8;
-
-    /// @notice The army `army` plays for at the start of `cycleNumber`: itself,
-    ///         or the army that took its king, followed as far as it goes
-    ///         (`docs/adr/0001-one-move-per-army-merge-on-capture.md`).
-    /// @dev ORDER-FREE, because every hop is a capture of a cycle that is
-    ///      over. A chain within one cycle (A takes B while C takes A) ends
-    ///      with the last captor. A capture LOOP (A takes B while B takes A)
-    ///      merges nothing ({_walk}), so a chain that runs into a loop ends at
-    ///      the first army of it reached.
-    function _armyOf(
-        uint256 army,
-        uint64 cycleNumber
-    ) internal view returns (uint256 into) {
-        (into, ) = _walk(army, cycleNumber);
-        // A ROCK: a piece of an army merged into one that has exited, which
-        // nobody can ever play again. An exited army itself resolves to
-        // nobody too, which is what makes it dead ({_isDead}).
-        if (into != 0 && _exited(into, cycleNumber)) return 0;
-    }
-
-    /// @notice {_armyOf}, and whether the walk came back to `army` itself:
-    ///         then its king was taken in a capture LOOP, and it is its own.
-    /// @dev ONE WALK down the captures ({_rawCaptureOf}), remembering the
-    ///      armies passed: coming back to one of them closes a loop, whose
-    ///      first army reached is the answer, and no loop is walked twice.
-    ///      Bounded by {MAX_CHAIN} hops: a loop of up to that many armies is
-    ///      seen, a longer ring reads as captures all round, which leaves every
-    ///      army of it captured.
-    function _walk(
-        uint256 army,
-        uint64 cycleNumber
-    ) internal view returns (uint256, bool) {
-        uint256[MAX_CHAIN] memory seen;
-        uint256 at = army;
-        for (uint256 hop = 0; hop < MAX_CHAIN; hop++) {
-            seen[hop] = at;
-            uint256 captor = _rawCaptureOf(at, cycleNumber);
-            if (captor == 0) return (at, false);
-            for (uint256 k = 0; k <= hop; k++) {
-                if (seen[k] == captor) return (captor, k == 0);
-            }
-            at = captor;
-        }
-        // Exactly MAX_CHAIN captures reached the root; more is a rock: nobody's,
-        // for good (`docs/adr/0011`). A touch writes it down as army zero.
-        if (_rawCaptureOf(at, cycleNumber) == 0) return (at, false);
-        return (0, false);
-    }
-
-    /// @notice The army that took `army`'s king before `cycleNumber`, as it
-    ///         was at the start of that capture's cycle; zero if none did.
-    /// @dev A KING TAKEN IN A CAPTURE LOOP IS NOT TAKEN: its army survives, so
-    ///      this is zero, and only its owner changes ({_ownerOf}).
-    function _captureOf(
-        uint256 army,
-        uint64 cycleNumber
-    ) internal view returns (uint256) {
-        uint256 captor = _rawCaptureOf(army, cycleNumber);
-        // A folded merge was judged no loop when it was folded.
-        if (captor == 0 || _armies[army].capturedInto != 0) return captor;
-        (, bool looped) = _walk(army, cycleNumber);
-        return looped ? 0 : captor;
-    }
-
-    /// @notice The army that took `army`'s king before `cycleNumber`, loop or
-    ///         not, unless that loop has been folded; zero if none did.
-    /// @dev TWO SOURCES, ONE ANSWER. Once a later reveal has folded the square
-    ///      of the capture, the answer is kept on the army
-    ///      ({ArmyRecord-capturedInto}, or `loopedIn` for a loop, which is no
-    ///      capture). Until then it is still in that square's facts
-    ///      ({_pendingCapture}). So which reads happen first never changes
-    ///      the answer.
-    function _rawCaptureOf(
-        uint256 army,
-        uint64 cycleNumber
-    ) internal view returns (uint256) {
-        ArmyRecord storage record = _armies[army];
-        uint256 captor = record.capturedInto;
-        if (captor != 0) return captor;
-        (uint256 by, uint64 cycle) = _pendingCapture(army, cycleNumber);
-        return record.loopedIn == cycle ? 0 : by;
-    }
-
-    /// @notice The king capture of `army` still held in the facts of the
-    ///         square its king stands on, if that square's last touched cycle
-    ///         is over before `cycleNumber`: the captor (zero if none) and the
-    ///         cycle. Whether it was part of a loop is not this read's to say.
-    /// @dev The square is the one the king's last move took it to (or where
-    ///      it was deployed): a king is only ever taken where it stands or
-    ///      where it arrives, and a taken king never moves again. An army has
-    ///      at most ONE such fact: any later capture or loop of its king
-    ///      touches that same square (or the king moved off it), and a touch
-    ///      folds the facts ({_touch}).
-    function _pendingCapture(
-        uint256 army,
-        uint64 cycleNumber
-    ) internal view returns (uint256, uint64) {
-        ArmyRecord storage record = _armies[army];
-        uint64 movedIn = record.kingMovedIn;
-        uint64 square;
-        if (movedIn == 0) {
-            uint32 indexPlusOne = record.spawnIndexPlusOne;
-            if (indexPlusOne == 0) return (0, 0);
-            square = ChessRules.kingOf(
-                ChessRules.spawnPointAt(indexPlusOne - 1, SPAWN_SPACING)
-            );
-        } else if (movedIn >= cycleNumber) {
-            // It moved in a cycle that is not over: alive at its start.
-            return (0, 0);
-        } else {
-            square = record.kingTo;
-        }
-        SquareRecord storage facts = _squares[square];
-        uint64 touched = facts.cycle;
-        if (touched == 0 || touched >= cycleNumber) return (0, 0);
-        if (
-            !facts.kingArrived &&
-            (facts.kind != PieceKind.King || facts.departed)
-        ) {
-            return (0, 0);
-        }
-        (uint256 victim, uint256 by) = _kingCaptureAt(facts);
-        return victim == army ? (by, touched) : (0, 0);
-    }
-
-    /// @dev {ChessRules-kingCapture} of `record`'s facts.
-    function _kingCaptureAt(
-        SquareRecord storage record
-    ) private view returns (uint256, uint256) {
-        return
-            ChessRules.kingCapture(
-                record.kind,
-                record.army,
-                record.departed,
-                record.arrivals,
-                record.kingArrived ? record.kingArmy : 0,
-                record.arriverArmy
-            );
-    }
-
-    // ------------------------------------------------------------------------
-    // CAPTURE LOOPS (`docs/adr/0004-capture-loops-rotate-ownership.md`)
-    // ------------------------------------------------------------------------
-
-    /// @notice Whether the facts of `record`, of a cycle over before
-    ///         `cycleNumber`, are of a king that stayed and was taken in a
-    ///         capture LOOP: the `looped` of {ChessRules-settle}, which only
-    ///         reads it for a piece that stayed and one arrival.
-    /// @dev The king that stayed is `record.army`'s, and this square is where
-    ///      its capture of `record.cycle` is read ({_pendingCapture}).
-    ///
-    ///      FROM CLOSED-CYCLE FACTS ONLY, so order-free, and the same before
-    ///      and after the loop is folded: folding writes `loopedIn` on every
-    ///      army of the loop at once ({_foldLoop}), and a member's facts are
-    ///      only ever overwritten by a touch that folds them first.
-    ///
-    ///      A loop is always of ONE cycle (a captor is alive when it captures,
-    ///      so around a ring every capture is no earlier than the one before),
-    ///      and in it every king stayed and was taken by one arriving piece
-    ///      other than a king: a king that moved, or that captured, made its
-    ///      army's one move, so that army took no king of the ring.
-    function _loopedSquare(
-        SquareRecord storage record,
-        uint64 cycleNumber
-    ) internal view returns (bool looped) {
-        if (record.kind != PieceKind.King || record.departed) return false;
-        uint256 army = record.army;
-        if (_armies[army].loopedIn == record.cycle) return true;
-        (, looped) = _walk(army, cycleNumber);
-    }
-
-    /// @notice The account that plays `army` at the start of `cycleNumber`.
-    /// @dev Its owner as last folded, unless its king's square still holds a
-    ///      capture loop not yet folded: then the owner of the army that took
-    ///      its king, as last folded, which is that army's owner BEFORE the
-    ///      loop, because a loop is folded for all its armies at once. Each
-    ///      owner takes over the army it captured. A captured army keeps the
-    ///      owner it had: it is its captor's to play ({_armyOf}).
-    function _ownerOf(
-        uint256 army,
-        uint64 cycleNumber
-    ) internal view returns (address) {
-        ArmyRecord storage record = _armies[army];
-        address owner = record.owner;
-        if (record.capturedInto != 0) return owner;
-        (uint256 by, uint64 cycle) = _pendingCapture(army, cycleNumber);
-        if (by == 0 || record.loopedIn == cycle) return owner;
-        (, bool looped) = _walk(army, cycleNumber);
-        return looped ? _armies[by].owner : owner;
-    }
-
-    /// @notice Fold the capture loop of `cycle` that `victim`, taken by `by`,
-    ///         is part of: every army of it gets the owner of the army that
-    ///         took its king, and `loopedIn`, in one go.
-    /// @dev A ROTATION: walking the loop forward, each army takes the owner of
-    ///      the next one before that one is written, and the last takes the
-    ///      first's, kept aside. So each is the owner before the loop
-    ///      ({_ownerOf}). Only called once {_walk} has seen the loop close.
-    function _foldLoop(
-        uint256 victim,
-        uint256 by,
-        uint64 cycle,
-        uint64 cycleNumber
-    ) private {
-        address first = _armies[victim].owner;
-        uint256 army = victim;
-        while (true) {
-            ArmyRecord storage record = _armies[army];
-            record.loopedIn = cycle;
-            if (by == victim) {
-                record.owner = first;
-                return;
-            }
-            record.owner = _armies[by].owner;
-            army = by;
-            (by, ) = _pendingCapture(army, cycleNumber);
-        }
-    }
-
-    // ------------------------------------------------------------------------
+    /// @notice How deep the read-only stake view follows the tree of who
+    ///         took whose stake ({_treeStake}).
+    /// @dev THE VIEW'S OWN BOUND, now that no reveal walks a chain: a view
+    ///      run by a client must not grow without limit with a long-lived
+    ///      army's history. Below this depth the view reports what it has
+    ///      reached, a LOWER BOUND; the stakes are still all there, and an
+    ///      exit's payout (`UsingGameInternal-_collect`) and a table's pot
+    ///      take them whole, unbounded. Reserves move up as captures are
+    ///      folded, so the unfolded part of a tree, and so the shortfall, is
+    ///      only the captures nobody has touched since.
+    uint256 internal constant STAKE_VIEW_DEPTH = 8;
 
     /// @notice The stake `army` holds at the start of `cycleNumber`: its own
-    ///         reserve and, recursively, that of every army it took a king of;
-    ///         zero once its own king has been taken, because its stake is
-    ///         then its captor's.
-    /// @dev THE RESERVES DO NOT MOVE: a captured army's reserve stays where
-    ///      it is (no army reserve can be withdrawn), and its captor's stake
-    ///      is resolved through the captures, like its pieces, so no read order
-    ///      can change it. Bounded like the chains: this is a view's walk.
+    ///         reserve and, recursively, that of every army whose king or
+    ///         stone it took; zero once its stake is another army's.
     function _stakeOf(
         uint256 army,
         uint64 cycleNumber
     ) internal view returns (uint256) {
-        if (_armyOf(army, cycleNumber) != army) return 0;
-        return _treeStake(army, cycleNumber, MAX_CHAIN);
+        if (_captureOf(army, cycleNumber) != 0) return 0;
+        return _treeStake(army, cycleNumber, STAKE_VIEW_DEPTH);
     }
 
-    /// @dev `army`'s reserve plus the trees of the armies that merged into it,
-    ///      each counted once: an army has one captor, and is counted in its
-    ///      list only. An army of a capture
-    ///      loop is no one's victim, so it keeps its own stake, which goes with
-    ///      it to its new owner ({_ownerOf}).
+    /// @dev `army`'s reserve plus the trees of the armies whose stakes it
+    ///      took and that a fold has not moved up yet, each counted once: an
+    ///      army's stake has one taker, and is counted in its list only.
     function _treeStake(
         uint256 army,
         uint64 cycleNumber,
@@ -798,8 +736,6 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint256 n = victims.length;
         for (uint256 k = 0; k < n; k++) {
             uint256 victim = victims[k];
-            // Reached from `root` through real captures only, so it resolves
-            // to `root`: no walk up is needed to check it.
             if (_captureOf(victim, cycleNumber) != army) continue;
             bool seen = false;
             for (uint256 j = 0; j < k; j++) {

@@ -11,6 +11,8 @@ const GLYPHS: Record<PieceKind, string> = {
 	[PIECE_KIND.Rook]: '\u265C',
 	[PIECE_KIND.Queen]: '\u265B',
 	[PIECE_KIND.King]: '\u265A',
+	// A placeholder until stones are drawn (`lean-rules-captures-on-the-client`).
+	[PIECE_KIND.Stone]: '\u25CF',
 };
 
 /** The chess glyph a piece is drawn with. */
