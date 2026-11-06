@@ -8,6 +8,8 @@ covers: [13, 14, 15, 16, 17, 18, 19, 24]
 
 ## What to build
 
+> FORWARD-POINTER (conductor, 2026-11-06, after PRs #21 and #22): the captures tasks already rewrote `CONTEXT.md`'s Exit entry, so it has no merged-army or rock sentence left. Ignore the "keep its merged-army sentence for now" note below: change only Exit's geometry (the 2 by 2 block). Captures put a `Stone` kind (value 7) at the end of `PieceKind` and a fall cycle on the army record. Leave those as they are, and port the stone tests (`Stones.test.ts`, `KingCapture.test.ts`, `Tables.test.ts`) to the new board with their every-reveal-order replays kept. Work in small steps and `git commit -am "wip: <step>"` after each one, so a long run never loses work.
+
 The third slice of the `lean-rules` spec, and the decision in `docs/adr/0015-a-square-army-with-pawns-that-move-every-way-on-a-9-grid.md`: change the board the game is played on, end to end (contract, client, bot, tests, words). Captures were already rewritten (`lean-rules-captures-without-merges-and-stones`, `lean-rules-captures-on-the-client`: no merges, promotion, stones, no rocks or capture loops), so the tests to port onto the new board are the remaining ones.
 
 - **The army is 5 by 5 without its corners**: 12 pawns around a 3 by 3 core, the king in the centre, one core square EMPTY. Centred on its spawn point (offsets -2 to +2 on both axes):
