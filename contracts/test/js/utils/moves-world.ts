@@ -81,13 +81,23 @@ export function movesWorld(params: {
 	 * somebody calls `advanceCycle` and everyone it waits for has acted.
 	 */
 	manual?: boolean;
+	/**
+	 * Fund every deployment by BUYING it through `StakeSale`, so the sale
+	 * holds the ETH an exit's payout redeems. Otherwise stakes are minted the
+	 * test-only way (`mintTokens`), which no ETH backs.
+	 */
+	buyStakes?: boolean;
 }) {
-	const {deployAll, loadFixture, manual = false} = params;
+	const {deployAll, loadFixture, manual = false, buyStakes = false} = params;
 
 	async function deployMovesWorld() {
 		const f = await deployAll();
 		const Game = await deployGameWith(f, {
-			name: manual ? 'Game_moves_manual' : 'Game_moves',
+			name: manual
+				? 'Game_moves_manual'
+				: buyStakes
+					? 'Game_moves_bought'
+					: 'Game_moves',
 			cyclePolicy: manual ? CYCLE_POLICY.Manual : CYCLE_POLICY.Timed,
 			commitPhaseDuration: manual ? 0n : COMMIT_PHASE,
 			revealPhaseDuration: manual ? 0n : REVEAL_PHASE,
@@ -136,7 +146,17 @@ export function movesWorld(params: {
 			): Promise<bigint[]> {
 				const armies: bigint[] = [];
 				for (const [owner, [i, j]] of deployments) {
-					await fundAccount(f, owner);
+					if (buyStakes) {
+						const {price} = f.StakeSale.linkedData as {price: string};
+						await f.env.execute(f.StakeSale, {
+							account: owner,
+							functionName: 'purchaseAt',
+							args: [f.Game.address, owner, zeroAddress, 0n],
+							value: BigInt(price),
+						});
+					} else {
+						await fundAccount(f, owner);
+					}
 					const {army} = await commitDeployment(f, {
 						owner,
 						spawnPoint: at(i * 6, j * 6),

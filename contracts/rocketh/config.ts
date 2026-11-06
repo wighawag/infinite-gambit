@@ -124,9 +124,15 @@ export const CYCLE_POLICY = {
  * whose own army is that far behind taking the king of a capture loop of
  * `MAX_CHAIN` armies (`chess-capture-loops`), which reads the whole loop and
  * folds it, writing every army of it: about 1,040,000, priced per army there.
+ * Exits (`chess-exits-redeem`, `docs/adr/0011-...-leaves-rocks.md`) add what
+ * the two touched squares' folds write (a captured reserve moved up into its
+ * captor's, an exit kept) and an "exited?" read per occupied square: about
+ * 1,220,000 in all, which is what raised this from 1,200,000 (and the
+ * generosity ceiling of `GasBudget.test.ts`, three times the plainest reveal,
+ * is what keeps it from going higher).
  */
 const COMMIT_GAS = 430_000n;
-const REVEAL_GAS = 1_200_000n;
+const REVEAL_GAS = 1_345_000n;
 
 /**
  * How many actions a player is EXPECTED to submit in one turn.

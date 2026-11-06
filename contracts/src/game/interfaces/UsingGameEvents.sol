@@ -40,4 +40,7 @@ interface UsingGameEvents is UsingGameTypes, UsingCommitRevealEvents {
 
     /// @notice A deployment that was never revealed had its stake burned.
     event StakeBurned(uint256 indexed army, uint256 amount);
+
+    /// @notice An exited army's whole stake was paid, in ETH, to its owner.
+    event ExitPaid(uint256 indexed army, address indexed owner, uint256 amount);
 }

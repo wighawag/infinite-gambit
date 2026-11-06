@@ -25,6 +25,7 @@ export const loadCanvasComponent = () =>
 
 export function createGameRenderer(params: {
 	viewState: ViewStateStore<BoardView>;
+	spawnSpacing?: number;
 }): GameRenderer<GameSurface> {
 	return createChessBoardRenderer(params);
 }

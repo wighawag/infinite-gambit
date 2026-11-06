@@ -114,9 +114,9 @@ interface IGameReveal is UsingGameTypes {
     ///      reveal for them. A CALLER RESUMES FROM THE CHAIN, NOT FROM MEMORY:
     ///      see the base.
     ///
-    ///      An army whose deployment was committed this cycle reveals that
-    ///      deployment: exactly one move, from and to the spawn point, which
-    ///      must have been open at the START of the cycle. Any other submission
+    ///      An army whose deployment is not revealed yet reveals that
+    ///      deployment, which this forwards to
+    ///      {IGameDeploymentReveal-revealDeployment}. Any other submission
     ///      is a pass (no move) or exactly ONE move of one of the army's
     ///      pieces, legal on the board as it stood at the START of the cycle
     ///      ({IGameSimulation-legalMoves}); anything else reverts
@@ -128,6 +128,45 @@ interface IGameReveal is UsingGameTypes {
         bytes24 furtherActions,
         address payable payee
     ) external payable;
+}
+
+interface IGameDeploymentReveal is UsingGameTypes {
+    /// @notice Reveal an army's deployment, committed this cycle: exactly one
+    ///         move, from and to the spawn point, which must have been open at
+    ///         the START of the cycle.
+    /// @dev {IGameReveal-reveal} for the one submission that is a deployment,
+    ///      on a route of its own for size alone. Reverts {InvalidDeployment}
+    ///      for an army that is not deploying.
+    function revealDeployment(
+        uint256 player,
+        Move[] calldata moves,
+        bytes32 secret,
+        bytes24 furtherActions,
+        address payable payee
+    ) external payable;
+}
+
+interface IGameExit is UsingGameTypes {
+    /// @notice Pay an exited army's whole stake, in ETH, to its owner.
+    /// @dev Anyone may call it, once the cycle in which its king landed alone
+    ///      on an exit has closed: the army left the board then, and this only
+    ///      PAYS. Every reserve of its merged tree is debited and the sum is
+    ///      redeemed at `StakeSale`'s fixed price for the army's current owner.
+    ///      Reverts {NotExited} before, and {AlreadyPaid} once paid. A tree too
+    ///      big for one transaction is first {collect}ed.
+    function exit(uint256 army) external returns (uint256 paid);
+
+    /// @notice Collect up to `maxArmies` armies of an exited army's merged tree
+    ///         towards its payout, and say whether the whole tree is collected.
+    /// @dev Permissionless and incremental, for a tree too big for one
+    ///      transaction; never needed to have exited, only to be paid in one go.
+    function collect(
+        uint256 army,
+        uint256 maxArmies
+    ) external returns (bool done);
+
+    /// @notice Whether `army` has left the board through an exit, as of now.
+    function isExited(uint256 army) external view returns (bool);
 }
 
 interface IGameGetters is UsingGameTypes {
@@ -258,6 +297,8 @@ interface IGameSimulation is UsingGameTypes {
 interface IGame is
     IGameCommit,
     IGameReveal,
+    IGameDeploymentReveal,
+    IGameExit,
     IGameGetters,
     IGameRegistry,
     IGameSimulation,

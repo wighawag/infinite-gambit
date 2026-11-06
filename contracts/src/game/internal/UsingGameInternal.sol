@@ -25,6 +25,16 @@ interface IBurnableToken {
     function burn(uint256 amount) external;
 }
 
+/// @dev Where an exit's payout goes: the token's one minter, `StakeSale`,
+///      which keeps the ETH every token was bought with.
+interface IMintedToken {
+    function minter() external view returns (address);
+}
+
+interface IStakeRedeemer {
+    function redeem(uint256 amount, address payable to) external;
+}
+
 abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     constructor(Config memory config) UsingGameBoard(config) {}
 
@@ -100,6 +110,9 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             kingTo: 0,
             kingFrom: 0,
             cancelled: false,
+            exited: false,
+            collecting: false,
+            paid: false,
             capturedInto: 0,
             loopedIn: 0
         });
@@ -151,9 +164,10 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     /// @notice THE ONE "DEAD" PREDICATE: whether `id` is an army that can never
     ///         act again, so that no cycle should wait for it.
     /// @dev Today: a deployment that failed, was cancelled, or was never
-    ///      revealed, and an army whose king was taken, whose pieces its captor
-    ///      now moves with the captor's own one move per cycle. Later rules
-    ///      extend it (an exit, a freeze). An account is never dead by it: only
+    ///      revealed, an army whose king was taken, whose pieces its captor
+    ///      now moves with the captor's own one move per cycle, and an army
+    ///      whose king has exited, which resolves to nobody ({_armyOf}), so the
+    ///      same comparison covers it. Later rules extend it (a freeze). An account is never dead by it: only
     ///      armies can be.
     function _isDead(
         uint256 id,
@@ -289,6 +303,84 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
     }
 
     // ------------------------------------------------------------------------
+    // EXITS (`docs/adr/0011-an-exit-removes-its-own-army-and-leaves-rocks.md`)
+    // ------------------------------------------------------------------------
+
+    /// @notice Collect up to `budget` armies of `army`'s merged tree into its
+    ///         payout, and say whether the whole tree is collected.
+    /// @dev NEVER A TRUNCATED PAYOUT, AND NEVER TWICE. A depth-first walk of
+    ///      the tree of who took whom, kept in storage ({_toCollect}) so it can
+    ///      run over several transactions, unbounded in depth: a victim counts
+    ///      when its king really was taken by the army it is listed under
+    ///      ({_captureOf}), which is a closed-cycle fact, and an exited tree
+    ///      never changes. Each army's whole reserve is DEBITED as it is
+    ///      collected, so nothing is paid twice, and before that every victim
+    ///      of it is folded (`capturedInto`), so no later fold can move a
+    ///      reserve into an army already collected ({_foldCapture} skips a
+    ///      folded one).
+    function _collect(
+        uint256 army,
+        uint64 cycleNumber,
+        uint256 budget
+    ) internal returns (bool done) {
+        ArmyRecord storage record = _armies[army];
+        if (!_exited(army, cycleNumber)) revert NotExited(army);
+        if (record.paid) revert AlreadyPaid(army);
+        uint256[] storage stack = _toCollect[army];
+        if (!record.collecting) {
+            record.collecting = true;
+            stack.push(army);
+        }
+        uint256 pot = _collected[army];
+        while (stack.length != 0 && budget != 0) {
+            budget--;
+            uint256 node = stack[stack.length - 1];
+            stack.pop();
+            uint256[] storage victims = _capturesBy[node];
+            for (uint256 k = 0; k < victims.length; k++) {
+                uint256 victim = victims[k];
+                if (_captureOf(victim, cycleNumber) != node) continue;
+                bool seen = false;
+                for (uint256 j = 0; j < k && !seen; j++) {
+                    seen = victims[j] == victim;
+                }
+                if (seen) continue;
+                ArmyRecord storage taken = _armies[victim];
+                if (taken.capturedInto == 0) taken.capturedInto = node;
+                stack.push(victim);
+            }
+            pot += CommitReveal.debit(node, type(uint256).max);
+        }
+        _collected[army] = pot;
+        return stack.length == 0;
+    }
+
+    /// @notice Pay `army`'s whole collected stake to its current owner, in
+    ///         ETH, through the token's minter (`StakeSale.redeem`).
+    /// @dev The owner is {_ownerOf}: a capture loop may have handed the army to
+    ///      another account (`docs/adr/0010-a-capture-loop-rotates-owners-not-armies.md`).
+    ///      Marked paid before the external call.
+    function _payExit(
+        uint256 army,
+        uint64 cycleNumber
+    ) internal returns (uint256 paid) {
+        // Unbounded: it finishes, or the transaction runs out of gas and the
+        // tree is first {_collect}ed in parts.
+        _collect(army, cycleNumber, type(uint256).max);
+        _armies[army].paid = true;
+        paid = _collected[army];
+        delete _collected[army];
+        address payable owner = payable(_ownerOf(army, cycleNumber));
+        if (paid != 0) {
+            IStakeRedeemer(IMintedToken(address(TOKENS)).minter()).redeem(
+                paid,
+                owner
+            );
+        }
+        emit ExitPaid(army, owner, paid);
+    }
+
+    // ------------------------------------------------------------------------
     // REVEAL
     // ------------------------------------------------------------------------
 
@@ -315,9 +407,11 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             furtherActions
         );
 
-        if (_isDeploying(player, chunk.cycleNumber)) {
-            _revealDeployment(player, moves, furtherActions, chunk.cycleNumber);
-        } else if (moves.length != 0 || furtherActions != bytes24(0)) {
+        // A deployment is revealed through {_revealDeploymentChunk}, on a
+        // route of its own (`GameDeploymentReveal`), for size alone; `reveal`
+        // forwards it there, so this only meets one that is not this cycle's.
+        if (_isDeploying(player, chunk.cycleNumber)) revert InvalidDeployment();
+        if (moves.length != 0 || furtherActions != bytes24(0)) {
             // ONE MOVE PER ARMY PER CYCLE (story 9): a submission is a pass
             // (nothing) or exactly one move, in one chunk. A move is validated
             // against the start-of-cycle board, so an account seated at a
@@ -328,6 +422,26 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
             _revealMove(player, moves[0], chunk.cycleNumber);
         }
 
+        _closeChunk(chunk, 0);
+    }
+
+    /// @notice {_reveal}, for the submission that is an army's deployment.
+    function _revealDeploymentChunk(
+        uint256 player,
+        Move[] calldata moves,
+        bytes32 secret,
+        bytes24 furtherActions
+    ) internal {
+        CommitReveal.Chunk memory chunk = _openChunk(
+            player,
+            _digest(moves, secret, furtherActions),
+            moves.length,
+            furtherActions
+        );
+        if (!_isDeploying(player, chunk.cycleNumber)) {
+            revert InvalidDeployment();
+        }
+        _revealDeployment(player, moves, furtherActions, chunk.cycleNumber);
         _closeChunk(chunk, 0);
     }
 
@@ -516,6 +630,14 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         if (view_.status != ArmyStatus.Deployed) return view_;
         // RESOLVED THROUGH THE MERGES, like its pieces: who plays it, and
         // what it holds, whichever squares have been read or folded yet.
+        if (_exited(id, cycleNumber)) {
+            view_.status = ArmyStatus.Exited;
+            view_.stake =
+                army.paid
+                    ? 0
+                    : _collected[id] + _treeStake(id, cycleNumber, MAX_CHAIN);
+            return view_;
+        }
         uint256 into = _armyOf(id, cycleNumber);
         if (into != id) {
             view_.status = ArmyStatus.Captured;
@@ -559,6 +681,8 @@ abstract contract UsingGameInternal is UsingGameBoard, UsingGameEvents {
         );
         uint256 n = 0;
         for (uint256 k = 0; k < spawnPoints.length; k++) {
+            // An exited army's own pieces have left the board.
+            if (_exited(armies[k], cycleNumber)) continue;
             n = _appendArmy(
                 pieces,
                 n,

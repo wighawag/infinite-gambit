@@ -24,6 +24,7 @@ import type {RecoveryState} from '$lib/game/core/recovery';
 import {SignerOutOfFundsError} from '$lib/game/core/commit-reveal/errors';
 import type {SetupNeeded} from '../context';
 import {ARMY_STATUS, type ArmyView} from '../armies';
+import type {ExitPayoutState} from '../exits';
 import {nearestLabel, type SpawnPointView} from '../spawn-points';
 import {positionOf} from '../squares';
 import type {BoardView} from '../view';
@@ -185,6 +186,20 @@ export type HudModel = {
 		detail: string;
 		busy: boolean;
 		canAcknowledge: boolean;
+	};
+
+	/**
+	 * Set while one of the account's armies has left through an exit and its
+	 * payout has not been claimed: what it is owed, and the button that pays
+	 * it (`exit(army)`, which anyone may send and always pays the owner).
+	 */
+	exitPayout?: {
+		army: bigint;
+		headline: string;
+		detail: string;
+		actionLabel: string;
+		busy: boolean;
+		error?: string;
 	};
 
 	/**
@@ -625,6 +640,13 @@ export function describeArmy(
 				stakeLabel,
 				tone: 'bad',
 			};
+		case ARMY_STATUS.Exited:
+			return {
+				label:
+					'Its king left through an exit, with its stake: its own pieces left the board, and those it had won stay as rocks.',
+				stakeLabel,
+				tone: 'good',
+			};
 		default:
 			return undefined;
 	}
@@ -676,9 +698,44 @@ export function describeLastDeployment(params: {
 				stakeLabel: 'Your stake went to your captor, with your pieces.',
 				tone: 'bad',
 			};
+		case ARMY_STATUS.Exited:
+			return {
+				label:
+					'Your king left through an exit. Pick a spawn point to deploy again.',
+				stakeLabel:
+					last.stake > 0n
+						? `${STAKE.amount(last.stake)} is waiting to be paid out.`
+						: 'Its stake was paid out.',
+				tone: 'good',
+			};
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * The payout an exited army is still owed, in the chain's currency: its stake
+ * redeemed at the sale's fixed price (`StakeSale.redeem`, rounded down).
+ */
+export function describeExitPayout(params: {
+	army: Pick<ArmyView, 'id' | 'stake'> | undefined;
+	payout: ExitPayoutState;
+	sale: {price: bigint; amount: bigint};
+	symbol: string;
+}): HudModel['exitPayout'] {
+	const {army, payout, sale} = params;
+	if (!army) return undefined;
+	const value =
+		sale.amount === 0n ? 0n : (army.stake * sale.price) / sale.amount;
+	const valueLabel = `${formatBalance(value)} ${params.symbol}`;
+	return {
+		army: army.id,
+		headline: 'Your king left through an exit.',
+		detail: `It took ${STAKE.amount(army.stake)} with it, paid out as ${valueLabel} to your account.`,
+		actionLabel: payout.busy ? 'Paying out...' : `Collect ${valueLabel}`,
+		busy: payout.busy,
+		error: payout.error,
+	};
 }
 
 /** A spawn point's coordinates, as a player reads them. */
@@ -762,6 +819,8 @@ export function createHud(context: Context): Readable<HudModel> {
 			game.planning.move,
 			game.armies.lastOutcome,
 			game.armies.pendingRefund,
+			game.armies.unpaidExit,
+			game.exitPayout,
 		],
 		([
 			$twoPhase,
@@ -784,6 +843,8 @@ export function createHud(context: Context): Readable<HudModel> {
 			$move,
 			$lastOutcome,
 			$refund,
+			$unpaidExit,
+			$exitPayout,
 		]): HudModel => {
 			const savedTurn = describeSavedTurn($savedTurn as SavedTurn);
 			const submission = describeSubmission($submission);
@@ -885,6 +946,12 @@ export function createHud(context: Context): Readable<HudModel> {
 				submissionLabel: submission.label,
 				submissionTone: submission.tone,
 				missedReveal: describeMissedReveal($missedReveal as MissedRevealState),
+				exitPayout: describeExitPayout({
+					army: $unpaidExit as ArmyView | undefined,
+					payout: $exitPayout as ExitPayoutState,
+					sale: game.config.sale,
+					symbol: context.deployments.get().chain.nativeCurrency.symbol,
+				}),
 				recovery: describeRecovery($recovery as RecoveryState, $count),
 				savedTurn,
 				revealSchedule: describeRevealSchedule(

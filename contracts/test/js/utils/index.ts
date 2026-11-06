@@ -6,7 +6,13 @@ import {
 	loadAndExecuteDeploymentsFromFiles,
 } from '../../../rocketh/environment.js';
 import {EthereumProvider} from 'hardhat/types/providers';
-import {encodeAbiParameters, keccak256, parseEther, zeroAddress} from 'viem';
+import {
+	encodeAbiParameters,
+	encodeFunctionData,
+	keccak256,
+	parseEther,
+	zeroAddress,
+} from 'viem';
 
 /**
  * The rocketh environment these helpers act through.
@@ -171,6 +177,8 @@ export async function revealTurn(
 		moves: readonly Move[];
 		secret: `0x${string}`;
 		actionsPerReveal: number;
+		/** A deployment is revealed through its own entry point. */
+		deployment?: boolean;
 	},
 ): Promise<{gasUsed: bigint | string} | undefined> {
 	const {env, Game} = fixtures;
@@ -184,7 +192,7 @@ export async function revealTurn(
 	for (const chunk of chunks) {
 		receipt = await env.execute(Game, {
 			account: options.account,
-			functionName: 'reveal',
+			functionName: options.deployment ? 'revealDeployment' : 'reveal',
 			args: [
 				options.identity,
 				chunk.moves,
@@ -312,6 +320,12 @@ export async function deployGameWith(
 		{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 		{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 		{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
+		{
+			name: 'DeploymentReveal',
+			artifact: artifacts.GameDeploymentReveal,
+			args: [config],
+		},
+		{name: 'Exit', artifact: artifacts.GameExit, args: [config]},
 		{name: 'Simulation', artifact: artifacts.GameSimulation, args: [config]},
 		{name: 'Delegation', artifact: artifacts.GameDelegation, args: []},
 	];
@@ -356,6 +370,67 @@ export function armyIdOf(owner: `0x${string}`, nonce: number): bigint {
 export const TURN_BOND = 0n;
 
 /**
+ * MINT `amount` OF THE GAME TOKEN TO `to`, THE TEST-ONLY WAY: as the token's
+ * one minter (`StakeSale`), impersonated on the test node. There is no public
+ * mint (`docs/adr/0006-stake-erc20-reserve-exit-only.md`), and buying through
+ * the sale comes in whole stakes only, while suites need odd amounts. Tokens
+ * minted this way are NOT backed by ETH in the sale, so a suite about
+ * `redeem` buys through the sale instead.
+ */
+export async function mintTokens(
+	fixtures: {env: any; GameToken: any},
+	to: `0x${string}`,
+	amount: bigint,
+): Promise<void> {
+	const {env, GameToken} = fixtures;
+	const provider = env.network.provider;
+	const minter = (await env.read(GameToken, {
+		functionName: 'minter',
+	})) as `0x${string}`;
+	await provider.request({
+		method: 'hardhat_impersonateAccount',
+		params: [minter],
+	});
+	// Gas for the impersonated sale, given and then taken back, so the ETH
+	// the sale holds (what backs `redeem`) is exactly what purchases paid.
+	const balance = (await provider.request({
+		method: 'eth_getBalance',
+		params: [minter, 'latest'],
+	})) as string;
+	await provider.request({
+		method: 'hardhat_setBalance',
+		params: [minter, `0x${(BigInt(balance) + parseEther('1')).toString(16)}`],
+	});
+	const hash = await provider.request({
+		method: 'eth_sendTransaction',
+		params: [
+			{
+				from: minter,
+				to: GameToken.address,
+				data: encodeFunctionData({
+					abi: GameToken.abi,
+					functionName: 'mint',
+					args: [to, amount],
+				}),
+			},
+		],
+	});
+	await provider.request({
+		method: 'hardhat_stopImpersonatingAccount',
+		params: [minter],
+	});
+	await provider.request({
+		method: 'hardhat_setBalance',
+		params: [minter, balance],
+	});
+	const receipt = (await provider.request({
+		method: 'eth_getTransactionReceipt',
+		params: [hash],
+	})) as {status: string} | null;
+	if (receipt?.status !== '0x1') throw new Error('test mint failed');
+}
+
+/**
  * PUT STAKE IN AN ACCOUNT'S RESERVE, paid by `payer` (the account itself by
  * default). Stake bought, not yet deployed: it makes nobody a member, except
  * at a table, where the credited account takes a seat.
@@ -369,11 +444,7 @@ export async function fundAccount(
 	const amount = options?.amount ?? DEFAULT_STAKE;
 	const payer = options?.payer ?? account;
 
-	await env.execute(GameToken, {
-		account: payer,
-		functionName: 'mint',
-		args: [payer, amount],
-	});
+	await mintTokens({env, GameToken}, payer, amount);
 	await env.execute(GameToken, {
 		account: payer,
 		functionName: 'approve',
@@ -449,6 +520,7 @@ export async function revealDeployment(
 	);
 	return env.execute(Game, {
 		account: options.account,
+		// `reveal`, as a client sends it: forwarded to `revealDeployment`.
 		functionName: 'reveal',
 		args: [
 			options.army,

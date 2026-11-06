@@ -55,6 +55,14 @@ abstract contract UsingGameStore is
         uint64 kingFrom;
         /// @notice whether its deployment was cancelled in its commit phase
         bool cancelled;
+        /// @notice whether its king has left the board through an exit, once a
+        ///         later reveal has folded the exit square's facts; false until
+        ///         then (`UsingGameBoard-_exited` reads those facts meanwhile)
+        bool exited;
+        /// @notice whether the exit's payout has started collecting its tree
+        bool collecting;
+        /// @notice whether the exit has been paid
+        bool paid;
         // ---- third slot: whose army it merged into
         /// @notice the army that took its king, once a later reveal has folded
         ///         the square it was taken on; zero until then, and for an army
@@ -153,6 +161,13 @@ abstract contract UsingGameStore is
     ///      entries can differ with the order of the reveals, and an army can be
     ///      listed more than once; what they add up to cannot differ.
     mapping(uint256 army => uint256[] victims) internal _capturesBy;
+
+    /// @notice AN EXIT'S PAYOUT IN PROGRESS: the armies of the exited army's
+    ///         merged tree still to collect, and what has been collected.
+    /// @dev See `UsingGameInternal-_collect`. Only ever written by an exit's
+    ///      own transactions, never by a reveal.
+    mapping(uint256 army => uint256[] armies) internal _toCollect;
+    mapping(uint256 army => uint256 amount) internal _collected;
 
     /// @notice Deployments, by the spiral index of their spawn point.
     mapping(uint256 index => SpawnRecord) internal _spawns;

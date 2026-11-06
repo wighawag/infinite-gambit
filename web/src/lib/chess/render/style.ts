@@ -18,6 +18,9 @@ export function glyphOf(kind: PieceKind): string {
 	return GLYPHS[kind] ?? '?';
 }
 
+/** A ROCK: a piece nobody can play again (army zero on the board read). */
+export const ROCK_COLOUR = '#7a7f8c';
+
 /** The colour of the army this client plays. */
 export const YOUR_COLOUR = '#ffd166';
 

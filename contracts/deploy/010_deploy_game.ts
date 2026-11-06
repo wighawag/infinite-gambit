@@ -68,6 +68,15 @@ export default deployScript(
 			{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
 			{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
 			{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
+			// A deployment's reveal, beside the move's: both no longer fit in one
+			// route under the deployed-size limit.
+			{
+				name: 'DeploymentReveal',
+				artifact: artifacts.GameDeploymentReveal,
+				args: [config],
+			},
+			// The exit's payout, and the incremental collection of a merged tree.
+			{name: 'Exit', artifact: artifacts.GameExit, args: [config]},
 			// The game's rule, runnable without a chain: the client reads THIS
 			// route's code and runs it in its own sandbox to preview a turn
 			// (`web/src/lib/game/simulation/`). Its own route so that the code a

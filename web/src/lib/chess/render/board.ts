@@ -15,9 +15,12 @@ import {createImmediateRenderer} from '$lib/game/render/immediate';
 import {visibleCells} from '$lib/game/render/view-transform';
 import type {ViewStateStore} from '$lib/view';
 import type {BoardView, PieceView} from '../view';
-import {glyphOf, armyColour, YOUR_COLOUR} from './style';
+import {glyphOf, armyColour, ROCK_COLOUR, YOUR_COLOUR} from './style';
+import {exitsIn} from '../exits';
 
 const SPAWN_COLOUR = '#ffd166';
+/** An exit square, where a king may leave with its stake. */
+const EXIT_COLOUR = '#06d6a0';
 const SELECTED_COLOUR = '#ffd166';
 const DESTINATION_COLOUR = 'rgba(120, 220, 140, 0.45)';
 const PLANNED_COLOUR = '#7ee08a';
@@ -39,6 +42,8 @@ function toScreen(frame: Frame, x: number, y: number) {
 
 export function createChessBoardRenderer(params: {
 	viewState: ViewStateStore<BoardView>;
+	/** The spawn grid's spacing, which places the exits; none when absent. */
+	spawnSpacing?: number;
 }): GameRenderer<CanvasRenderingContext2D> {
 	return createImmediateRenderer<CanvasRenderingContext2D, BoardView>({
 		viewState: params.viewState,
@@ -56,6 +61,22 @@ export function createChessBoardRenderer(params: {
 						if ((x + y) % 2 === 0) context.fillRect(x - 0.5, y - 0.5, 1, 1);
 					}
 				}
+			}
+
+			// Exits: a filled diamond on the square, under everything else.
+			if (params.spawnSpacing) {
+				context.fillStyle = EXIT_COLOUR;
+				context.globalAlpha = 0.35;
+				for (const {x, y} of exitsIn(bounds, params.spawnSpacing)) {
+					context.beginPath();
+					context.moveTo(x, y - 0.5);
+					context.lineTo(x + 0.5, y);
+					context.lineTo(x, y + 0.5);
+					context.lineTo(x - 0.5, y);
+					context.closePath();
+					context.fill();
+				}
+				context.globalAlpha = 1;
 			}
 
 			// Open spawn points: a ring where a deployment may land, filled for the
@@ -142,10 +163,15 @@ export function createChessBoardRenderer(params: {
 
 			for (const piece of view.pieces.values()) {
 				if (!visible(piece)) continue;
+				// A rock (army zero) is greyed out: nobody plays it.
+				const rock = piece.army === 0n;
 				drawPiece(context, frame, piece, {
-					colour:
-						piece.army === view.you ? YOUR_COLOUR : armyColour(piece.army),
-					alpha: 1,
+					colour: rock
+						? ROCK_COLOUR
+						: piece.army === view.you
+							? YOUR_COLOUR
+							: armyColour(piece.army),
+					alpha: rock ? 0.6 : 1,
 				});
 			}
 			// The planned army, as a ghost: never mistaken for one on chain.

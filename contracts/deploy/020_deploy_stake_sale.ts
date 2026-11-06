@@ -3,8 +3,8 @@ import {Abi_IGame} from '../generated/abis/IGame.js';
 import {deployScript, artifacts} from '../rocketh/deploy.js';
 
 export default deployScript(
-	async ({get, deploy, namedAccounts, data}) => {
-		const {deployer, admin} = namedAccounts;
+	async ({get, deploy, execute, namedAccounts, data}) => {
+		const {deployer} = namedAccounts;
 
 		const GameToken = get<Abi_GameToken>('GameToken');
 		const Game = get<Abi_IGame>('Game');
@@ -12,10 +12,9 @@ export default deployScript(
 		const config = {
 			price: data.sale.price,
 			amount: data.sale.amount,
-			recipient: admin,
 		};
 
-		await deploy(
+		const Sale = await deploy(
 			'StakeSale',
 			{
 				account: deployer,
@@ -34,6 +33,17 @@ export default deployScript(
 				deterministic: true,
 			},
 		);
+
+		// THE ONLY MINTER, which keeps the ETH every token was bought with, so
+		// `redeem` (and so an exit) is always solvent. Set once, by the token's
+		// owner; guarded so a redeploy, or a LAN box replaying it, repeats
+		// nothing.
+		await execute(GameToken, {
+			account: deployer,
+			functionName: 'setMinter',
+			args: [Sale.address],
+			guard: {kind: 'call', functionName: 'minter', equals: Sale.address},
+		});
 	},
 	{
 		tags: ['StakeSale', 'StakeSale_deploy'],
