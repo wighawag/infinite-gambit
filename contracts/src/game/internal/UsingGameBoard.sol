@@ -48,7 +48,7 @@ abstract contract UsingGameBoard is UsingGameStore {
             spawn.count == 1 &&
             !spawn.blocked
         ) {
-            return (true, spawn.army);
+            return (true, _armyAt(spawn.armyIndex));
         }
         return (false, 0);
     }
@@ -91,12 +91,16 @@ abstract contract UsingGameBoard is UsingGameStore {
     ) internal view returns (bool) {
         // Square by square rather than through {ChessRules-layout}, which
         // only the board read needs: it keeps the reveal route small.
+        Reads memory reads;
         for (uint256 r = 0; r < 5; r++) {
             for (uint256 c = 0; c < 5; c++) {
                 if (!ChessRules.onFootprint(r, c)) continue;
                 uint64 position = ChessRules.layoutSquare(spawnPoint, r, c);
                 if (_squares[position].cycle == 0) continue;
-                if (_squareAt(position, cycleNumber).kind != PieceKind.None) {
+                if (
+                    _squareAt(position, cycleNumber, reads).kind !=
+                    PieceKind.None
+                ) {
                     return false;
                 }
             }
@@ -127,6 +131,30 @@ abstract contract UsingGameBoard is UsingGameStore {
         }
     }
 
+    /// @notice WHAT ONE TRANSACTION HAS ALREADY WORKED OUT ABOUT THE BOARD AT
+    ///         THE START OF ONE CYCLE, so that the squares of a move, which
+    ///         almost always share one covering spawn point and one army, do
+    ///         not each work it out again (`docs/gas.md`).
+    /// @dev A CACHE OF START-OF-CYCLE FACTS ONLY, which no write of the cycle
+    ///      can change: the spawn point covering the last square laid out
+    ///      (the 5 by 5 square around it), the deployment that still stands
+    ///      there, and whether the last army asked about had fallen before
+    ///      the cycle ({_fellIn}). Valid for ONE `cycleNumber`: a fresh one
+    ///      ({_squareAt} without it) for every other read. It never holds
+    ///      anything a reveal of the cycle wrote: `blocked` of the current
+    ///      cycle's deployment is not final yet, so a deployment revealed in
+    ///      `cycleNumber` itself is never cached.
+    struct Reads {
+        bool covered;
+        int32 sx;
+        int32 sy;
+        uint64 spawnPoint;
+        uint64 laidIn;
+        uint256 laidArmy;
+        uint256 asked;
+        uint64 fell;
+    }
+
     /// @notice The piece the deployment over `position` laid there, and the
     ///         cycle it was revealed in; kind `None` if no deployment that is
     ///         still standing alone on a clear footprint covers the square.
@@ -136,16 +164,76 @@ abstract contract UsingGameBoard is UsingGameStore {
     function _laidAt(
         uint64 position
     ) internal view returns (Piece memory piece, uint64 cycle) {
+        Reads memory reads;
+        return _laidAt(position, type(uint64).max, reads);
+    }
+
+    /// @dev {_laidAt}, through `reads`, for a read at the start of
+    ///      `cycleNumber`: the covering spawn point and its deployment are
+    ///      looked up once per 5 by 5 square, and kept only if that
+    ///      deployment's cycle is over.
+    function _laidAt(
+        uint64 position,
+        uint64 cycleNumber,
+        Reads memory reads
+    ) internal view returns (Piece memory piece, uint64 cycle) {
         piece.position = position;
-        (bool near, uint64 spawnPoint, uint256 index) = _spawnCovering(
-            position
-        );
-        if (!near) return (piece, 0);
-        SpawnRecord storage spawn = _spawns[index];
-        cycle = spawn.cycle;
-        if (cycle == 0 || spawn.count != 1 || spawn.blocked) return (piece, 0);
-        piece = ChessRules.layoutAt(spawnPoint, spawn.army, position);
+        uint64 spawnPoint;
+        uint256 army;
+        if (reads.covered && _within(position, reads.sx, reads.sy)) {
+            spawnPoint = reads.spawnPoint;
+            cycle = reads.laidIn;
+            army = reads.laidArmy;
+        } else {
+            bool near;
+            uint256 index;
+            (near, spawnPoint, index) = _spawnCovering(position);
+            if (!near) return (piece, 0);
+            SpawnRecord storage spawn = _spawns[index];
+            cycle = spawn.cycle;
+            if (cycle != 0 && spawn.count == 1 && !spawn.blocked) {
+                army = _armyAt(spawn.armyIndex);
+            } else {
+                cycle = 0;
+            }
+            if (cycle < cycleNumber) {
+                (int32 sx, int32 sy) = PositionUtils.toXY(spawnPoint);
+                reads.covered = true;
+                reads.sx = sx;
+                reads.sy = sy;
+                reads.spawnPoint = spawnPoint;
+                reads.laidIn = cycle;
+                reads.laidArmy = army;
+            }
+        }
+        if (cycle == 0) return (piece, 0);
+        piece = ChessRules.layoutAt(spawnPoint, army, position);
         if (piece.kind == PieceKind.None) cycle = 0;
+    }
+
+    /// @dev Whether `position` is in the 5 by 5 square around (`sx`,`sy`),
+    ///      which only that spawn point can cover.
+    function _within(
+        uint64 position,
+        int32 sx,
+        int32 sy
+    ) private pure returns (bool) {
+        (int32 x, int32 y) = PositionUtils.toXY(position);
+        int256 dx = int256(x) - sx;
+        int256 dy = int256(y) - sy;
+        return dx >= -2 && dx <= 2 && dy >= -2 && dy <= 2;
+    }
+
+    /// @dev {_fellIn} through `reads`, which keeps the last army's answer.
+    function _fellIn(
+        uint256 army,
+        uint64 cycleNumber,
+        Reads memory reads
+    ) private view returns (uint64 fell) {
+        if (reads.asked == army) return reads.fell;
+        fell = _fellIn(army, cycleNumber);
+        reads.asked = army;
+        reads.fell = fell;
     }
 
     // ------------------------------------------------------------------------
@@ -172,36 +260,64 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 position,
         uint64 cycleNumber
     ) internal view returns (Piece memory piece) {
-        (Piece memory laid, uint64 laidIn) = _laidAt(position);
+        Reads memory reads;
+        return _squareAt(position, cycleNumber, reads);
+    }
+
+    /// @dev {_squareAt}, through `reads` ({Reads}), which must be of
+    ///      `cycleNumber`.
+    function _squareAt(
+        uint64 position,
+        uint64 cycleNumber,
+        Reads memory reads
+    ) internal view returns (Piece memory piece) {
+        (Piece memory laid, uint64 laidIn) = _laidAt(
+            position,
+            cycleNumber,
+            reads
+        );
         bool deployed = laidIn != 0 && laidIn < cycleNumber;
         SquareRecord storage record = _squares[position];
         uint64 touched = record.cycle;
         if (touched == 0) {
-            if (deployed && _fellIn(laid.army, cycleNumber) == 0) return laid;
+            if (deployed && _fellIn(laid.army, cycleNumber, reads) == 0) {
+                return laid;
+            }
             return _emptyAt(position);
         }
 
-        piece = _standingOf(record, position);
-        if (touched < cycleNumber) {
-            piece = ChessRules.settle(
-                piece,
-                record.departed,
-                record.arrivals,
-                _kingOf(record, position),
-                _arriverOf(record, position),
-                _captorFell(record, position, cycleNumber)
-            );
-        }
+        piece =
+            touched < cycleNumber
+                ? _settled(record, position, cycleNumber)
+                : _standingOf(record, position);
         if (deployed && laidIn > touched) {
             piece = laid;
         }
         if (
             piece.kind != PieceKind.None &&
             piece.kind != PieceKind.Stone &&
-            _fellIn(piece.army, cycleNumber) != 0
+            _fellIn(piece.army, cycleNumber, reads) != 0
         ) {
             return _emptyAt(position);
         }
+    }
+
+    /// @dev What `record`'s facts, of a cycle over before `cycleNumber`, leave
+    ///      on `position` ({ChessRules-settle}).
+    function _settled(
+        SquareRecord storage record,
+        uint64 position,
+        uint64 cycleNumber
+    ) private view returns (Piece memory) {
+        return
+            ChessRules.settle(
+                _standingOf(record, position),
+                record.departed,
+                record.arrivals,
+                _kingOf(record, position),
+                _arriverOf(record, position),
+                _captorFell(record, position, cycleNumber)
+            );
     }
 
     function _emptyAt(uint64 position) private pure returns (Piece memory e) {
@@ -215,7 +331,11 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 position
     ) internal view returns (Piece memory) {
         return
-            Piece({position: position, army: record.army, kind: record.kind});
+            Piece({
+                position: position,
+                army: _armyAt(record.armyIndex),
+                kind: record.kind
+            });
     }
 
     /// @dev The king that arrived on `position` in `record`'s cycle; kind
@@ -226,7 +346,7 @@ abstract contract UsingGameBoard is UsingGameStore {
     ) internal view returns (Piece memory king) {
         king.position = position;
         if (!record.kingArrived) return king;
-        king.army = record.kingArmy;
+        king.army = _armyAt(record.kingIndex);
         king.kind = PieceKind.King;
     }
 
@@ -239,7 +359,7 @@ abstract contract UsingGameBoard is UsingGameStore {
         return
             Piece({
                 position: position,
-                army: record.arriverArmy,
+                army: _armyAt(record.arriverIndex),
                 kind: record.arriverKind
             });
     }
@@ -247,16 +367,22 @@ abstract contract UsingGameBoard is UsingGameStore {
     /// @notice The record of `position`, made current for `cycleNumber`: if
     ///         its facts are of an earlier cycle, they are folded into the
     ///         standing piece first and the cycle's facts start from nothing.
+    /// @param standing What stands on `position` at the start of
+    ///        `cycleNumber` ({_squareAt}), which the caller has already read.
+    /// @return record A COPY, which the caller changes and writes back with
+    ///         one store (the record is one slot): nothing about the square
+    ///         itself is written here, only what a fold keeps elsewhere.
     /// @dev ORDER-FREE: the piece folded in is the start-of-cycle state, which
     ///      depends only on cycles that are over, so whichever reveal of this
     ///      cycle touches the square first writes the same thing.
     function _touch(
         uint64 position,
-        uint64 cycleNumber
-    ) internal returns (SquareRecord storage record) {
-        record = _squares[position];
-        uint64 touched = record.cycle;
-        if (touched == cycleNumber) return record;
+        uint64 cycleNumber,
+        Piece memory standing
+    ) internal returns (SquareRecord memory record) {
+        SquareRecord storage stored = _squares[position];
+        uint64 touched = stored.cycle;
+        if (touched == cycleNumber) return stored;
         if (touched == 0) {
             uint64 zone = PositionUtils.getZone(position);
             uint256 bits = _touchedSquares[zone];
@@ -269,21 +395,36 @@ abstract contract UsingGameBoard is UsingGameStore {
             if (bits == 0 && _roster().seats != 0) _tableZones.push(zone);
             _touchedSquares[zone] =
                 bits | (uint256(1) << PositionUtils.zoneLocalIndex(position));
+        } else {
+            _foldCapture(stored, position, cycleNumber);
+            _foldExit(stored, position);
         }
-        if (touched != 0) {
-            _foldCapture(record, position, cycleNumber);
-            _foldExit(record, position);
-        }
-        Piece memory standing = _squareAt(position, cycleNumber);
-        record.army = standing.army;
         record.cycle = cycleNumber;
         record.kind = standing.kind;
-        record.departed = false;
-        record.arrivals = 0;
-        record.kingArrived = false;
-        record.arriverKind = PieceKind.None;
-        if (record.arriverArmy != 0) record.arriverArmy = 0;
-        if (record.kingArmy != 0) record.kingArmy = 0;
+        record.armyIndex = _indexOf(standing.army);
+    }
+
+    /// @notice Write `record` as the record of `position`, in ONE store.
+    /// @dev The compiler writes a struct field by field, each a read and a
+    ///      write of the same slot; this packs the fields into the slot the
+    ///      way the compiler lays them out (pinned by
+    ///      `test/js/StorageLayout.test.ts`), so every read through the
+    ///      struct sees them.
+    function _storeSquare(uint64 position, SquareRecord memory record) private {
+        uint256 word =
+            uint256(record.cycle) |
+                (uint256(uint8(record.kind)) << 64) |
+                (record.departed ? uint256(1) << 72 : 0) |
+                (uint256(record.arrivals) << 80) |
+                (record.kingArrived ? uint256(1) << 112 : 0) |
+                (uint256(uint8(record.arriverKind)) << 120) |
+                (uint256(record.armyIndex) << 128) |
+                (uint256(record.arriverIndex) << 160) |
+                (uint256(record.kingIndex) << 192);
+        SquareRecord storage stored = _squares[position];
+        assembly ("memory-safe") {
+            sstore(stored.slot, word)
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -310,21 +451,23 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 cycleNumber
     ) private {
         (
-            uint256 standingVictim,
-            uint256 kingVictim,
-            uint256 captor
+            uint32 standingVictim,
+            uint32 kingVictim,
+            uint32 captor
         ) = _kingCaptureAt(record);
         if (standingVictim == 0 && kingVictim == 0) return;
         bool fell = _captorFell(record, position, cycleNumber);
         uint64 cycle = record.cycle;
         if (kingVictim != 0) {
-            _fall(kingVictim, cycle);
-            _take(kingVictim, fell ? standingVictim : captor);
+            _fall(_armyAt(kingVictim), cycle);
+            _take(_armyAt(kingVictim), fell ? standingVictim : captor);
         }
         if (standingVictim != 0) {
             // A stone fell when it was made.
-            if (record.kind == PieceKind.King) _fall(standingVictim, cycle);
-            if (!fell) _take(standingVictim, captor);
+            if (record.kind == PieceKind.King) {
+                _fall(_armyAt(standingVictim), cycle);
+            }
+            if (!fell) _take(_armyAt(standingVictim), captor);
         }
     }
 
@@ -336,15 +479,16 @@ abstract contract UsingGameBoard is UsingGameStore {
         record.fellIn = cycle;
     }
 
-    /// @dev `victim`'s stake is `captor`'s: written once, and its reserve
-    ///      moves up. An exit's collection may have written it first, having
-    ///      collected the reserve itself ({UsingGameInternal-_collect}).
-    function _take(uint256 victim, uint256 captor) private {
+    /// @dev `victim`'s stake is that of the army with index `captor`:
+    ///      written once, and its reserve moves up. An exit's collection may
+    ///      have written it first, having collected the reserve itself
+    ///      ({UsingGameInternal-_collect}).
+    function _take(uint256 victim, uint32 captor) private {
         if (captor == 0) return;
         ArmyRecord storage record = _armies[victim];
-        if (record.capturedBy != 0) return;
-        record.capturedBy = captor;
-        _moveReserveUp(victim, captor);
+        if (record.capturedByIndex != 0) return;
+        record.capturedByIndex = captor;
+        _moveReserveUp(victim, _armyAt(captor));
     }
 
     /// @notice Move `victim`'s whole reserve into `captor`'s, once its capture
@@ -386,18 +530,18 @@ abstract contract UsingGameBoard is UsingGameStore {
             return false;
         }
         (
-            uint256 standingVictim,
-            uint256 kingVictim,
-            uint256 captor
+            uint32 standingVictim,
+            uint32 kingVictim,
+            uint32 captor
         ) = _kingCaptureAt(record);
         if (standingVictim == 0 && kingVictim == 0) return false;
         if (kingCame && !meets) {
             return
                 arrivals == 1 &&
                 _isExit(position) &&
-                !_armies[record.kingArmy].atTable;
+                !_armies[_armyAt(record.kingIndex)].atTable;
         }
-        return _fellIn(captor, cycleNumber) == record.cycle;
+        return _fellIn(_armyAt(captor), cycleNumber) == record.cycle;
     }
 
     /// @notice The cycle `army`'s king fell in, taken or leaving through an
@@ -423,19 +567,22 @@ abstract contract UsingGameBoard is UsingGameStore {
         SquareRecord storage facts = _squares[square];
         uint64 touched = facts.cycle;
         if (touched == 0 || touched >= cycleNumber) return 0;
-        if (facts.kingArrived && facts.kingArmy == army) {
+        uint32 index = record.index;
+        if (facts.kingArrived && facts.kingIndex == index) {
             uint32 arrivals = facts.arrivals;
             if (arrivals == 2) return touched;
             bool exits = arrivals == 1 && !record.atTable && _isExit(square);
             return exits ? touched : 0;
         }
         if (
-            facts.departed || facts.kind != PieceKind.King || facts.army != army
+            facts.departed ||
+            facts.kind != PieceKind.King ||
+            facts.armyIndex != index
         ) {
             return 0;
         }
-        (uint256 standingVictim, , ) = _kingCaptureAt(facts);
-        return standingVictim == army ? touched : 0;
+        (uint32 standingVictim, , ) = _kingCaptureAt(facts);
+        return standingVictim == index ? touched : 0;
     }
 
     /// @dev Where `record`'s king stands at the start of `cycleNumber`, if it
@@ -465,7 +612,7 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///         `cycleNumber` because it took `army`'s king or stone; zero if
     ///         `army` holds its own (it stands, it exited, or it is a stone
     ///         nobody has taken).
-    /// @dev TWO SOURCES, ONE ANSWER: `capturedBy` once a fold has written it
+    /// @dev TWO SOURCES, ONE ANSWER: `capturedByIndex` once a fold has written it
     ///      ({_take}), else the facts of the square its king fell on, which
     ///      is also where its stone stands. The answer for those facts is the
     ///      fold's, so reads and folds in any order agree.
@@ -474,36 +621,43 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 cycleNumber
     ) internal view returns (uint256) {
         ArmyRecord storage record = _armies[army];
-        uint256 by = record.capturedBy;
-        if (by != 0) return by;
+        uint32 by = record.capturedByIndex;
+        if (by != 0) return _armyAt(by);
         (bool placed, uint64 square) = _kingSquare(record, cycleNumber);
         if (!placed) return 0;
         SquareRecord storage facts = _squares[square];
         uint64 touched = facts.cycle;
         if (touched == 0 || touched >= cycleNumber) return 0;
         (
+            uint32 standingVictim,
+            uint32 kingVictim,
+            uint32 captor
+        ) = _kingCaptureAt(facts);
+        uint32 index = record.index;
+        if (standingVictim != index && kingVictim != index) return 0;
+        if (!_captorFell(facts, square, cycleNumber)) return _armyAt(captor);
+        return kingVictim == index ? _armyAt(standingVictim) : 0;
+    }
+
+    /// @dev {ChessRules-kingCapture} of `record`'s facts, in compact
+    ///      indices ({ArmyRecord-index}): the rule only compares armies and
+    ///      tells none from zero, so it reads the indices as it would the ids.
+    function _kingCaptureAt(
+        SquareRecord storage record
+    ) private view returns (uint32, uint32, uint32) {
+        (
             uint256 standingVictim,
             uint256 kingVictim,
             uint256 captor
-        ) = _kingCaptureAt(facts);
-        if (standingVictim != army && kingVictim != army) return 0;
-        if (!_captorFell(facts, square, cycleNumber)) return captor;
-        return kingVictim == army ? standingVictim : 0;
-    }
-
-    /// @dev {ChessRules-kingCapture} of `record`'s facts.
-    function _kingCaptureAt(
-        SquareRecord storage record
-    ) private view returns (uint256, uint256, uint256) {
-        return
-            ChessRules.kingCapture(
+        ) = ChessRules.kingCapture(
                 record.kind,
-                record.army,
+                record.armyIndex,
                 record.departed,
                 record.arrivals,
-                record.kingArrived ? record.kingArmy : 0,
-                record.arriverArmy
+                record.kingArrived ? record.kingIndex : 0,
+                record.arriverIndex
             );
+        return (uint32(standingVictim), uint32(kingVictim), uint32(captor));
     }
 
     // ------------------------------------------------------------------------
@@ -569,7 +723,7 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///         king which landed alone on it has exited.
     function _foldExit(SquareRecord storage record, uint64 position) private {
         if (!_exitIn(record, position)) return;
-        ArmyRecord storage army = _armies[record.kingArmy];
+        ArmyRecord storage army = _armies[_armyAt(record.kingIndex)];
         // Exits do nothing at a table ({_exited}).
         if (!army.atTable) army.exited = true;
     }
@@ -604,7 +758,8 @@ abstract contract UsingGameBoard is UsingGameStore {
         uint64 cycleNumber
     ) internal {
         // An empty square's piece has army zero, which is never `player`.
-        Piece memory piece = _squareAt(move.from, cycleNumber);
+        Reads memory reads;
+        Piece memory piece = _squareAt(move.from, cycleNumber, reads);
         (bool legal, uint64[] memory squares) = ChessRules.moveSquares(
             piece,
             move.to
@@ -613,37 +768,46 @@ abstract contract UsingGameBoard is UsingGameStore {
         legal = legal && piece.army == player;
         if (legal) {
             for (uint256 i = 0; i < squares.length; i++) {
-                contents[i] = _squareAt(squares[i], cycleNumber);
+                contents[i] = _squareAt(squares[i], cycleNumber, reads);
             }
             legal = ChessRules.isLegalMove(piece, move.to, contents);
         }
         if (!legal) revert IllegalMove(move.from, move.to);
 
-        _touch(move.from, cycleNumber).departed = true;
+        // `squares[0]` is the destination, so `contents[0]` is what stood
+        // there: neither touch has to read its square again.
+        SquareRecord memory origin = _touch(move.from, cycleNumber, piece);
+        origin.departed = true;
+        _storeSquare(move.from, origin);
 
-        SquareRecord storage target = _touch(move.to, cycleNumber);
+        SquareRecord memory target = _touch(move.to, cycleNumber, contents[0]);
         uint32 arrivals = target.arrivals;
         bool kingThere = target.kingArrived;
         // How many pieces other than a king had arrived before this one.
         uint32 others = kingThere ? arrivals - 1 : arrivals;
         if (piece.kind == PieceKind.King) {
             target.kingArrived = true;
-            target.kingArmy = player;
+            target.kingIndex = _indexOf(player);
             ArmyRecord storage army = _armies[player];
             army.kingFrom = move.from;
             army.kingTo = move.to;
             army.kingMovedIn = cycleNumber;
             // This king could die meeting the one piece already here.
-            if (others == 1) _noteCandidate(target.arriverArmy, player);
+            if (others == 1) {
+                _noteCandidate(_armyAt(target.arriverIndex), player);
+            }
         } else {
             if (others == 0) {
-                target.arriverArmy = player;
+                target.arriverIndex = _indexOf(player);
                 target.arriverKind = piece.kind;
                 // The king already here could die meeting this piece.
-                if (kingThere) _noteCandidate(player, target.kingArmy);
+                if (kingThere) {
+                    _noteCandidate(player, _armyAt(target.kingIndex));
+                }
             }
         }
         target.arrivals = arrivals + 1;
+        _storeSquare(move.to, target);
         _markArrival(move.to, cycleNumber);
         // A king or a stone that stood here at the start of the cycle could
         // be taken.

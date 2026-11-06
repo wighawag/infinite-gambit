@@ -1,0 +1,767 @@
+deployment commit (the first ever): gasUsed 305841
+  intrinsic (21000)                 21000    6.9%
+  calldata                           1188    0.4%
+  dispatch: proxy + router           9102    3.0%
+  commit-reveal: commitment         46800   15.3%
+  commit-reveal: reserve            27200    8.9%
+  commit-reveal: attendance         67100   21.9%
+  commit-reveal: cycle state         5900    1.9%
+  commit-reveal: roster              2500    0.8%
+  game: army record                 31100   10.2%
+  game: army count                  22200    7.3%
+  game: army list                   44200   14.5%
+  events                             8935    2.9%
+  hashing                             708    0.2%
+  compute                           22708    7.4%
+  refund                            -4800   -1.6%
+  storage ops: read, cold 16x = 33600; read, warm 46x = 4600; write, fresh 8x = 160000; write, fresh (cold) 2x = 44200; write, same 16x = 1600; write, same (cold) 1x = 2200; write, update 1x = 2900
+  functions (inclusive / self):
+    GameCommit (dispatch)                                      279351      175
+    GameCommit.makeCommitment                                  278389      499
+    UsingGameInternal._createArmy                              187680    97777
+    UsingCommitReveal._makeCommitment                           76214       80
+    UsingCommitReveal._addToReserve                             74856       85
+    CommitReveal.commit                                         71509    48076
+    UsingCommitReveal._takeSeat                                 50304       64
+    CommitReveal.startWaitingFor                                47016    46577
+    CommitReveal.deposit                                        24467    24058
+    CommitReveal._recordCommitment                              23175    23175
+    UsingCommitReveal._cycleNumber                              17882      240
+    UsingCommitReveal._cycle                                    17642      489
+    CommitReveal.cycle                                          15724    10619
+    CommitReveal.withdraw                                       10191     9611
+    (compiler-generated helper)                                  8583     8583
+    UsingGameInternal._playerOf                                  5088     4654
+    CommitReveal.seat                                            3224     3201
+    UsingCommitReveal._clock                                      843      451
+    UsingGameInternal._settleLatestOf                             239      239
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  204      204
+    CommitReveal.layout                                           184      184
+    Delegation.canActFor                                          119      119
+    UsingGameInternal._isArmyId                                    80       80
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r3/2300 w1/20000 fresh
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r4/2400 w3/20200 fresh
+    commit-reveal: attendance    commitReveal.waitedFor                       r2/2200 w1/20000 fresh
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r0/0 w1/22100 fresh cold
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r4/2400 w2/20100 fresh
+    commit-reveal: commitment    commitReveal.commitments[0x709979..79c8].hash,cycleNumber r2/2200 
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r12/3200 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r7/2700 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r2/2200 w1/20000 fresh
+    commit-reveal: reserve       commitReveal.reserve[0x709979..79c8]         r1/2100 w1/2900 update refund 4800
+    commit-reveal: roster        commitReveal.roster                          r5/2500 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army count             _armyCountOf[0x709979..79c8]                 r2/2200 w1/20000 fresh
+    game: army list              _armyIds                                     r1/2100 w1/20000 fresh
+    game: army list              _armyIds[0]                                  r0/0 w1/22100 fresh cold
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r10/3000 w10/1000 same
+    game: army record            _armies[0x170997..79c8].capturedBy           r0/0 w1/2200 same cold
+    game: army record            _armies[0x170997..79c8].fellIn               r1/2100 w1/100 same
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r5/2500 w3/20200 fresh
+deployment reveal (the first ever): gasUsed 317507
+  intrinsic (21000)                 21000    6.6%
+  calldata                           1376    0.4%
+  dispatch: proxy + router          16643    5.2%
+  commit-reveal: commitment         10200    3.2%
+  commit-reveal: attendance          5200    1.6%
+  commit-reveal: cycle state         4600    1.4%
+  game: square records              44100   13.9%
+  game: spawn records               59600   18.8%
+  game: army record                  5400    1.7%
+  game: open spawn set              89700   28.3%
+  events                             4024    1.3%
+  hashing                            1572    0.5%
+  calls out                           100    0.0%
+  compute                           58792   18.5%
+  refund                            -4800   -1.5%
+  storage ops: read, cold 40x = 84000; read, warm 25x = 2500; write, fresh 5x = 100000; write, fresh (cold) 1x = 22100; write, same 8x = 800; write, update 4x = 11600
+  functions (inclusive / self):
+    GameDeploymentReveal (dispatch)                            277520      130
+    GameDeploymentReveal.revealDeployment                      276369      112
+    UsingGameInternal._revealDeploymentChunk                   276257      194
+    UsingGameInternal._revealDeployment                        244670    69446
+    (compiler-generated helper)                                 98881    98881
+    UsingGameBoard._footprintClear                              79227    51266
+    ChessRules.layoutSquare                                     25473     2121
+    UsingGameInternal._openSet                                  24211     5123
+    UsingGameBoard._landedBefore                                19088    19088
+    UsingCommitReveal._closeChunk                               16959       88
+    CommitReveal.closeRevealedChunk                             16871    16337
+    PositionUtils.offset                                        15288     3528
+    UsingCommitReveal._openChunk                                12207      114
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    GameReveal (dispatch)                                        5768      130
+    GameReveal.reveal                                            4617     2988
+    CommitReveal.openChunk                                       3108     2773
+    ChessRules.onFootprint                                       2488     2488
+    UsingGameInternal._digest                                    1594      202
+    ChessRules.spawnIndexOf                                      1426      308
+    UsingGameInternal._isDeploying                                633      593
+    ChessRules.spiralIndex                                        342      156
+    UsingCommitReveal._clock                                      281      150
+    ChessRules._abs                                               186      186
+    CommitReveal._checkChunk                                      159      159
+    CommitReveal.layout                                            69       69
+    UsingCommitReveal._timestamp                                   68       68
+    PositionUtils.toXY                                             60       60
+    UsingGameInternal._isArmyId                                    40       40
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/2900 update refund 4800
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    dispatch: proxy + router     eip1967.implementation                       r2/2200 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r5/2500 w1/2900 update
+    game: open spawn set         _nextSpawnIndex                              r2/2200 w1/20000 fresh
+    game: open spawn set         _openSpawnIndices                            r1/2100 w1/20000 fresh
+    game: open spawn set         _openSpawnIndices[0]                         r4/2400 w4/20300 same
+    game: open spawn set         _openSpawnIndices[1]                         r4/2400 w4/20300 fresh
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r6/2600 w3/20200 fresh
+    game: spawn records          _spawns[0].army                              r0/0 w1/22100 fresh cold
+    game: spawn records          _spawns[1].{cycle..arrivedIn}                r1/2100 
+    game: spawn records          _spawns[2].{cycle..arrivedIn}                r1/2100 
+    game: spawn records          _spawns[3].{cycle..arrivedIn}                r1/2100 
+    game: spawn records          _spawns[4].{cycle..arrivedIn}                r1/2100 
+    game: spawn records          _spawns[5].{cycle..arrivedIn}                r1/2100 
+    game: spawn records          _spawns[6].{cycle..arrivedIn}                r1/2100 
+    game: spawn records          _spawns[7].{cycle..arrivedIn}                r1/2100 
+    game: square records         _squares[(-1,-1)].{cycle..arriverKind}       r1/2100 
+    game: square records         _squares[(-1,-2)].{cycle..arriverKind}       r1/2100 
+    game: square records         _squares[(-1,0)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(-1,1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(-1,2)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(-2,-1)].{cycle..arriverKind}       r1/2100 
+    game: square records         _squares[(-2,0)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(-2,1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(0,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(0,-2)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(0,1)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(0,2)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(1,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(1,-2)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(1,0)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(1,1)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(1,2)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(2,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(2,0)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(2,1)].{cycle..arriverKind}         r1/2100 
+pawn step, fresh squares: gasUsed 252398
+  intrinsic (21000)                 21000    8.3%
+  calldata                           1400    0.6%
+  dispatch: proxy + router          11446    4.5%
+  commit-reveal: commitment          7400    2.9%
+  commit-reveal: attendance          5200    2.1%
+  commit-reveal: cycle state         4600    1.8%
+  commit-reveal: roster              2500    1.0%
+  game: square records             102500   40.6%
+  game: spawn records                4800    1.9%
+  game: zone index                  22300    8.8%
+  game: army record                  5100    2.0%
+  events                             2268    0.9%
+  hashing                             906    0.4%
+  compute                           60978   24.2%
+  refund                                0    0.0%
+  storage ops: read, cold 19x = 39900; read, warm 50x = 5000; write, fresh 4x = 80000; write, fresh (cold) 1x = 22100; write, same 15x = 1500; write, same (cold) 1x = 2200; write, update 2x = 5800
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      218552      130
+    GameReveal.reveal                                          217401     2616
+    UsingGameInternal._reveal                                  214785      382
+    UsingGameBoard._revealMove                                 186021    22773
+    UsingGameBoard._touch                                      128181   100323
+    UsingGameBoard._squareAt                                    41747     6026
+    (compiler-generated helper)                                 31590    31590
+    UsingGameBoard._laidAt                                      25506     6498
+    UsingGameBoard._spawnCovering                               16900     2228
+    UsingCommitReveal._closeChunk                               14163       88
+    CommitReveal.closeRevealedChunk                             14075    13537
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._fellIn                                       9352     5842
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    PositionUtils.zoneLocalIndex                                 6422      448
+    UsingGameBoard._floorDiv                                     5360     1780
+    PositionUtils.zoneLocalCoord                                 5044      460
+    ChessRules.layoutAt                                          4530      724
+    PositionUtils.zoneCoord                                      4216      944
+    UsingCommitReveal._roster                                    3517       47
+    UsingGameBoard._kingSquare                                   3510     1072
+    CommitReveal.roster                                          3316     3139
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.getZone                                        3044      316
+    ChessRules.footprintCell                                     2988      860
+    UsingGameBoard._markArrival                                  2987       89
+    ChessRules.moveSquares                                       2884     1050
+    PositionUtils.zoneCoords                                     2256      148
+    ChessRules.isLegalMove                                       2118      556
+    ChessRules.spawnPointAt                                      2030      306
+    UsingGameInternal._digest                                    1594      202
+    PositionUtils.toXY                                           1140     1140
+    PositionUtils.fromXY                                         1028      324
+    ChessRules.spiralIndex                                        684      312
+    ChessRules._abs                                               620      620
+    ChessRules._canonical                                         580      328
+    ChessRules._one                                               534      534
+    ChessRules.onFootprint                                        504      504
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    commit-reveal: roster        commitReveal.roster                          r5/2500 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r5/2500 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r6/2600 
+    game: spawn records          _spawns[0].army                              r2/2200 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r2/2200 
+    game: square records         _squares[(0,2)].{cycle..arriverKind}         r10/3000 w7/20600 fresh
+    game: square records         _squares[(0,2)].army                         r0/0 w1/22100 fresh cold
+    game: square records         _squares[(0,2)].arriverArmy                  r1/2100 
+    game: square records         _squares[(0,2)].kingArmy                     r1/2100 
+    game: square records         _squares[(0,3)].{cycle..arriverKind}         r13/3300 w8/20700 fresh
+    game: square records         _squares[(0,3)].army                         r0/0 w1/2200 same cold
+    game: square records         _squares[(0,3)].arriverArmy                  r1/2100 w1/20000 fresh
+    game: square records         _squares[(0,3)].kingArmy                     r1/2100 
+    game: zone index             _touchedSquares[0]                           r2/2200 w2/20100 fresh
+plain move commit (the army first commit after its deployment): gasUsed 84809
+  intrinsic (21000)                 21000   24.8%
+  calldata                           1116    1.3%
+  dispatch: proxy + router           9102   10.7%
+  commit-reveal: commitment          7800    9.2%
+  commit-reveal: reserve             2100    2.5%
+  commit-reveal: attendance          7600    9.0%
+  commit-reveal: cycle state         5300    6.2%
+  game: square records               2100    2.5%
+  game: spawn records                4400    5.2%
+  game: army record                  5300    6.2%
+  events                             2012    2.4%
+  hashing                             462    0.5%
+  compute                           16517   19.5%
+  refund                                0    0.0%
+  storage ops: read, cold 13x = 27300; read, warm 32x = 3200; write, same 4x = 400; write, update 2x = 5800
+  functions (inclusive / self):
+    GameCommit (dispatch)                                       53591      175
+    GameCommit.makeCommitment                                   52629      488
+    UsingCommitReveal._makeCommitment                           22017       80
+    UsingGameInternal._isDead                                   18831      252
+    CommitReveal.commit                                         17308    10976
+    UsingCommitReveal._cycleNumber                              13258      160
+    UsingCommitReveal._cycle                                    13098      326
+    CommitReveal.cycle                                          11815     8412
+    UsingGameInternal._deploymentStatus                          8270     8094
+    (compiler-generated helper)                                  6161     6161
+    CommitReveal._recordCommitment                               6075     6075
+    UsingGameInternal._isFrozen                                  5593      627
+    UsingCommitReveal._commitmentOf                              4966       55
+    CommitReveal.commitmentOf                                    4810     4685
+    UsingGameBoard._fellIn                                       4676     2921
+    UsingGameInternal._playerOf                                  2624     2354
+    UsingGameBoard._kingSquare                                   1755      536
+    ChessRules.spawnPointAt                                      1015      153
+    UsingCommitReveal._clock                                      562      301
+    PositionUtils.fromXY                                          257       81
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  136      136
+    UsingGameInternal._isArmyId                                   120      120
+    Delegation.canActFor                                          119      119
+    CommitReveal.layout                                            92       92
+    ChessRules.spiralPoint                                         73       73
+    ChessRules.kingOf                                              28       28
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r1/2100 
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r4/2400 w3/3100 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r6/2600 w2/3000 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r8/2800 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r5/2500 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r7/2700 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r3/2300 
+    game: spawn records          _spawns[0].army                              r1/2100 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r1/2100 
+pawn step, touched squares: gasUsed 184010
+  intrinsic (21000)                 21000   11.4%
+  calldata                           1400    0.8%
+  dispatch: proxy + router          11446    6.2%
+  commit-reveal: commitment          7400    4.0%
+  commit-reveal: attendance          5200    2.8%
+  commit-reveal: cycle state         4600    2.5%
+  game: square records              79400   43.1%
+  game: army record                  5100    2.8%
+  events                             2268    1.2%
+  hashing                             654    0.4%
+  compute                           55142   30.0%
+  refund                            -9600   -5.2%
+  storage ops: read, cold 17x = 35700; read, warm 93x = 9300; write, fresh 2x = 40000; write, same 14x = 1400; write, update 6x = 17400
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      159764      130
+    GameReveal.reveal                                          158613     2616
+    UsingGameInternal._reveal                                  155997      382
+    UsingGameBoard._revealMove                                 127233    22772
+    UsingGameBoard._touch                                       62340    40758
+    UsingGameBoard._squareAt                                    51860     8752
+    (compiler-generated helper)                                 22993    22993
+    UsingGameBoard._spawnCovering                               14490     2080
+    UsingCommitReveal._closeChunk                               14163       88
+    CommitReveal.closeRevealedChunk                             14075    13537
+    UsingGameBoard._laidAt                                      12748      680
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._fellIn                                       9352     5842
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._standingOf                                   6254     5778
+    UsingGameBoard._arriverOf                                    6254     5777
+    UsingGameBoard._floorDiv                                     5360     1780
+    UsingGameBoard._captorFell                                   3786     3786
+    UsingGameBoard._kingSquare                                   3510     1072
+    CommitReveal.openChunk                                       3108     2773
+    UsingGameBoard._foldCapture                                  3020      262
+    UsingGameBoard._markArrival                                  2987       89
+    ChessRules.moveSquares                                       2885     1050
+    UsingGameBoard._kingCaptureAt                                2758     2188
+    ChessRules.settle                                            2605     1556
+    ChessRules.isLegalMove                                       2119      556
+    ChessRules.spawnPointAt                                      2030      306
+    UsingGameBoard._kingOf                                       1632     1156
+    UsingGameInternal._digest                                    1594      202
+    PositionUtils.toXY                                            660      660
+    UsingGameBoard._foldExit                                      626      102
+    ChessRules.kingCapture                                        570      404
+    ChessRules._one                                               535      535
+    UsingGameBoard._exitIn                                        524      524
+    PositionUtils.fromXY                                          514      162
+    ChessRules._isPrey                                            498      498
+    UsingGameInternal._isDeploying                                418      378
+    UsingCommitReveal._clock                                      281      150
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r5/2500 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r2/2200 
+    game: square records         _squares[(0,3)].{cycle..arriverKind}         r35/5500 w7/3500 update
+    game: square records         _squares[(0,3)].army                         r3/2300 w1/20000 fresh
+    game: square records         _squares[(0,3)].arriverArmy                  r4/2400 w1/2900 update refund 4800
+    game: square records         _squares[(0,3)].kingArmy                     r1/2100 
+    game: square records         _squares[(0,4)].{cycle..arriverKind}         r32/5200 w8/3600 update
+    game: square records         _squares[(0,4)].army                         r3/2300 w1/2900 update refund 4800
+    game: square records         _squares[(0,4)].arriverArmy                  r4/2400 w1/20000 fresh
+    game: square records         _squares[(0,4)].kingArmy                     r1/2100 
+7-square slider, fresh squares: gasUsed 362056
+  intrinsic (21000)                 21000    5.8%
+  calldata                           1424    0.4%
+  dispatch: proxy + router          11446    3.2%
+  commit-reveal: commitment          7400    2.0%
+  commit-reveal: attendance          5200    1.4%
+  commit-reveal: cycle state         4600    1.3%
+  commit-reveal: roster              2500    0.7%
+  game: square records             115100   31.8%
+  game: spawn records               27800    7.7%
+  game: zone index                  27100    7.5%
+  game: army record                  5100    1.4%
+  events                             2268    0.6%
+  hashing                            1368    0.4%
+  compute                          129750   35.8%
+  refund                                0    0.0%
+  storage ops: read, cold 27x = 56700; read, warm 58x = 5800; write, fresh 5x = 100000; write, fresh (cold) 1x = 22100; write, same 14x = 1400; write, same (cold) 1x = 2200; write, update 3x = 8700
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      328186      130
+    GameReveal.reveal                                          327035     2616
+    UsingGameInternal._reveal                                  324419      382
+    UsingGameBoard._revealMove                                 295654    24260
+    UsingGameBoard._touch                                      137453   105123
+    UsingGameBoard._squareAt                                    94679    20912
+    (compiler-generated helper)                                 76958    76958
+    UsingGameBoard._laidAt                                      61662    11356
+    UsingGameBoard._spawnCovering                               49781     4826
+    UsingGameBoard._markArrival                                 29330    20850
+    ChessRules.moveSquares                                      25173     2058
+    ChessRules._path                                            21011     4197
+    ChessRules.isLegalMove                                      14306     1718
+    UsingCommitReveal._closeChunk                               14164       88
+    ChessRules.spiralIndex                                      14082     2608
+    CommitReveal.closeRevealedChunk                             14076    13537
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._floorDiv                                    11716     3840
+    UsingGameBoard._fellIn                                       9352     5842
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    PositionUtils.zoneLocalIndex                                 6422      448
+    ChessRules.layoutAt                                          6356      882
+    PositionUtils.fromXY                                         5911     1863
+    ChessRules.footprintCell                                     5859     1720
+    PositionUtils.zoneLocalCoord                                 5044      460
+    PositionUtils.zoneCoord                                      4216      944
+    UsingCommitReveal._roster                                    3523       47
+    UsingGameBoard._kingSquare                                   3510     1072
+    CommitReveal.roster                                          3321     3142
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.getZone                                        3044      316
+    PositionUtils.zoneCoords                                     2256      148
+    ChessRules.spawnPointAt                                      2030      306
+    PositionUtils.toXY                                           1620     1620
+    UsingGameInternal._digest                                    1594      202
+    UsingGameBoard._emptyAt                                      1557      600
+    ChessRules._abs                                              1550     1550
+    ChessRules._canonical                                         712      538
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    commit-reveal: roster        commitReveal.roster                          r5/2500 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r5/2500 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r9/2900 
+    game: spawn records          _spawns[0].army                              r3/2300 
+    game: spawn records          _spawns[2].{cycle..arrivedIn}                r6/2600 w1/20000 fresh
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r2/2200 
+    game: square records         _squares[(1,1)].{cycle..arriverKind}         r10/3000 w7/20600 fresh
+    game: square records         _squares[(1,1)].army                         r0/0 w1/22100 fresh cold
+    game: square records         _squares[(1,1)].arriverArmy                  r1/2100 
+    game: square records         _squares[(1,1)].kingArmy                     r1/2100 
+    game: square records         _squares[(2,2)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(3,3)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(4,4)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(5,5)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(6,6)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(7,7)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(8,8)].{cycle..arriverKind}         r13/3300 w8/20700 fresh
+    game: square records         _squares[(8,8)].army                         r0/0 w1/2200 same cold
+    game: square records         _squares[(8,8)].arriverArmy                  r1/2100 w1/20000 fresh
+    game: square records         _squares[(8,8)].kingArmy                     r1/2100 
+    game: zone index             _touchedSquares[0]                           r1/2100 w1/2900 update
+    game: zone index             _touchedSquares[4294967297]                  r1/2100 w1/20000 fresh
+7-square slider, touched squares: gasUsed 282183
+  intrinsic (21000)                 21000    7.4%
+  calldata                           1424    0.5%
+  dispatch: proxy + router          11446    4.1%
+  commit-reveal: commitment          7400    2.6%
+  commit-reveal: attendance          5200    1.8%
+  commit-reveal: cycle state         4600    1.6%
+  game: square records              92000   32.6%
+  game: spawn records               10700    3.8%
+  game: army record                  5100    1.8%
+  events                             2268    0.8%
+  hashing                            1200    0.4%
+  compute                          129445   45.9%
+  refund                            -9600   -3.4%
+  storage ops: read, cold 26x = 54600; read, warm 108x = 10800; write, fresh 2x = 40000; write, same 14x = 1400; write, update 7x = 20300
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      257913      130
+    GameReveal.reveal                                          256762     2616
+    UsingGameInternal._reveal                                  254146      382
+    UsingGameBoard._revealMove                                 225381    24260
+    UsingGameBoard._squareAt                                   117669    23730
+    UsingGameBoard._touch                                       71247    40758
+    (compiler-generated helper)                                 69560    69560
+    UsingGameBoard._laidAt                                      61668    11356
+    UsingGameBoard._spawnCovering                               46859     4826
+    ChessRules.moveSquares                                      25638     2058
+    ChessRules._path                                            21012     4198
+    ChessRules.isLegalMove                                      14539     1718
+    UsingCommitReveal._closeChunk                               14164       88
+    CommitReveal.closeRevealedChunk                             14076    13537
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._floorDiv                                    11716     3840
+    ChessRules.spiralIndex                                      11160     2229
+    UsingGameBoard._fellIn                                       9352     5842
+    UsingGameBoard._markArrival                                  9308     3750
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    ChessRules.layoutAt                                          6359      882
+    UsingGameBoard._standingOf                                   6260     5781
+    UsingGameBoard._arriverOf                                    6260     5779
+    PositionUtils.fromXY                                         5911     1863
+    ChessRules.footprintCell                                     5859     1720
+    UsingGameBoard._captorFell                                   3786     3786
+    UsingGameBoard._kingSquare                                   3510     1072
+    CommitReveal.openChunk                                       3108     2773
+    UsingGameBoard._foldCapture                                  3020      262
+    UsingGameBoard._kingCaptureAt                                2758     2188
+    ChessRules.settle                                            2609     1556
+    ChessRules.spawnPointAt                                      2030      306
+    ChessRules._abs                                              2014     1582
+    UsingGameBoard._kingOf                                       1634     1156
+    UsingGameInternal._digest                                    1594      202
+    PositionUtils.toXY                                           1380     1380
+    UsingGameBoard._emptyAt                                      1171      450
+    ChessRules._canonical                                         712      538
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r6/2600 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r5/2500 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r12/3200 w1/2900 update
+    game: spawn records          _spawns[0].army                              r3/2300 
+    game: spawn records          _spawns[2].{cycle..arrivedIn}                r3/2300 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r2/2200 
+    game: square records         _squares[(1,1)].{cycle..arriverKind}         r32/5200 w8/3600 update
+    game: square records         _squares[(1,1)].army                         r3/2300 w1/2900 update refund 4800
+    game: square records         _squares[(1,1)].arriverArmy                  r4/2400 w1/20000 fresh
+    game: square records         _squares[(1,1)].kingArmy                     r1/2100 
+    game: square records         _squares[(2,2)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(3,3)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(4,4)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(5,5)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(6,6)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(7,7)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(8,8)].{cycle..arriverKind}         r35/5500 w7/3500 update
+    game: square records         _squares[(8,8)].army                         r3/2300 w1/20000 fresh
+    game: square records         _squares[(8,8)].arriverArmy                  r4/2400 w1/2900 update refund 4800
+    game: square records         _squares[(8,8)].kingArmy                     r1/2100 
+king step, fresh squares: gasUsed 406610
+  intrinsic (21000)                 21000    5.2%
+  calldata                           1388    0.3%
+  dispatch: proxy + router          11446    2.8%
+  commit-reveal: commitment          7400    1.8%
+  commit-reveal: attendance          5200    1.3%
+  commit-reveal: cycle state         4600    1.1%
+  game: square records             126100   31.0%
+  game: spawn records               12000    3.0%
+  game: zone index                   5200    1.3%
+  game: army record                 28400    7.0%
+  events                             2268    0.6%
+  hashing                            2334    0.6%
+  compute                          179274   44.1%
+  refund                                0    0.0%
+  storage ops: read, cold 28x = 58800; read, warm 146x = 14600; write, fresh 4x = 80000; write, fresh (cold) 1x = 22100; write, same 17x = 1700; write, same (cold) 1x = 2200; write, update 4x = 11600
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      372776      130
+    GameReveal.reveal                                          371625     2616
+    UsingGameInternal._reveal                                  369009      382
+    UsingGameBoard._revealMove                                 340244    45706
+    UsingGameBoard._squareAt                                   162449    25686
+    UsingGameBoard._touch                                      111850    83182
+    UsingGameBoard._laidAt                                      94572    16964
+    (compiler-generated helper)                                 89898    89898
+    UsingGameBoard._spawnCovering                               53339     6370
+    ChessRules.layoutAt                                         26933     4148
+    UsingGameBoard._fellIn                                      26084    10289
+    ChessRules.moveSquares                                      24679     1328
+    ChessRules._kingSquares                                     22051     5891
+    ChessRules.footprintCell                                    18915     5590
+    UsingGameBoard._kingSquare                                  15795     4824
+    ChessRules.isLegalMove                                      14720     2377
+    UsingCommitReveal._closeChunk                               14164       88
+    CommitReveal.closeRevealedChunk                             14076    13537
+    UsingGameBoard._floorDiv                                    13936     4628
+    UsingCommitReveal._openChunk                                12207      114
+    PositionUtils.offset                                        11648     2688
+    UsingGameBoard._markArrival                                  9308     3750
+    ChessRules.spawnPointAt                                      9135     1377
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    PositionUtils.zoneLocalIndex                                 6422      448
+    PositionUtils.fromXY                                         5654     1782
+    UsingGameBoard._arriverOf                                    5131     4891
+    UsingGameBoard._standingOf                                   5130     4890
+    PositionUtils.zoneLocalCoord                                 5044      460
+    ChessRules.spiralIndex                                       4446     2028
+    PositionUtils.zoneCoord                                      4216      944
+    ChessRules._canonical                                        3886     2842
+    CommitReveal.openChunk                                       3108     2773
+    PositionUtils.getZone                                        3044      316
+    PositionUtils.toXY                                           2820     2820
+    ChessRules._abs                                              2666     2666
+    PositionUtils.zoneCoords                                     2256      148
+    ChessRules.onFootprint                                       2175     2175
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r30/5000 w3/20200 same
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r12/3200 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r39/5900 w1/2900 update
+    game: spawn records          _spawns[0].army                              r12/3200 
+    game: square records         _squares[(0,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r20/4000 w7/20600 fresh
+    game: square records         _squares[(0,0)].army                         r0/0 w1/22100 fresh cold
+    game: square records         _squares[(0,0)].arriverArmy                  r1/2100 
+    game: square records         _squares[(0,0)].kingArmy                     r1/2100 
+    game: square records         _squares[(0,1)].{cycle..arriverKind}         r8/2800 
+    game: square records         _squares[(0,1)].army                         r1/2100 
+    game: square records         _squares[(0,1)].arriverArmy                  r1/2100 
+    game: square records         _squares[(1,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(1,0)].{cycle..arriverKind}         r13/3300 w8/20700 fresh
+    game: square records         _squares[(1,0)].army                         r0/0 w1/2200 same cold
+    game: square records         _squares[(1,0)].arriverArmy                  r1/2100 
+    game: square records         _squares[(1,0)].kingArmy                     r1/2100 w1/20000 fresh
+    game: square records         _squares[(1,1)].{cycle..arriverKind}         r11/3100 
+    game: square records         _squares[(1,1)].army                         r1/2100 
+    game: square records         _squares[(1,1)].arriverArmy                  r1/2100 
+    game: square records         _squares[(2,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(2,0)].{cycle..arriverKind}         r1/2100 
+    game: square records         _squares[(2,1)].{cycle..arriverKind}         r1/2100 
+    game: zone index             _touchedSquares[0]                           r2/2200 w2/3000 update
+king step, touched squares: gasUsed 366380
+  intrinsic (21000)                 21000    5.7%
+  calldata                           1388    0.4%
+  dispatch: proxy + router          11446    3.1%
+  commit-reveal: commitment          7400    2.0%
+  commit-reveal: attendance          5200    1.4%
+  commit-reveal: cycle state         4600    1.3%
+  game: square records             107400   29.3%
+  game: spawn records               12000    3.3%
+  game: army record                 12200    3.3%
+  events                             2268    0.6%
+  hashing                            2166    0.6%
+  compute                          188912   51.6%
+  refund                            -9600   -2.6%
+  storage ops: read, cold 29x = 60900; read, warm 252x = 25200; write, fresh 2x = 40000; write, same 16x = 1600; write, update 8x = 23200
+  functions (inclusive / self):
+    GameReveal (dispatch)                                      342146      130
+    GameReveal.reveal                                          340995     2616
+    UsingGameInternal._reveal                                  338379      382
+    UsingGameBoard._revealMove                                 309613    28605
+    UsingGameBoard._squareAt                                   197645    29221
+    UsingGameBoard._laidAt                                      94715    16972
+    (compiler-generated helper)                                 83327    83327
+    UsingGameBoard._touch                                       71198    38758
+    UsingGameBoard._spawnCovering                               53339     6370
+    UsingGameBoard._fellIn                                      31178    18587
+    ChessRules.layoutAt                                         27062     4050
+    ChessRules.moveSquares                                      24915     1328
+    ChessRules._kingSquares                                     22055     5895
+    ChessRules.footprintCell                                    18915     5590
+    ChessRules.isLegalMove                                      14838     2377
+    UsingCommitReveal._closeChunk                               14165       88
+    CommitReveal.closeRevealedChunk                             14077    13537
+    UsingGameBoard._floorDiv                                    13936     4628
+    UsingCommitReveal._openChunk                                12207      114
+    UsingGameBoard._arriverOf                                   11964    11119
+    UsingGameBoard._standingOf                                  11962    11117
+    PositionUtils.offset                                        11648     2688
+    UsingGameBoard._isExit                                       9430     1230
+    UsingGameBoard._markArrival                                  9308     3750
+    UsingCommitReveal._cycleNumber                               8833       80
+    UsingCommitReveal._cycle                                     8753      163
+    CommitReveal.cycle                                           8113     6247
+    UsingGameBoard._inExitBand                                   7600     1960
+    UsingGameBoard._captorFell                                   7043     7043
+    UsingGameBoard._kingOf                                       5510     4665
+    ChessRules.settle                                            4611     2738
+    ChessRules.spiralIndex                                       4446     2028
+    ChessRules._canonical                                        4108     3064
+    UsingGameBoard._kingSquare                                   4104     4104
+    PositionUtils.fromXY                                         3341     1053
+    PositionUtils.toXY                                           3180     3180
+    UsingGameBoard._foldCapture                                  3127      262
+    CommitReveal.openChunk                                       3108     2773
+    ChessRules._abs                                              2898     2682
+    UsingGameBoard._kingCaptureAt                                2865     2284
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r3/2300 w1/2900 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r3/2300 w1/2900 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r4/2400 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r2/2200 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r48/6800 w3/3100 update
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r3/2300 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r39/5900 w1/2900 update
+    game: spawn records          _spawns[0].army                              r12/3200 
+    game: square records         _squares[(-1,-1)].{cycle..arriverKind}       r1/2100 
+    game: square records         _squares[(-1,0)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(-1,1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(0,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(0,0)].{cycle..arriverKind}         r32/5200 w8/3600 update
+    game: square records         _squares[(0,0)].army                         r3/2300 w1/2900 update refund 4800
+    game: square records         _squares[(0,0)].arriverArmy                  r4/2400 
+    game: square records         _squares[(0,0)].kingArmy                     r1/2100 w1/20000 fresh
+    game: square records         _squares[(0,1)].{cycle..arriverKind}         r8/2800 
+    game: square records         _squares[(0,1)].army                         r1/2100 
+    game: square records         _squares[(0,1)].arriverArmy                  r1/2100 
+    game: square records         _squares[(1,-1)].{cycle..arriverKind}        r1/2100 
+    game: square records         _squares[(1,0)].{cycle..arriverKind}         r74/9400 w7/3500 update
+    game: square records         _squares[(1,0)].army                         r4/2400 w1/20000 fresh
+    game: square records         _squares[(1,0)].arriverArmy                  r5/2500 
+    game: square records         _squares[(1,0)].kingArmy                     r14/3400 w1/2900 update refund 4800
+    game: square records         _squares[(1,1)].{cycle..arriverKind}         r11/3100 
+    game: square records         _squares[(1,1)].army                         r1/2100 
+    game: square records         _squares[(1,1)].arriverArmy                  r1/2100 
+plain move commit (a later cycle): gasUsed 87375
+  intrinsic (21000)                 21000   24.0%
+  calldata                           1116    1.3%
+  dispatch: proxy + router           9102   10.4%
+  commit-reveal: commitment          7800    8.9%
+  commit-reveal: reserve             2100    2.4%
+  commit-reveal: attendance          7600    8.7%
+  commit-reveal: cycle state         5300    6.1%
+  game: square records               4400    5.0%
+  game: spawn records                4400    5.0%
+  game: army record                  5400    6.2%
+  events                             2012    2.3%
+  hashing                             462    0.5%
+  compute                           16683   19.1%
+  refund                                0    0.0%
+  storage ops: read, cold 14x = 29400; read, warm 35x = 3500; write, same 4x = 400; write, update 2x = 5800
+  functions (inclusive / self):
+    GameCommit (dispatch)                                       56157      175
+    GameCommit.makeCommitment                                   55195      488
+    UsingCommitReveal._makeCommitment                           22017       80
+    UsingGameInternal._isDead                                   21397      252
+    CommitReveal.commit                                         17308    10976
+    UsingCommitReveal._cycleNumber                              13258      160
+    UsingCommitReveal._cycle                                    13098      326
+    CommitReveal.cycle                                          11815     8412
+    UsingGameInternal._deploymentStatus                          8270     8094
+    UsingGameBoard._fellIn                                       7242     5843
+    CommitReveal._recordCommitment                               6075     6075
+    (compiler-generated helper)                                  5841     5841
+    UsingGameInternal._isFrozen                                  5593      627
+    UsingCommitReveal._commitmentOf                              4966       55
+    CommitReveal.commitmentOf                                    4810     4685
+    UsingGameInternal._playerOf                                  2624     2354
+    UsingGameBoard._isExit                                        943      123
+    UsingGameBoard._inExitBand                                    760      196
+    UsingCommitReveal._clock                                      562      301
+    UsingGameBoard._kingSquare                                    456      456
+    Delegation.requireAccountFor                                  230      111
+    UsingCommitReveal._timestamp                                  136      136
+    UsingGameInternal._isArmyId                                   120      120
+    Delegation.canActFor                                          119      119
+    CommitReveal.layout                                            92       92
+    PositionUtils.toXY                                             60       60
+  slots (reads/gas, writes/gas, first write, refund):
+    commit-reveal: attendance    commitReveal.isWaitedFor[0x170997..79c8]     r1/2100 
+    commit-reveal: attendance    commitReveal.tally.cycleNumber,committed,revealed r4/2400 w3/3100 update
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].bond r1/2100 w1/100 same
+    commit-reveal: commitment    commitReveal.commitments[0x170997..79c8].hash,cycleNumber r6/2600 w2/3000 update
+    commit-reveal: cycle state   commitReveal.cycleState.anchor..,earlyReveal.. r8/2800 
+    commit-reveal: cycle state   commitReveal.cycleState.commiting,lastCycleNumber r5/2500 
+    commit-reveal: reserve       commitReveal.reserve[0x170997..79c8]         r1/2100 
+    dispatch: proxy + router     eip1967.implementation                       r1/2100 
+    game: army record            _armies[0x170997..79c8].{kingMovedIn..fallen} r8/2800 
+    game: army record            _armies[0x170997..79c8].owner,deployCycle,spawnIndexPlusOne r6/2600 
+    game: spawn records          _spawns[0].{cycle..arrivedIn}                r3/2300 
+    game: spawn records          _spawns[0].army                              r1/2100 
+    game: square records         _squares[(1,0)].{cycle..arriverKind}         r3/2300 
+    game: square records         _squares[(1,0)].kingArmy                     r1/2100 

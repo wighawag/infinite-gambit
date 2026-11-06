@@ -63,41 +63,31 @@ export const CYCLE_POLICY = {
  * forever for a number only the client budgets with. `linkedData` is the
  * established channel for what the client must agree with the deploy about.
  *
- * MEASURED FOR CHESS (`chess-army-deployment`), on a local node. A submission
- * here is ONE action, so a reveal is one transaction, and today there are two
- * kinds: a deployment and a pass. The worst commit is a DEPLOYMENT's, which
- * creates the army (its registry entry), moves the stake from the account's
- * reserve into the army's, starts waiting for it and only then commits; the
- * worst reveal is a deployment's too, the first of its cycle, which writes the
- * open set of spawn points as well as the spawn point's record.
+ * MEASURED FOR CHESS, on the test build `GasBudget.test.ts` runs (no optimiser;
+ * the optimised build a chain runs costs 4% to 23% less, the safe direction).
+ * Re-measured with the one-slot square record
+ * (`lean-rules-one-slot-square-record-and-tight-gas-limits`, `docs/gas.md`),
+ * which names armies in storage by a compact index and reads each square once:
+ * NO REVEAL WALKS A CHAIN (merges, capture chains and loops are gone,
+ * `docs/adr/0013`, `docs/adr/0014`), so what a capture adds is bounded by the
+ * two squares a move touches and the armies on the squares it reads.
  *
- *   deployment commit (cold slots)           291,708
- *   deployment commit paying a fresh payee   326,148
- *   the first deployment reveal ever         230,649
+ *   the worst commit: a first paid deployment commit in a manual world,
+ *   which settles the previous deployment and pays a fresh payee     368,249
+ *   a plain move's commit                                              83,974
+ *   the first deployment reveal ever                                  300,510
+ *   a king's move into a zone nobody touched                          300,148
+ *   the two-victim square (the dearest capture measured)              308,056
+ *   the worst reveal: a king's move whose origin and destination each
+ *   fold a two-victim square, noting two candidates for a stake, and
+ *   whose 8 neighbours each hold a piece of a different fallen army
+ *   whose fall is not folded yet (the vanish check, cold)             650,574
  *
- * RE-MEASURED FOR DEPLOYMENT COLLISIONS (`chess-deployment-collisions`). A
- * deployment commit now settles the account's previous deployment first (the
- * refund of a failed one), and under a cycle that advances (the offline world,
- * which budgets with these same figures) it also remembers the new army for
- * the sweep of dead armies, a fresh array slot on the world's first one. A
- * deployment reveal now checks that its footprint is clear.
- *
- *   deployment commit (cold slots, timed)              300,102
- *   deployment commit paying a fresh payee (timed)     334,542
- *   first paid deployment commit, manual world         372,267
- *   the first deployment reveal ever                   347,288
- *   a king's move (the worst reveal)                   408,521
- *
- * So COMMIT_GAS is the manual world's paid case plus 15%. REVEAL_GAS is left at the
- * template's 600,000, 2.6 times the deployment's reveal: inside the band
- * `GasBudget.test.ts` allows, and room for the moves that come next rather
- * than a figure that has to be raised the day they land.
- *
- * The template's figures (a placement game, whose worst reveal was a chunk of
- * four fresh cells at 535,561) went with the template's game. The reveal's
- * figure WILL grow with moves (`chess-moves`): a move's worst case, a slider's
- * path over squares idle for many cycles, has to be measured then, because a
- * reveal that runs out of gas is a missed reveal, which freezes the army.
+ * Each figure is its worst case plus `GasBudget.test.ts`'s minimum headroom
+ * (10%), rounded up to ten thousand: COMMIT_GAS 410,000 (was 430,000),
+ * REVEAL_GAS 720,000 (was 1,100,000, sized for the dearer record and the
+ * capture loops before it). Under the generosity ceiling too: three times the
+ * plainest reveal (the deployment's, about 901,000).
  *
  * Both carry a margin over the reading, because they size a RESERVATION: over
  * reserving costs a slightly larger first payment, under reserving costs a
@@ -116,36 +106,18 @@ export const CYCLE_POLICY = {
  * with headroom, and why `GasBudget.test.ts` pins both. A turn of several chunks
  * is bounded per transaction by this, and as a whole by `expectedActionsPerTurn`
  * below.
- *
- * The reveal's worst case used to come from merges: following chains of
- * captured-into pointers and folding capture loops (about 1,220,000 with exits,
- * which set this at 1,345,000). Merges, chains and loops are gone
- * (`docs/adr/0013`, `docs/adr/0014`), so NO REVEAL WALKS A CHAIN, and what a
- * capture adds is bounded by the two squares a move touches. Re-measured
- * (`lean-rules-captures-without-merges-and-stones`):
- *
- *   a king's move (the dearest plain reveal)                    473,298
- *   a 7-square slider over stale squares                        354,953
- *   the two-victim square (the dearest capture measured)        476,961
- *   folding a two-victim square (a plain step is 280,753)       407,989
- *
- * The worst reveal, put together in `GasBudget.test.ts`, is a king's move whose
- * origin and destination each fold a two-victim square, which notes two
- * candidates for a stake, and whose 8 neighbours each hold a piece of a
- * different fallen army whose fall is not folded yet (the vanish check, cold):
- * about 943,000. This keeps 16% over it, under the generosity ceiling (three
- * times the plainest reveal, about 1,420,000). The tight figure comes with the
- * one-slot square record (`lean-rules-one-slot-square-record-and-tight-gas-limits`).
  */
-const COMMIT_GAS = 430_000n;
-const REVEAL_GAS = 1_100_000n;
+const COMMIT_GAS = 410_000n;
+const REVEAL_GAS = 720_000n;
 /**
  * A TABLE'S REVEAL: the world's, plus listing every zone a reveal touches first
  * (`UsingGameTable._tally` counts the material at the cap from that list).
  * About 65,000 at worst (two zones, a slot each), so a table's worst reveal is
- * about 1,008,000 and this keeps 14% over it; priced in `GasBudget.test.ts`.
+ * 715,433 and this is that plus the minimum headroom (10%), rounded up (was
+ * 1,150,000); priced in `GasBudget.test.ts`, whose generosity ceiling is three
+ * times a table's plainest reveal (about 1,095,000).
  */
-const LOBBY_REVEAL_GAS = 1_150_000n;
+const LOBBY_REVEAL_GAS = 790_000n;
 
 /**
  * HOW MANY SPAWN POINTS THE OFFLINE WORLD OPENS (K), which is the one thing

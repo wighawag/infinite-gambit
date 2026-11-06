@@ -44,3 +44,21 @@ FIRST, check this task against current reality: have the three earlier lean-rule
 Work in small steps (one decision, then edit and run a test), and grow files with edits of at most about 300 lines: earlier builds in this repo died on the 16,384-token output limit when a single reply tried to plan everything. Measure before and after each step with the gas profile.
 
 RECORD non-obvious in-scope decisions in a `## Decisions` block at the end of your FINAL REPORT (the runner transcribes it into the done record). Do not write the done record, commit message or PR body yourself, and do not edit this task body.
+
+## Decisions
+
+- **Gas limits** (in `contracts/rocketh/config.ts`; each is its worst case plus the 10% minimum headroom, rounded up to the next 10,000; the comments above them no longer describe merge chains or capture loops):
+  - `COMMIT_GAS`: 430,000 → **410,000**. The worst case is a first paid deployment commit in a manual world at 368,249.
+  - `REVEAL_GAS`: 1,100,000 → **720,000**. The worst case is a king's move that folds two two-victim squares, with 8 neighbouring pieces of different fallen armies whose falls are not folded yet, at 650,574. It stays under the generosity ceiling of 3 × the plainest reveal (300,510 × 3 ≈ 901,500).
+  - `LOBBY_REVEAL_GAS`: 1,150,000 → **790,000**. The worst table reveal is 715,433, and the ceiling is 3 × 365,007 ≈ 1,095,000.
+  - This touches the client's gas limits, credit pricing (`creditsGasMultiplier`) and the generated deployment data.
+- **`deployCycle` narrowed to uint32** so the army index fits the first army-record slot, which every reveal and commit already reads.
+  - The write goes through `_cycle32`, a bare `require` with no new custom error. Past 2^32 cycles, creating an army reverts instead of silently recording the wrong cycle.
+  - Alternatives were a uint8 bitfield for the seven flags (touches 26 sites and hurts readability) or the index in a third slot (an extra cold read on every reveal).
+  - It affects only army creation in `UsingGameInternal` and `UsingGameTable`.
+- **The index → id map reuses the existing `_armyIds` array**, read without the bounds check (assembly), rather than a new mapping. That avoids an extra fresh slot (about 22,100) per army.
+- **Storage fields renamed so the compiler catches every old use** (`armyIndex`, `arriverIndex`, `kingIndex`, `capturedByIndex`). Comparing a uint32 index with a uint256 id would otherwise compile silently.
+  - `ChessRules.kingCapture` is unchanged and is now fed indices; it only compares armies and tells zero from non-zero.
+  - Nothing is deployed, so the renames break no in-flight state.
+- **`_storeSquare` packs the record by hand** in one `sstore`. This saves about 5,000 per move, because the compiler wrote the struct field by field (9 stores on the test build, 5 optimised). The layout it relies on is pinned by `StorageLayout.test.ts`.
+- **The per-reveal `Reads` cache and the reuse of already-read pieces in `_touch`** are caches of facts fixed at the start of the cycle, so the order of reveals still cannot change anything. A deployment revealed in the current cycle is never cached. Every order-replay test passes unchanged.
