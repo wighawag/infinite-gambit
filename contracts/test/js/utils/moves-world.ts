@@ -11,6 +11,7 @@ import {
 	squareAt,
 	xyOf,
 	CYCLE_POLICY,
+	DEFAULT_ACTIONS_PER_REVEAL,
 	TURN_BOND,
 	type Move,
 } from './index.js';
@@ -138,7 +139,7 @@ export function movesWorld(params: {
 		let cycle = clock.getCycleNumber(await f.getTimestamp()).cycleNumber + 1;
 		if (!manual) await f.advanceToTime(clock.cycleStartTime(cycle), true);
 		const [alice, bob, carol, dave] = f.unnamedAccounts as `0x${string}`[];
-		const actionsPerReveal = 1;
+		const actionsPerReveal = Number(DEFAULT_ACTIONS_PER_REVEAL);
 
 		const w = {
 			...f,

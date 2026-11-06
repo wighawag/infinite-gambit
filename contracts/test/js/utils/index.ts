@@ -62,8 +62,13 @@ export function deploymentAt(spawnPoint: bigint): Move[] {
  * it is named once here. A suite playing the SHIPPED deployment reads
  * `actionsPerReveal` off its record instead - see `setupFixtures` - because that
  * one is whatever the deploy config says and must not be assumed.
+ *
+ * THREE, the shipped chunk (`rocketh/config.ts`): a move is up to three
+ * piece-moves (`docs/adr/0016`) and arrives in one reveal, so a harness that
+ * chunked smaller would have every multi-piece reveal refused for the wrong
+ * reason.
  */
-export const DEFAULT_ACTIONS_PER_REVEAL = 1n;
+export const DEFAULT_ACTIONS_PER_REVEAL = 3n;
 
 /** What one army holds, in a game deployed by {@link deployGameWith}. */
 export const DEFAULT_STAKE = parseEther('10');

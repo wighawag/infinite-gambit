@@ -24,8 +24,9 @@ interface UsingGameErrors is UsingCommitRevealErrors {
     ///         at the start of the cycle.
     error IllegalMove(uint64 from, uint64 to);
 
-    /// @notice A submission after an army's deployment is a pass (nothing) or
-    ///         exactly one move, in one chunk.
+    /// @notice A submission after an army's deployment is ONE move, in one
+    ///         chunk: a pass (nothing) or up to three piece-moves, each by a
+    ///         different piece and none two to one square (`docs/adr/0016`).
     error OneMovePerCycle();
     /// @notice The army has not left the board through an exit (yet).
     error NotExited(uint256 army);

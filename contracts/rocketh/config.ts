@@ -156,9 +156,12 @@ export const OFFLINE_OPEN_SPAWN_POINTS = 10n;
  * An average with its expectation written down is worth more than an exact
  * figure with no unit.
  *
- * ONE, IN CHESS, BECAUSE IT IS THE RULE: an army submits at most one move per
- * cycle (`CONTEXT.md`), and a deployment is one action too. So the expected
- * turn is exactly one commit and one reveal.
+ * ONE, IN CHESS, TODAY: an army submits at most one move per cycle
+ * (`CONTEXT.md`), and a deployment is one action too. A move may now hold up to
+ * three piece-moves (`docs/adr/0016`), but the client still submits one, and
+ * any move fits one chunk (`actionsPerReveal` is three), so the expected turn
+ * is still exactly one commit and one reveal: `ceil(1 / 3)` and `ceil(3 / 3)`
+ * are both one.
  *
  * It sizes the gas stipend and nothing else today. It is deliberately NOT used
  * to price a credit: a credit count is shown to the player as what they can
@@ -320,8 +323,14 @@ export const config = {
 		 * the turn itself is not capped, and capping it is a game rule this
 		 * framework deliberately does not take a position on.
 		 *
-		 * ONE, for chess: an army submits at most one move per cycle, and a
-		 * deployment is one action too, so no submission ever chains.
+		 * THREE, for chess: an army submits at most one move per cycle, and a
+		 * move is up to three piece-moves, each one action
+		 * (`docs/adr/0016-an-army-moves-up-to-three-pieces-a-cycle-simultaneously.md`),
+		 * so a whole move arrives in one reveal and no submission ever chains: the
+		 * game refuses a chained fourth (`OneMovePerCycle`). A deployment is one
+		 * action and the whole move of its cycle. A one-action submission is one
+		 * chunk at any chunk size, so its commitment hash and its bond are what
+		 * they were at a chunk of one.
 		 *
 		 * `stake` is what one army holds, taken from the account's reserve when
 		 * its deployment is committed. `spawnSpacing` (S) is the distance between
@@ -349,7 +358,7 @@ export const config = {
 			localhost: {
 				commitPhaseDuration: 30n,
 				revealPhaseDuration: 10n,
-				actionsPerReveal: 1n,
+				actionsPerReveal: 3n,
 				stake: parseEther('10'),
 				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
@@ -370,7 +379,7 @@ export const config = {
 			11155111: {
 				commitPhaseDuration: 600n,
 				revealPhaseDuration: 300n,
-				actionsPerReveal: 1n,
+				actionsPerReveal: 3n,
 				stake: parseEther('10'),
 				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
@@ -382,7 +391,7 @@ export const config = {
 			default: {
 				commitPhaseDuration: 30n,
 				revealPhaseDuration: 10n,
-				actionsPerReveal: 1n,
+				actionsPerReveal: 3n,
 				stake: parseEther('10'),
 				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
@@ -419,7 +428,7 @@ export const config = {
 			11155111: {
 				commitPhaseDuration: 180n,
 				revealPhaseDuration: 120n,
-				actionsPerReveal: 1n,
+				actionsPerReveal: 3n,
 				stake: parseEther('10'),
 				spawnSpacing: 9n,
 				openSpawnPoints: 8n,
@@ -431,7 +440,7 @@ export const config = {
 			default: {
 				commitPhaseDuration: 45n,
 				revealPhaseDuration: 15n,
-				actionsPerReveal: 1n,
+				actionsPerReveal: 3n,
 				stake: parseEther('10'),
 				// THE WORLD'S GRID (`docs/adr/0015`): four empty squares between
 				// two neighbouring armies on both axes.
