@@ -7,7 +7,7 @@ covers: []
 
 ## What to build
 
-Nobody knows where the gas of an ORDINARY move goes, and it is far above what one piece moving should cost. `GasBudget.test.ts` measures (last run, 2026-11-06): a deployment reveal 332k, a 7-square slider reveal 373k, a king move reveal 452k, a first deployment commit about 308k and a settling commit about 311k. One piece moving should be a few storage writes. The worst cases (merge chains about 665k, a folded capture loop with exits about 1.2M) are understood and are going away with the `lean-rules` spec (`work/specs/proposed/lean-rules.md`). The plain cost is not understood, and that spec's storage work, and later the several-pieces-per-move idea (`work/notes/ideas/king-chase-table-modes.md`), have to be sized on real numbers.
+Nobody knows where the gas of an ORDINARY move goes, and it is far above what one piece moving should cost. `GasBudget.test.ts` measures (last run, 2026-11-06): a deployment reveal 332k, a 7-square slider reveal 373k, a king move reveal 452k, a first deployment commit about 308k, a settling commit about 311k and the paid first commit about 380k (the one `commitGas` is priced on). One piece moving should be a few storage writes. The worst cases (merge chains about 665k, a folded capture loop with exits about 1.2M) are understood and are going away with the `lean-rules` spec (`work/specs/proposed/lean-rules.md`). The plain cost is not understood, and that spec's storage work, and later the several-pieces-per-move idea (`work/notes/ideas/king-chase-table-modes.md`), have to be sized on real numbers.
 
 Produce a reproducible breakdown of the gas of:
 
