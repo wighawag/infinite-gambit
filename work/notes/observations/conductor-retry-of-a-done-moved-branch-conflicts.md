@@ -1,0 +1,5 @@
+---
+title: 'Retrying a bounced build whose branch already done-moved the task always conflicts'
+---
+
+Observed 2026-11-06 by the drive-tasks conductor. When a build bounces AFTER the agent finished (the gate failed in `prepare`, see `prepare-races-two-hardhat-compiles.md`), the kept `work/task-<slug>` branch already holds the done-move (`tasks/backlog/<slug>.md` renamed to `tasks/done/<slug>.md`). The bounce, the stuck-question answer and the apply rung then each commit to `tasks/backlog/<slug>.md` on `main` (`needsAnswers: true`, the sidecar, the "Applied answers" section). So the next `do` (continue from the kept branch) always stops with `rebasing work/task-<slug> onto current main conflicted on work/tasks/done/<slug>.md`, and `requeue --reconcile` would hit the same content conflict. The conductor resolved it by rebasing the branch by hand in a scratch clone (keeping the branch's done file plus the applied-answers section) and force-pushing the work branch only, for `chess-collisions` and `chess-camera-minimap`. This is dorfl behaviour (it could carry the body edits onto the done file itself), so it belongs upstream in dorfl rather than here.
