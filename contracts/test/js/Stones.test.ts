@@ -243,6 +243,211 @@ describe('a capture whose captor falls in the same cycle', function () {
 	});
 });
 
+/**
+ * THE TWO-VICTIM SQUARE ON A STONE: {chain}, while alice's pawn (2,1) steps
+ * to (3,1) and her king walks by (1,0), (2,1), (3,0) and bob's emptied
+ * squares (4,0) to (5,0), next to the stone. carol's queen steps down to
+ * (6,4), on the stone's file.
+ *
+ * `withEve` deploys a fifth army, eve's, at (-6,6), whose knight goes by her
+ * empty corner (-4,8) and carol's pawn (-2,7), one jump from carol's king
+ * (0,6). A stone takes two armies to make, so a fifth is what leaves one to
+ * take the captor's king.
+ */
+async function kingBesideTheStone(order: RevealOrder, withEve = false) {
+	const w = await world();
+	const eve = w.unnamedAccounts[4] as `0x${string}`;
+	const [a, b, c, d, e] = await w.deploy([
+		[w.alice, [0, 0]],
+		[w.bob, [1, 0]],
+		[w.carol, [0, 1]],
+		[w.dave, [1, 1]],
+		...(withEve ? [[eve, [-1, 1]] as [`0x${string}`, [number, number]]] : []),
+	]);
+	const stakes = new Map((await w.registry()).map((r) => [r.id, r.stake]));
+	const p = (
+		owner: `0x${string}`,
+		army: bigint,
+		m: ReturnType<typeof move>,
+	) => ({
+		owner,
+		army,
+		moves: [m],
+	});
+	const eveMoves = (m: ReturnType<typeof move>) =>
+		withEve ? [p(eve, e, m)] : [];
+	await w.play([
+		p(w.dave, d, move([6, 5], [7, 3])),
+		p(w.carol, c, move([0, 7], [2, 8])),
+		p(w.alice, a, move([2, 1], [3, 1])),
+		...eveMoves(move([-6, 7], [-4, 8])),
+	]);
+	await w.play([
+		p(w.dave, d, move([7, 3], [5, 2])),
+		p(w.carol, c, move([2, 8], [4, 7])),
+		p(w.alice, a, move([0, 0], [1, 0])),
+		...eveMoves(move([-4, 8], [-2, 7])),
+	]);
+	await w.play(
+		[
+			p(w.dave, d, move([5, 2], [6, 0])),
+			p(w.carol, c, move([4, 7], [6, 6])),
+			p(w.alice, a, move([1, 0], [2, 1])),
+			{owner: w.bob, army: b, moves: []},
+		],
+		order,
+	);
+	await w.play(
+		[p(w.carol, c, move([6, 6], [6, 4])), p(w.alice, a, move([2, 1], [3, 0]))],
+		order,
+	);
+	await w.play([p(w.alice, a, move([3, 0], [4, 0]))]);
+	await w.play([p(w.alice, a, move([4, 0], [5, 0]))]);
+	return {w, a, b, c, d, e, eve, stakes};
+}
+
+/** alice's king and carol's queen onto the stone, and eve's knight, if any, onto carol's king. */
+async function ontoTheStone(order: RevealOrder, withEve = false) {
+	const s = await kingBesideTheStone(order, withEve);
+	const {w, a, c, e, eve} = s;
+	await w.play(
+		[
+			{owner: w.alice, army: a, moves: [move([5, 0], [6, 0])]},
+			{owner: w.carol, army: c, moves: [move([6, 4], [6, 0])]},
+			...(withEve
+				? [{owner: eve, army: e, moves: [move([-2, 7], [0, 6])]}]
+				: []),
+		],
+		order,
+	);
+	return s;
+}
+
+const reserves = (w: World, armies: bigint[]) =>
+	Promise.all(
+		armies.map(
+			(id) =>
+				w.env.read(w.Game, {
+					functionName: 'getReserve',
+					args: [id],
+				}) as Promise<bigint>,
+		),
+	);
+const sum = (values: bigint[]) => values.reduce((x, y) => x + y, 0n);
+const holdings = async (w: World) =>
+	(await w.registry()).map((r) => [r.status, r.stake, r.capturedBy]);
+
+describe('the two-victim square on a stone', function () {
+	it("lands the one piece that meets a moving king on a stone as a queen, taking the stone's stake and the king's", async function () {
+		const {w, a, b, c, d, stakes} = await inEveryOrder((order) =>
+			ontoTheStone(order),
+		);
+		expect(await w.pieceAt(6, 0)).toEqual(`Q@6,0#${c}`);
+		expect(await piecesOf(w, a)).toEqual([]);
+		expect(await piecesOf(w, b)).toEqual([]);
+		const registry = await w.registry();
+		expect(registry.map((r) => [r.status, r.capturedBy, r.stake])).toEqual([
+			[CAPTURED, c, 0n],
+			[CAPTURED, c, 0n],
+			[DEPLOYED, 0n, sum([...stakes.values()])],
+			[CAPTURED, c, 0n],
+		]);
+		void d;
+		expect((await w.outcomes()).lines).toEqual([
+			`6,0 died=1 captured=S@6,0#${b} now=Q@6,0#${c}`,
+		]);
+	});
+
+	it('reads the same stakes before and after the square is folded', async function () {
+		const {w, a, b, c, d, stakes} = await ontoTheStone('forward');
+		const before = await holdings(w);
+		// carol's queen left (6,6) earlier, folding dave's capture; the stone's
+		// square is not folded yet.
+		expect(await reserves(w, [a, b, c, d])).toEqual([
+			stakes.get(a)!,
+			stakes.get(b)!,
+			stakes.get(c)! + stakes.get(d)!,
+			0n,
+		]);
+		await w.play([{owner: w.carol, army: c, moves: [move([6, 0], [6, 1])]}]);
+		expect(await holdings(w)).toEqual(before);
+		expect(await reserves(w, [a, b, c, d])).toEqual([
+			0n,
+			0n,
+			sum([...stakes.values()]),
+			0n,
+		]);
+	});
+
+	it("keeps the stone, holding the moving king's stake too, when the captor's own king falls that cycle", async function () {
+		// One stone per square (`docs/adr/0014`): bob's stone stays, alice's
+		// stake goes into bob's army, and carol's queen vanishes with carol,
+		// whose stake is eve's.
+		const {w, a, b, c, d, e, stakes} = await inEveryOrder((order) =>
+			ontoTheStone(order, true),
+		);
+		expect(await w.pieceAt(6, 0)).toEqual(`S@6,0#${b}`);
+		expect(await w.pieceAt(0, 6)).toEqual(`Q@0,6#${e}`);
+		expect(await piecesOf(w, a)).toEqual([]);
+		expect(await piecesOf(w, b)).toEqual([`S@6,0#${b}`]);
+		expect(await piecesOf(w, c)).toEqual([]);
+		const registry = await w.registry();
+		expect(registry.map((r) => [r.status, r.capturedBy, r.stake])).toEqual([
+			[CAPTURED, b, 0n],
+			[CAPTURED, 0n, stakes.get(b)! + stakes.get(a)!],
+			[CAPTURED, e, 0n],
+			[CAPTURED, c, 0n],
+			[DEPLOYED, 0n, stakes.get(e)! + stakes.get(c)! + stakes.get(d)!],
+		]);
+		// Nothing is stranded or lost.
+		const total = sum([...stakes.values()]);
+		expect(sum(registry.map((r) => r.stake))).toEqual(total);
+		expect(sum(await reserves(w, [a, b, c, d, e]))).toEqual(total);
+		expect((await w.outcomes()).lines).toEqual([
+			`0,6 died=0 captured=K@0,6#${c} now=Q@0,6#${e}`,
+			`6,0 died=1 captured=S@6,0#${b} now=S@6,0#${b}`,
+		]);
+	});
+
+	it('reads the same stakes before and after the square is folded, when the captor falls', async function () {
+		const {w, a, b, c, d, e, eve, stakes} = await ontoTheStone('forward', true);
+		const armies = [a, b, c, d, e];
+		const before = await holdings(w);
+		expect(await reserves(w, armies)).toEqual([
+			stakes.get(a)!,
+			stakes.get(b)!,
+			stakes.get(c)! + stakes.get(d)!,
+			0n,
+			stakes.get(e)!,
+		]);
+		// Only eve is left to touch the stone, and a lone arrival takes it.
+		// Her queen leaving (0,6) folds carol's capture; arriving on (6,0) folds
+		// the two-victim capture first (alice's reserve into bob's), then
+		// takes the stone, with what it holds.
+		await w.play([{owner: eve, army: e, moves: [move([0, 6], [6, 0])]}]);
+		expect(await w.pieceAt(6, 0)).toEqual(`Q@6,0#${e}`);
+		const after = await holdings(w);
+		expect([after[0], after[2], after[3]]).toEqual([
+			before[0],
+			before[2],
+			before[3],
+		]);
+		expect(after[1]).toEqual([CAPTURED, 0n, e]);
+		expect(after[4]).toEqual([
+			DEPLOYED,
+			(before[4][1] as bigint) + (before[1][1] as bigint),
+			0n,
+		]);
+		expect(await reserves(w, armies)).toEqual([
+			0n,
+			stakes.get(b)! + stakes.get(a)!,
+			0n,
+			0n,
+			stakes.get(e)! + stakes.get(c)! + stakes.get(d)!,
+		]);
+	});
+});
+
 describe('two armies of one owner taking each other', function () {
 	it("gains that owner nothing: both kings are stones, each holding its own army's stake", async function () {
 		// alice owns both: P at (0,0) and Q at (0,6). P's king steps into its

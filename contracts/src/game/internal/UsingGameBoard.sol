@@ -785,16 +785,20 @@ abstract contract UsingGameBoard is UsingGameStore {
         bool kingThere = target.kingArrived;
         // How many pieces other than a king had arrived before this one.
         uint32 others = kingThere ? arrivals - 1 : arrivals;
+        // A king or a stone that stood here at the start of the cycle could
+        // be taken, and could become, or stay, the stone that holds a moving
+        // king's stake.
+        bool prey =
+            contents[0].kind == PieceKind.King ||
+                contents[0].kind == PieceKind.Stone;
         if (piece.kind == PieceKind.King) {
             target.kingArrived = true;
             target.kingIndex = _indexOf(player);
-            ArmyRecord storage army = _armies[player];
-            army.kingFrom = move.from;
-            army.kingTo = move.to;
-            army.kingMovedIn = cycleNumber;
+            _kingMoved(player, move, cycleNumber);
             // This king could die meeting the one piece already here.
             if (others == 1) {
                 _noteCandidate(_armyAt(target.arriverIndex), player);
+                if (prey) _noteCandidate(contents[0].army, player);
             }
         } else {
             if (others == 0) {
@@ -802,19 +806,28 @@ abstract contract UsingGameBoard is UsingGameStore {
                 target.arriverKind = piece.kind;
                 // The king already here could die meeting this piece.
                 if (kingThere) {
-                    _noteCandidate(player, _armyAt(target.kingIndex));
+                    uint256 king = _armyAt(target.kingIndex);
+                    _noteCandidate(player, king);
+                    if (prey) _noteCandidate(contents[0].army, king);
                 }
             }
         }
         target.arrivals = arrivals + 1;
         _storeSquare(move.to, target);
         _markArrival(move.to, cycleNumber);
-        // A king or a stone that stood here at the start of the cycle could
-        // be taken.
-        PieceKind there = contents[0].kind;
-        if (there == PieceKind.King || there == PieceKind.Stone) {
-            _noteCandidate(player, contents[0].army);
-        }
+        if (prey) _noteCandidate(player, contents[0].army);
+    }
+
+    /// @dev `army`'s king made `move` in `cycleNumber`.
+    function _kingMoved(
+        uint256 army,
+        Move calldata move,
+        uint64 cycleNumber
+    ) private {
+        ArmyRecord storage record = _armies[army];
+        record.kingFrom = move.from;
+        record.kingTo = move.to;
+        record.kingMovedIn = cycleNumber;
     }
 
     /// @notice Note that `captor` may have taken `victim`'s king or stone,
@@ -826,10 +839,12 @@ abstract contract UsingGameBoard is UsingGameStore {
     ///      is the LATER of the two reveals that notes it (the earlier cannot
     ///      know), so it is noted once whichever order they land in.
     ///
-    ///      Not noted: a moving king whose stake goes to the stone that stood
-    ///      where it died ({_foldCapture}). That capture is folded by the
-    ///      very touch that precedes any capture of the stone, so the stake
-    ///      is in the stone's reserve before anybody can be owed it.
+    ///      A moving king meeting exactly one piece on a king or a stone that
+    ///      stayed is ALSO noted under the army of what stood there: if the
+    ///      captor's king falls that cycle, that army is the stone that holds
+    ///      the moving king's stake ({_foldCapture}), and its stake must count
+    ///      it before the square is folded as after
+    ///      (`test/js/KingCapture.test.ts`, "the two-victim square").
     function _noteCandidate(uint256 captor, uint256 victim) private {
         _capturesBy[captor].push(victim);
     }

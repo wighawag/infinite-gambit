@@ -340,13 +340,20 @@ describe('the collision table, king rows', function () {
  * other, alice's on (2,2) and carol's on (2,3), both moving in the cycle they
  * meet (kings may END a cycle adjacent). bob's knight, by his empty corner
  * (4,2), is then one jump from (2,3).
+ *
+ * `withDave` deploys dave too, at (6,6), and brings his knight by (7,3) to
+ * bob's pawn (5,2), one jump from bob's king (6,0). alice's bishop then steps
+ * aside to (4,4) rather than onto dave's bishop (5,5).
  */
-async function kingsFaceToFace(order: Order) {
+async function kingsFaceToFace(order: Order, withDave = false) {
 	const w = await world();
-	const [a, b, c] = await w.deploy([
+	const [a, b, c, d] = await w.deploy([
 		[w.alice, [0, 0]],
 		[w.bob, [1, 0]],
 		[w.carol, [0, 1]],
+		...(withDave
+			? [[w.dave, [1, 1]] as [`0x${string}`, [number, number]]]
+			: []),
 	]);
 	const stakes = new Map((await w.registry()).map((r) => [r.id, r.stake]));
 	const alice = (m: ReturnType<typeof move>) => ({
@@ -364,18 +371,21 @@ async function kingsFaceToFace(order: Order) {
 		army: b,
 		moves: [m],
 	});
+	const dave = (m: ReturnType<typeof move>) =>
+		withDave ? [{owner: w.dave, army: d, moves: [m]}] : [];
 	const cycles = [
 		[
-			alice(move([1, 1], [5, 5])),
+			alice(move([1, 1], withDave ? [4, 4] : [5, 5])),
 			carol(move([1, 5], [1, 6])),
 			bob(move([6, 1], [4, 2])),
+			...dave(move([6, 5], [7, 3])),
 		],
-		[carol(move([0, 6], [1, 5]))],
+		[carol(move([0, 6], [1, 5])), ...dave(move([7, 3], [5, 2]))],
 		[alice(move([0, 0], [1, 1])), carol(move([1, 5], [2, 4]))],
 		[alice(move([1, 1], [2, 2])), carol(move([2, 4], [2, 3]))],
 	];
 	for (const submissions of cycles) await w.play(submissions, order);
-	return {w, a, b, c, stakes};
+	return {w, a, b, c, d, stakes};
 }
 
 describe('a king that takes a king', function () {
@@ -426,6 +436,106 @@ describe('the two-victim square', function () {
 		);
 		expect((await w.outcomes()).lines).toEqual([
 			`2,3 died=1 captured=K@2,3#${c} now=Q@2,3#${b}`,
+		]);
+	});
+
+	/**
+	 * As above, but in the same cycle dave's knight takes bob's king on
+	 * (6,0): the piece that meets alice's king on carol's square is bob's, and
+	 * bob's king falls with it.
+	 */
+	async function captorFalls(order: Order) {
+		const s = await kingsFaceToFace(order, true);
+		await s.w.play(
+			[
+				{owner: s.w.alice, army: s.a, moves: [move([2, 2], [2, 3])]},
+				{owner: s.w.bob, army: s.b, moves: [move([4, 2], [2, 3])]},
+				{owner: s.w.carol, army: s.c, moves: []},
+				{owner: s.w.dave, army: s.d, moves: [move([5, 2], [6, 0])]},
+			],
+			order,
+		);
+		return s;
+	}
+
+	const reserves = (w: World, armies: bigint[]) =>
+		Promise.all(
+			armies.map(
+				(id) =>
+					w.env.read(w.Game, {
+						functionName: 'getReserve',
+						args: [id],
+					}) as Promise<bigint>,
+			),
+		);
+	const sum = (values: bigint[]) => values.reduce((x, y) => x + y, 0n);
+
+	it("leaves the king that stood there as the stone, holding the moving king's stake too, when the captor's own king falls that cycle", async function () {
+		// One stone per square (`docs/adr/0014`): carol's king stays as the
+		// stone, alice's stake goes into carol's army, and bob's knight vanishes
+		// with bob, whose stake is dave's.
+		const {w, a, b, c, d, stakes} = await inEveryOrder(captorFalls);
+		expect(await w.pieceAt(2, 3)).toEqual(`S@2,3#${c}`);
+		expect(await w.pieceAt(6, 0)).toEqual(`Q@6,0#${d}`);
+		expect(await piecesOf(w, a)).toEqual([]);
+		expect(await piecesOf(w, b)).toEqual([]);
+		expect(await piecesOf(w, c)).toEqual([`S@2,3#${c}`]);
+		const registry = await w.registry();
+		expect(registry.map((r) => [r.status, r.capturedBy, r.stake])).toEqual([
+			[CAPTURED, c, 0n],
+			[CAPTURED, d, 0n],
+			[CAPTURED, 0n, stakes.get(c)! + stakes.get(a)!],
+			[DEPLOYED, 0n, stakes.get(d)! + stakes.get(b)!],
+		]);
+		// Nothing is stranded or lost.
+		const total = sum([...stakes.values()]);
+		expect(sum(registry.map((r) => r.stake))).toEqual(total);
+		expect(sum(await reserves(w, [a, b, c, d]))).toEqual(total);
+		expect((await w.outcomes()).lines).toEqual([
+			`2,3 died=1 captured=K@2,3#${c} now=S@2,3#${c}`,
+			`6,0 died=0 captured=K@6,0#${b} now=Q@6,0#${d}`,
+		]);
+	});
+
+	it('reads the same stakes before and after the square is folded, when the captor falls', async function () {
+		const holdings = async (w: World) =>
+			(await w.registry()).map((r) => [r.status, r.stake, r.capturedBy]);
+		const s = await captorFalls('forward');
+		const {w, a, b, c, d, stakes} = s;
+		const before = await holdings(w);
+		// Nothing folded yet: every reserve is where it was.
+		expect(await reserves(w, [a, b, c, d])).toEqual([
+			stakes.get(a)!,
+			stakes.get(b)!,
+			stakes.get(c)!,
+			stakes.get(d)!,
+		]);
+		// dave's queen leaving (6,0) folds bob's capture.
+		await w.play([{owner: w.dave, army: d, moves: [move([6, 0], [6, 3])]}]);
+		expect(await holdings(w)).toEqual(before);
+		expect(await reserves(w, [a, b, c, d])).toEqual([
+			stakes.get(a)!,
+			0n,
+			stakes.get(c)!,
+			stakes.get(d)! + stakes.get(b)!,
+		]);
+		// Taking the stone touches (2,3), folding the two-victim capture first:
+		// alice's reserve goes into carol's, which the stone then gives dave.
+		await w.play([{owner: w.dave, army: d, moves: [move([6, 3], [2, 3])]}]);
+		expect(await w.pieceAt(2, 3)).toEqual(`Q@2,3#${d}`);
+		const after = await holdings(w);
+		expect([after[0], after[1]]).toEqual([before[0], before[1]]);
+		expect(after[2]).toEqual([CAPTURED, 0n, d]);
+		expect(after[3]).toEqual([
+			DEPLOYED,
+			(before[3][1] as bigint) + (before[2][1] as bigint),
+			0n,
+		]);
+		expect(await reserves(w, [a, b, c, d])).toEqual([
+			0n,
+			0n,
+			stakes.get(c)! + stakes.get(a)!,
+			stakes.get(d)! + stakes.get(b)!,
 		]);
 	});
 });

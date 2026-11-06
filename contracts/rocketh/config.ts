@@ -79,14 +79,16 @@ export const CYCLE_POLICY = {
  *   a king's move into a zone nobody touched                          300,148
  *   the two-victim square (the dearest capture measured)              308,056
  *   the worst reveal: a king's move whose origin and destination each
- *   fold a two-victim square, noting two candidates for a stake, and
+ *   fold a two-victim square, noting three candidates for a stake, and
  *   whose 8 neighbours each hold a piece of a different fallen army
- *   whose fall is not folded yet (the vanish check, cold)             650,574
+ *   whose fall is not folded yet (the vanish check, cold)             695,871
  *
  * Each figure is its worst case plus `GasBudget.test.ts`'s minimum headroom
  * (10%), rounded up to ten thousand: COMMIT_GAS 410,000 (was 430,000),
- * REVEAL_GAS 720,000 (was 1,100,000, sized for the dearer record and the
- * capture loops before it). Under the generosity ceiling too: three times the
+ * REVEAL_GAS 770,000 (was 720,000 before a moving king meeting one piece on a
+ * king or stone was also noted for the standing army, the stone that holds its
+ * stake when the captor falls; 1,100,000 before that, sized for the dearer
+ * record and the capture loops). Under the generosity ceiling too: three times the
  * plainest reveal (the deployment's, about 901,000).
  *
  * Both carry a margin over the reading, because they size a RESERVATION: over
@@ -108,16 +110,16 @@ export const CYCLE_POLICY = {
  * below.
  */
 const COMMIT_GAS = 410_000n;
-const REVEAL_GAS = 720_000n;
+const REVEAL_GAS = 770_000n;
 /**
  * A TABLE'S REVEAL: the world's, plus listing every zone a reveal touches first
  * (`UsingGameTable._tally` counts the material at the cap from that list).
  * About 65,000 at worst (two zones, a slot each), so a table's worst reveal is
- * 715,433 and this is that plus the minimum headroom (10%), rounded up (was
- * 1,150,000); priced in `GasBudget.test.ts`, whose generosity ceiling is three
+ * 760,730 and this is that plus the minimum headroom (10%), rounded up (was
+ * 790,000, and 1,150,000 before that); priced in `GasBudget.test.ts`, whose generosity ceiling is three
  * times a table's plainest reveal (about 1,095,000).
  */
-const LOBBY_REVEAL_GAS = 790_000n;
+const LOBBY_REVEAL_GAS = 840_000n;
 
 /**
  * HOW MANY SPAWN POINTS THE OFFLINE WORLD OPENS (K), which is the one thing
