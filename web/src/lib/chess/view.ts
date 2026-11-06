@@ -18,6 +18,7 @@ import {describeSpawnPoints, type SpawnPointView} from './spawn-points';
 import type {SquareOutcome} from './outcomes';
 import {ARMY_STATUS, type ArmyView} from './armies';
 import {STAKE} from './stake';
+import {armyColoursOf} from './render/style';
 
 export type PieceView = Piece & {position2d: Position};
 
@@ -97,6 +98,11 @@ export type BoardView = {
 	 * included: their pieces are drawn greyed out.
 	 */
 	frozen?: ReadonlySet<bigint>;
+	/**
+	 * The colour each army is drawn in, picked so armies that may meet differ
+	 * (`armyColoursOf`, `./render/style.ts`).
+	 */
+	colours?: ReadonlyMap<bigint, string>;
 	/**
 	 * The armies the registry says left through an exit: what tells an army
 	 * that left the board with its stake from one that was captured, for the
@@ -254,6 +260,7 @@ export const mergeBoardView: ViewMerge<BoardState, LocalPlan, BoardView> = ({
 		kings: kingsOf(onchain.armies),
 		stones: stonesOf(onchain.pieces, onchain.armies),
 		frozen: frozenArmiesOf(onchain.armies),
+		colours: armyColoursOf(onchain.armies),
 		exited: exitedArmiesOf(onchain.armies),
 		attacked: (local.attacked ?? []).map(positionOf),
 		...(local.moves && local.moves.length > 0

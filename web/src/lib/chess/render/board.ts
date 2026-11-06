@@ -217,7 +217,9 @@ export function createChessBoardRenderer(params: {
 				// was: nobody plays it, and it holds that army's stake. A frozen
 				// army is greyed, in its own drained hue and ringed.
 				const ownColour =
-					piece.army === view.you ? YOUR_COLOUR : armyColour(piece.army);
+					piece.army === view.you
+						? YOUR_COLOUR
+						: armyColour(piece.army, view.colours);
 				if (isStone(piece.kind)) {
 					drawPiece(context, frame, piece, {
 						colour: STONE_COLOUR,

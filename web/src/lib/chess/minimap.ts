@@ -18,7 +18,7 @@ import type {Camera, CameraWatcher} from '$lib/game/render/camera';
 import type {OnchainStateValue} from '$lib/game/core/seams';
 import {ARMY_STATUS, type ArmyView} from './armies';
 import {positionOf, type Position} from './squares';
-import {armyColour, YOUR_COLOUR} from './render/style';
+import {armyColour, armyColoursOf, YOUR_COLOUR} from './render/style';
 import {exitsIn} from './exits';
 
 /** A rectangle of the board, in squares: top-left corner and extent. */
@@ -97,13 +97,14 @@ export function minimapOf(params: {
 		seen.add(army.spawnPoint);
 		taken.push({...positionOf(army.spawnPoint), open: false});
 	}
+	const colours = armyColoursOf(params.armies);
 	const armies = params.armies
 		.filter((army) => ON_THE_BOARD.has(army.status))
 		.map((army) => ({
 			id: army.id,
 			...positionOf(army.king),
 			you: army.id === you,
-			colour: army.id === you ? YOUR_COLOUR : armyColour(army.id),
+			colour: army.id === you ? YOUR_COLOUR : armyColour(army.id, colours),
 		}));
 	const view = {
 		x: camera.x - camera.width / 2,

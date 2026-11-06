@@ -122,14 +122,14 @@ export type PieceLook = {
 
 export function lookOf(
 	piece: PieceView,
-	view: Pick<BoardView, 'you' | 'frozen'>,
+	view: Pick<BoardView, 'you' | 'frozen' | 'colours'>,
 	ghost = false,
 ): PieceLook | undefined {
 	const kind = silhouetteOf(piece.kind);
 	if (!kind) return undefined;
 	const {x, y} = piece.position2d;
 	const mine = ghost || piece.army === view.you;
-	const band = mine ? YOUR_COLOUR : armyColour(piece.army);
+	const band = mine ? YOUR_COLOUR : armyColour(piece.army, view.colours);
 	if (piece.kind === PIECE_KIND.Stone) {
 		// a stone keeps the band of the army it was: it still holds its stake
 		return {

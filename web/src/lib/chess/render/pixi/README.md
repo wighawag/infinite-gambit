@@ -24,7 +24,7 @@ Choices that are not obvious from the code:
 - **The inlay is baked on a 2d canvas**, not with pixi masks and `renderer.generateTexture` as in the spike: the host gives a renderer only its world `Container`, not pixi's `Renderer`. It is baked per top-left colour because at an odd spacing the colour alternates from exit to exit.
 - **A stone is the king's silhouette in stone, keeping the band of the army it was**, since it still holds that army's stake (ADR 0014). A frozen army is in ice.
 - **Attacked squares are shown only where they matter**: around the player's kings, on the selection's destinations and on the planned target; all of them while the player has no king on the board.
-- **Colours are converted to tints here** (`cssColourToHex`), rather than relying on pixi's parser for `armyColour`'s `hsl(...)`.
+- **Colours are converted to tints here** (`cssColourToHex`), rather than relying on pixi's parser for `frozenColour`'s `hsl(...)`.
 - **Animations decide nothing either.** `transitions.ts` only compares two contract answers. Pieces have no identity on chain, so a move is a GUESS (nearest piece of the same army, same kind first): a wrong guess draws the wrong piece sliding and changes nothing anyone may do. A change is read as play only right after the board's cycle advances, because pieces also come and go as the camera pans; an army leaving the registry's kings is always real.
 - Not ported from the spike: its `PieceLayer`, camera and harness (the reconciler and the host own those), and its fake move generator (moves come from the contract, ADR 0007).
 
