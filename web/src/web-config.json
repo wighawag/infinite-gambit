@@ -1,14 +1,15 @@
 {
-	"name": "Commit Reveal",
-	"title": "Commit Reveal",
-	"description": "Build and Deploy for Eternity",
+	"name": "Infinite Gambit",
+	"title": "Infinite Gambit",
+	"description": "Simultaneous chess on an infinite onchain board. Stake an army, capture kings, betray your allies.",
 	"canonicalURL": "http://localhost:8080",
-	"repoURL": "",
+	"repoURL": "https://github.com/wighawag/infinite-gambit",
 	"communityURL": "",
 	"ENSName": null,
-	"themeColor": "#000000",
+	"themeColor": "#2a1d14",
 	"appleStatusBarStyle": "black-translucent",
 	"icon": "static/icon.svg",
 	"preview": "static/preview.png",
+	"logo": "static/lockup-light.svg",
 	"maskable": true
 }
