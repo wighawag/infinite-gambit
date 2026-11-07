@@ -1,0 +1,5 @@
+---
+title: 'The service worker does not precache the Worker bundles, so a Worker first started offline has no script'
+---
+
+Observed 2026-11-06 while building `offline-demo-presets`. SvelteKit's `$service-worker` `build` list does not include `_app/immutable/workers/*` (checked in `web/build/service-worker.js` after `pnpm build localhost`: `offline-node-worker-*.js` and the simulation sandbox's `worker-*.js` are both absent). The worker keeps what it fetches at run time, so a Worker that was started once online works offline afterwards, but one first started offline fails to load. The rules sandbox (`$lib/game/simulation/sandbox.ts`) is started lazily, on the first move check, so a person who opens the offline world online and only plays after the Wi-Fi is off sees every move refused with "The board has not loaded yet". The demo presets work around it by starting the sandbox once at boot (`warmTheRulesSandbox` in `web/src/lib/offline.ts`); the normal offline world does not. A real fix is to precache the Worker bundles (a list emitted at build time for the service worker to `addAll`).

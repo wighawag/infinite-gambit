@@ -35,8 +35,11 @@ export type OfflineNodeChoice = {
 export type WorkerLike = Endpoint & {terminate(): void};
 
 export function offlineWorldNode(params: {
-	/** The IndexedDB database the chain persists in. */
-	db: string;
+	/**
+	 * The IndexedDB database the chain persists in. `undefined` for a chain that
+	 * is never persisted (a demo preset's), which lives as long as its node.
+	 */
+	db: string | undefined;
 	/** Defaults to a Worker running `./offline-node-worker.ts`, when `Worker` exists. */
 	worker?: () => WorkerLike;
 }): OfflineNodeChoice {
@@ -51,7 +54,9 @@ export function offlineWorldNode(params: {
 	if (!makeWorker) {
 		return {
 			where: 'main-thread',
-			persistence: createIndexedDBPersistence({db: params.db}),
+			...(params.db !== undefined
+				? {persistence: createIndexedDBPersistence({db: params.db})}
+				: {}),
 			released: () => Promise.resolve(),
 		};
 	}
@@ -75,7 +80,7 @@ export function offlineWorldNode(params: {
 		try {
 			node = await createWorkerNode({
 				...(cloneable as OfflineNodeOptions),
-				indexedDB: params.db,
+				...(params.db !== undefined ? {indexedDB: params.db} : {}),
 				worker: draining.worker as unknown as Worker,
 			} as Parameters<typeof createWorkerNode>[0]);
 		} catch (error) {

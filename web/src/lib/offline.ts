@@ -1,4 +1,4 @@
-import {writable, type Readable} from 'svelte/store';
+import {get, writable, type Readable} from 'svelte/store';
 import {
 	config,
 	extensions,
@@ -41,7 +41,7 @@ import {
 	GREEDY_LEVEL,
 	createChessStrategy,
 } from '$lib/chess/strategy';
-import {pokeWhenTheHumanActs} from '$lib/game/core/played';
+import {createPlayedKeys, pokeWhenTheHumanActs} from '$lib/game/core/played';
 import {
 	MOST_SEATS,
 	humansAtThisDevice,
@@ -62,6 +62,16 @@ import {authoriseTheBrowsersKey} from '$lib/game/acquire';
 import {resolveChessConfig} from '$lib/chess/config';
 import {awaitDeploymentsOf, firstArmyOf} from '$lib/chess/awaited-deployments';
 import type {Move} from '$lib/chess/commit-reveal';
+import {
+	PRESET_MNEMONIC,
+	PRESET_SPAWN_SPACING,
+	movesOf,
+	presetTable,
+	seatOwners,
+	type OfflinePreset,
+} from '$lib/offline-presets';
+import {playPresetSetup} from '$lib/offline-preset-setup';
+import {squareAt} from '$lib/chess/squares';
 
 export {firstArmyOf};
 
@@ -244,6 +254,20 @@ export const OFFLINE_DEPLOYMENT = {
 	},
 } as const;
 
+/**
+ * WHAT A DEMO PRESET'S WORLD DEPLOYS (`$lib/offline-presets`): the offline
+ * deployment with ONE number changed, the tight spawn grid the contract tests
+ * play on, so armies spawn next to each other. Everything else, the manual
+ * policy and the gas figures included, is the offline world's own.
+ */
+export const PRESET_DEPLOYMENT_DATA = {
+	...OFFLINE_DEPLOYMENT.data,
+	Game: {
+		...OFFLINE_DEPLOYMENT.data.Game,
+		spawnSpacing: PRESET_SPAWN_SPACING,
+	},
+} as const;
+
 export type OfflineWorldStatus =
 	| {step: 'Idle'}
 	| {step: 'Booting'; what: string}
@@ -301,17 +325,97 @@ export function startOfflineWorld(params: {
 	return pending;
 }
 
-async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
+/**
+ * THE DEMO PRESET THIS TAB IS PLAYING, if any (`$lib/offline-presets`): what
+ * the page reads to show the preset's hint, its restart and its own failure.
+ */
+const preset = writable<OfflinePreset | undefined>(undefined);
+export const offlinePreset: Readable<OfflinePreset | undefined> = {
+	subscribe: preset.subscribe,
+};
+
+/** The preset world this tab built last: what a restart lets go of. */
+let presetBoot: Promise<OfflineWorldStatus> | undefined;
+
+/**
+ * START A DEMO PRESET: a fresh world in this tab, in the preset's position.
+ *
+ * ISOLATED FROM THE PLAYER'S OWN OFFLINE WORLD, and that is the decision
+ * everything below serves. A preset world is minted a fresh chain id that is
+ * never written where the normal world's is (`offline-world:chain-id`), its
+ * chain and deployment records are never persisted, it writes no lobby key,
+ * and its world seats keep their decided turns in memory: the played-turns
+ * store deletes every other chain's records when it opens, so sharing
+ * `offline-world:played-turns` would strand the normal world's seats. What it
+ * does leave in `localStorage` is keyed by its own chain id (its wallet, its
+ * operations, its submissions), which nothing of the normal world reads.
+ *
+ * NOT CLAIMED. The one-tab-per-world lock exists because a persisted world
+ * would be saved over by a second tab; a world that is never saved cannot be,
+ * so a preset never takes `offline-world` from the tab playing it.
+ */
+export function startPresetWorld(
+	chosen: OfflinePreset,
+): Promise<OfflineWorldStatus> {
+	if (presetBoot) return presetBoot;
+	preset.set(chosen);
+	presetBoot = buildOfflineWorld(presetTable(chosen), chosen).catch((err) => {
+		const failure: OfflineWorldStatus = {
+			step: 'Failed',
+			error: err instanceof Error ? err.message : String(err),
+		};
+		status.set(failure);
+		return failure;
+	});
+	return presetBoot;
+}
+
+/**
+ * RESTART THE PRESET, from scratch and in the tab: the board unmounts (which
+ * stops its loops), the old world's node is disposed and its wallet stops
+ * announcing, and the preset is built again. No reload, so it works with the
+ * network off, and it takes about as long as the first boot did: a deploy is
+ * about a tenth of a second in node, and a setup is a few dozen transactions.
+ */
+export async function restartPresetWorld(): Promise<OfflineWorldStatus> {
+	const chosen = get(preset);
+	if (!chosen) throw new Error('no preset is being played in this tab');
+	const previous = presetBoot;
+	presetBoot = undefined;
+	status.set({step: 'Booting', what: `restarting ${chosen.name}`});
+	showHotseat(undefined);
+	// Let the page unmount the board first: its context's stop is what ends the
+	// seats' loop, the revealer and the advance client.
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	const old = await previous?.catch(() => undefined);
+	if (old?.step === 'Ready') {
+		await old.world.dispose().catch((err) => {
+			console.warn('the previous preset world did not stop cleanly', err);
+		});
+	}
+	stopAnnouncingOfflineWallet();
+	return startPresetWorld(chosen);
+}
+
+async function buildOfflineWorld(
+	table: Table,
+	demo?: OfflinePreset,
+): Promise<OfflineWorldStatus> {
 	// The id is minted once and remembered, because it is what keys everything
 	// the player keeps: the operations ledger, and this game's submission
 	// storage (`chess/storage.ts` keys by `chainID_gameAddress_army`). See
-	// `lib/embedded/chain-id.ts`.
-	const chainId = rememberChainId({
-		storage: localStorage,
-		key: CHAIN_ID_STORAGE_KEY,
-	});
+	// `lib/embedded/chain-id.ts`. A preset's is minted and FORGOTTEN: each build
+	// is a new world, so nothing a previous take kept can be read into it.
+	const chainId = demo
+		? mintChainId()
+		: rememberChainId({
+				storage: localStorage,
+				key: CHAIN_ID_STORAGE_KEY,
+			});
 
-	const world = await openWorld(chainId, table);
+	const world = demo
+		? await openPresetWorld(chainId, table)
+		: await openWorld(chainId, table);
 	const humans = humansAtThisDevice(table);
 	const hotseatHere = humans.length > 1;
 
@@ -515,7 +619,11 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	 * is not disposed when a router navigates away); what stops is the playing.
 	 */
 	const played = await playedByTheWorld({env: world.env, table});
-	const decider = playedSeatDecider(world, played);
+	const decider = playedSeatDecider(
+		world,
+		played,
+		demo ? {storage: inMemoryStorage()} : {},
+	);
 	// EVERY SEAT DEPLOYS BEFORE THE FIRST CYCLE TURNS OVER: the people here and
 	// the seats the world plays. Only armies are members, so without this the
 	// first to deploy would close the commit phase on everyone else. See
@@ -544,7 +652,15 @@ async function buildOfflineWorld(table: Table): Promise<OfflineWorldStatus> {
 	 * boot. Decided from the chain, so a restore that already has its armies
 	 * sends nothing and an interrupted boot is finished here.
 	 */
-	if (wallet) {
+	if (wallet && demo) {
+		// A PRESET'S OPENING IS ITS OWN: every army on the spawn point it names,
+		// then the cycles that bring the pieces into position, all through the
+		// contract. The machine seats are DEPLOYED here rather than by their loop,
+		// which only ever deploys a seat that has no army, so it finds them
+		// standing and plays them from there.
+		await setUpPreset({world, wallet, table, demo, played});
+		await warmTheRulesSandbox(world);
+	} else if (wallet) {
 		status.set({step: 'Booting', what: 'deploying every army'});
 		await deployEverySeat({
 			provider: world.provider,
@@ -733,6 +849,113 @@ function walletSender(
 	};
 }
 
+/**
+ * Play a preset's opening on its fresh world (`$lib/offline-preset-setup`):
+ * the people sign with the world's wallet, the world's seats with their keys.
+ */
+async function setUpPreset(params: {
+	world: EmbeddedWorld;
+	wallet: EmbeddedWallet;
+	table: Table;
+	demo: OfflinePreset;
+	played: readonly OfflinePlayer[];
+}): Promise<void> {
+	const {world, wallet, table, demo, played} = params;
+	const owners = seatOwners(table, wallet.accounts);
+	const asPerson = walletSender(world, wallet);
+	const keys = createPlayedKeys({
+		provider: world.provider as never,
+		chain: worldChain(world),
+		contract: {
+			address: world.deployments.get().contracts.Game.address,
+			abi: world.deployments.get().contracts.Game.abi,
+		},
+	});
+	const keyOf = new Map(
+		played.map((seat) => [seat.address.toLowerCase(), seat.privateKey]),
+	);
+	await playPresetSetup({
+		provider: world.provider,
+		deployments: world.deployments,
+		config: resolveChessConfig(world.deployments.get()),
+		armies: demo.armies.map((army) => ({
+			owner: owners[army.seat],
+			spawnPoint: squareAt(...army.spawn),
+		})),
+		cycles: [
+			...demo.setup.map((cycle) =>
+				cycle.map((turn) => ({army: turn.army, moves: movesOf(turn.moves)})),
+			),
+			// ONE QUIET CYCLE LAST, every army passing, so the board first shows
+			// after a cycle in which nothing happened: the HUD reports the last
+			// closed cycle's outcomes, and a setup's own capture ("a pawn was
+			// captured by a knight") is not what the take is about.
+			...(demo.setup.length > 0 ? [[]] : []),
+		],
+		sendAs: (owner, request) => {
+			const key = keyOf.get(owner.toLowerCase());
+			return key ? keys.send(key, request) : asPerson(owner, request);
+		},
+		onCycle: (done, of) =>
+			status.set({
+				step: 'Booting',
+				what: `setting up ${demo.name} (cycle ${done + 1} of ${of})`,
+			}),
+	});
+}
+
+/**
+ * FETCH THE RULES SANDBOX'S WORKER ONCE, while the network is still there, so
+ * a preset plays with it off (`$lib/offline-presets`: the demo is filmed with
+ * the Wi-Fi off).
+ *
+ * The board checks every move against the contract's rules in a sandbox that
+ * runs in a Worker of its own (`$lib/game/simulation`), created on the first
+ * check. The app's service worker precaches every file of the build EXCEPT the
+ * Worker bundles (SvelteKit's `build` list does not name them), and keeps what
+ * it fetches at run time. So a sandbox first made with the network off has no
+ * script to start from, the board never loads for the move check, and the move
+ * is refused. One call here, at boot, makes the service worker keep it.
+ * Non-fatal: the world plays without it, only not offline.
+ */
+async function warmTheRulesSandbox(world: EmbeddedWorld): Promise<void> {
+	const records = world.deployments.get();
+	const sandbox = createBytecodeSandbox({
+		provider: world.provider as never,
+		contracts: {
+			rules: {
+				address:
+					records.contracts.Game_Implementation_Router_Simulation_Route.address,
+			},
+		},
+	});
+	try {
+		await sandbox.call({
+			contract: 'rules',
+			abi: records.contracts.Game.abi,
+			functionName: 'materialOf',
+			args: [1],
+		} as never);
+	} catch (err) {
+		console.warn('the rules sandbox could not be started ahead of play', err);
+	} finally {
+		sandbox.dispose();
+	}
+}
+
+/**
+ * A `Storage`-shaped map that lives as long as the world: where a preset's
+ * world seats keep their decided turns, so nothing is written under the
+ * normal world's `offline-world:played-turns`.
+ */
+function inMemoryStorage(): Pick<Storage, 'getItem' | 'setItem'> {
+	const items = new Map<string, string>();
+	return {
+		getItem: (key) => items.get(key) ?? null,
+		setItem: (key, value) => void items.set(key, value),
+	};
+}
+
 /** The world's chain as viem wants it, for the clients the world's own loops build. */
 function worldChain(world: Pick<EmbeddedWorld, 'deployments'>) {
 	const records = world.deployments.get();
@@ -758,6 +981,33 @@ async function authoriseWhenReady(context: Context): Promise<void> {
 	}
 	throw new Error("the browser's key could not be authorised");
 }
+
+/** How the offline chain describes itself: the normal world's and a preset's. */
+const OFFLINE_CHAIN = {
+	name: 'Offline',
+	nativeCurrency: {name: 'Ether', symbol: 'ETH', decimals: 18},
+	properties: {
+		// THE LOCAL CHAIN'S OWN PROPERTIES, read out of the deploy config
+		// rather than typed again: `expectedWorstGasPrice` and
+		// `creditsGasMultiplier` are what denominate the play key's gas in
+		// MOVES, and a second copy of either is a number that can drift into
+		// telling the player they have more turns than they do.
+		...config.chains[31337].properties,
+		// A block exists only where a transaction happened, so a "block time"
+		// here measures how long the player thought about their move. One
+		// second is the honest floor to give anything that polls, and under
+		// the manual policy nothing reads it for a deadline.
+		averageBlockTimeMs: 1000,
+		// ZERO CONFIRMATIONS, and it is the honest number rather than a
+		// workaround. Under automine a block exists only where a transaction
+		// happened, so the NEWEST transaction is always in the latest block
+		// and a confirmation above it never arrives: the operations ledger
+		// would hold every move as `final: false` forever. Confirmations buy
+		// protection from a REORG, and a chain in one tab has no competing
+		// producer to reorg it.
+		finality: 0,
+	},
+};
 
 /**
  * Boot (or restore) the world for one chain id.
@@ -822,31 +1072,7 @@ async function openWorld(
 	const worldNode = offlineWorldNode({db});
 	return createEmbeddedWorld({
 		chainId,
-		chain: {
-			name: 'Offline',
-			nativeCurrency: {name: 'Ether', symbol: 'ETH', decimals: 18},
-			properties: {
-				// THE LOCAL CHAIN'S OWN PROPERTIES, read out of the deploy config
-				// rather than typed again: `expectedWorstGasPrice` and
-				// `creditsGasMultiplier` are what denominate the play key's gas in
-				// MOVES, and a second copy of either is a number that can drift into
-				// telling the player they have more turns than they do.
-				...config.chains[31337].properties,
-				// A block exists only where a transaction happened, so a "block time"
-				// here measures how long the player thought about their move. One
-				// second is the honest floor to give anything that polls, and under
-				// the manual policy nothing reads it for a deadline.
-				averageBlockTimeMs: 1000,
-				// ZERO CONFIRMATIONS, and it is the honest number rather than a
-				// workaround. Under automine a block exists only where a transaction
-				// happened, so the NEWEST transaction is always in the latest block
-				// and a confirmation above it never arrives: the operations ledger
-				// would hold every move as `final: false` forever. Confirmations buy
-				// protection from a REORG, and a chain in one tab has no competing
-				// producer to reorg it.
-				finality: 0,
-			},
-		},
+		chain: OFFLINE_CHAIN,
 		rocketh: {config, extensions},
 		environment: OFFLINE_DEPLOYMENT.environment,
 		scripts: [...OFFLINE_DEPLOYMENT.scripts],
@@ -861,6 +1087,43 @@ async function openWorld(
 		persistence: worldNode.persistence,
 		deploymentStore,
 		provision: (params) => provisionOfflinePlayer({...params, chainId, table}),
+	});
+}
+
+/**
+ * Boot a DEMO PRESET's world (`$lib/offline-presets`): the offline deployment on
+ * the tight spawn grid, NEVER PERSISTED. No IndexedDB for the chain (its node
+ * runs in a Worker as the normal world's does, with nothing to save to) and no
+ * store for the deployment records, so there is no restore to check either:
+ * every build is a first boot, and disposing the node is the end of it.
+ *
+ * The people's wallet derives from a FIXED mnemonic, so the preset gives the
+ * same accounts, and the same army ids, every time.
+ */
+async function openPresetWorld(
+	chainId: number,
+	table: Table,
+): Promise<EmbeddedWorld> {
+	status.set({step: 'Booting', what: 'starting a chain in this tab'});
+	const worldNode = offlineWorldNode({db: undefined});
+	return createEmbeddedWorld({
+		chainId,
+		chain: OFFLINE_CHAIN,
+		rocketh: {config, extensions},
+		environment: OFFLINE_DEPLOYMENT.environment,
+		scripts: [...OFFLINE_DEPLOYMENT.scripts],
+		data: {...PRESET_DEPLOYMENT_DATA},
+		accounts: {...OFFLINE_DEPLOYMENT.accounts},
+		initialBalances: {...OFFLINE_DEPLOYMENT.initialBalances},
+		createNode: worldNode.createNode,
+		persistence: worldNode.persistence,
+		provision: (params) =>
+			provisionOfflinePlayer({
+				...params,
+				chainId,
+				table,
+				mnemonic: PRESET_MNEMONIC,
+			}),
 	});
 }
 
@@ -923,6 +1186,8 @@ async function provisionOfflinePlayer(params: {
 	node: {provider: {request: (args: never) => Promise<unknown>}};
 	chainId: number;
 	table: Table;
+	/** A fixed mnemonic for the world's wallet (a demo preset's). */
+	mnemonic?: string;
 }) {
 	const {env, node, table} = params;
 
@@ -933,6 +1198,7 @@ async function provisionOfflinePlayer(params: {
 		chainId: params.chainId,
 		// One account per person at this device (hotseat), in seat order.
 		accounts: humans.length,
+		...(params.mnemonic !== undefined ? {mnemonic: params.mnemonic} : {}),
 	});
 	announced = wallet.cleanup;
 	announcedWallet = wallet;

@@ -99,6 +99,12 @@ export async function announceEmbeddedWallet(params: {
 	 * that follows the selection rather than asking (`useCurrentAccount`).
 	 */
 	accounts?: number;
+	/**
+	 * A FIXED mnemonic, for a world that must give the same accounts every time
+	 * it is built (a scripted demo position, whose army ids are derived from
+	 * its accounts). Omitted, the wallet keeps the one it saved, or makes one.
+	 */
+	mnemonic?: string;
 }): Promise<EmbeddedWallet> {
 	const {provider, chainId} = params;
 	const accountCount = params.accounts ?? 1;
@@ -133,7 +139,11 @@ export async function announceEmbeddedWallet(params: {
 	// A fresh browser has no mnemonic, and a wallet with no accounts cannot be
 	// chosen. `get()` first so a returning player keeps the account their saved
 	// chain knows about.
-	if (!walletManager.get().mnemonic) {
+	if (params.mnemonic !== undefined) {
+		if (walletManager.get().mnemonic !== params.mnemonic) {
+			walletManager.importMnemonic(params.mnemonic);
+		}
+	} else if (!walletManager.get().mnemonic) {
 		walletManager.createNew();
 	}
 

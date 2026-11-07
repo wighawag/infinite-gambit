@@ -228,6 +228,10 @@ _Avoid_: ban, lock, penalty
 A square a piece of another army may legally move onto this cycle, judged on the board the cycle started with: a piece standing there can be captured, and one arriving there collides. Because every army moves at once this is not chess's attacked square: a pawn steps one square every way and captures on all four of its diagonals, so an enemy pawn's four steps onto empty squares are attacked and its diagonals only where a piece stands to be captured (onto an empty square that pawn may not move this cycle). A frozen army and a stone attack nothing, since neither moves again. The client works it out only by running the contract's `legalMoves` over the enemy's pieces, one piece at a time on the start-of-cycle board (`web/src/lib/chess/attacked.ts`). So the overlay UNDERSTATES what an army of several piece-moves reaches: an enemy rook may slide through a square its own piece leaves in the same move, and the overlay does not mark the squares beyond.
 _Avoid_: threatened, controlled, in check
 
+**Demo preset**:
+A named starting position for the offline world (`/offline?preset=<id>`, `web/src/lib/offline-presets.ts`): armies deployed on chosen spawn points of the tight grid (spacing 6) and a few setup cycles played through the real contract, so one rule is a single move away when the board first shows. A preset world is its own fresh chain, never persisted, and never touches the player's own offline world. It exists for recording demos; nothing about it is a rule.
+_Avoid_: scenario, fixture, cheat
+
 ## The work/ contract
 
 Planning lives in `work/` on `main` (this is a final game, not a template, so there is no orphan `work` branch). The reference docs are in `work/protocol/`, copied by dorfl's `setup` and re-synced by `dorfl sync`: never edit them here. Status is the folder an item is in. `work/specs/` holds product intent, `work/tasks/` the build board, `work/notes/{ideas,observations,findings}` captured signals (findings are external ground truth, each with a `source:`), and `work/questions/` what needs a human. `docs/adr/` records what we decided and why.

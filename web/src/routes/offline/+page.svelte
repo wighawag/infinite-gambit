@@ -38,7 +38,15 @@
 	import DefaultHead from '../../lib/metadata/DefaultHead.svelte';
 	import Context from '$lib/context/Context.svelte';
 	import {Spinner} from '$lib/shadcn/ui/spinner';
-	import {offlineWorld} from '$lib/offline';
+	import {
+		offlinePreset,
+		offlineWorld,
+		restartPresetWorld,
+		startPresetWorld,
+	} from '$lib/offline';
+	import {OFFLINE_PRESETS, presetById} from '$lib/offline-presets';
+	import PresetHint from '$lib/ui/offline-world/PresetHint.svelte';
+	import {page} from '$app/state';
 	import {SEAT_CHOICES} from '$lib/game/lobby/seats';
 	import {
 		THE_KEY_THIS_BROWSER_PLAYS_WITH,
@@ -57,7 +65,11 @@
 	import {offlineWorldExits, tryTheWorldAgain} from '$lib/offline-exits';
 
 	onMount(() => {
-		void offlineLobby.enter();
+		// A DEMO PRESET is asked for by the URL (`?preset=<id>`) and is its own
+		// world, never the one the lobby would restore (`$lib/offline`).
+		const chosen = presetById(page.url.searchParams.get('preset'));
+		if (chosen) void startPresetWorld(chosen);
+		else void offlineLobby.enter();
 	});
 
 	/** A level's label, for the seat list: presentational only. */
@@ -72,7 +84,7 @@
      not render: unmounting it is what stops its context and its seats before the
      world is let go of. The rule is `$lib/embedded/claim`'s and the lobby takes
      the claim (`$lib/offline-lobby`); this renders the answer. -->
-{#if $offlineWorldClaim.step === 'Refused' || $offlineWorldClaim.step === 'Waiting' || $offlineWorldClaim.step === 'LettingGo'}
+{#if $offlinePreset === undefined && ($offlineWorldClaim.step === 'Refused' || $offlineWorldClaim.step === 'Waiting' || $offlineWorldClaim.step === 'LettingGo')}
 	<WorldInAnotherTab
 		claim={offlineWorldClaim}
 		onTakeOver={() => void takeTheWorldOver()}
@@ -124,7 +136,22 @@
 		     the file for what is deliberately not in it. -->
 		<InWorld />
 	</Context>
-{:else if $offlineLobby.step === 'Choosing'}
+	{#if $offlinePreset}
+		<!-- A DEMO PRESET'S HINT AND RESTART, which exist only in a preset world. -->
+		<PresetHint
+			preset={$offlinePreset}
+			onRestart={() => void restartPresetWorld()}
+			leave={route('/offline/')}
+		/>
+	{/if}
+{:else if $offlinePreset && $offlineWorld.step === 'Failed'}
+	<OfflineWorldFailed
+		error={$offlineWorld.error}
+		exits={{tryAgain: true, leaveTheTable: false, seats: undefined}}
+		onTryAgain={() => void restartPresetWorld()}
+		onLeave={() => {}}
+	/>
+{:else if $offlinePreset === undefined && $offlineLobby.step === 'Choosing'}
 	<!-- THE CHOICE, AND IT IS THE ONLY ONE. A seat has an occupant, and today an
 	     occupant is you or the world; how many there are is the whole of what a
 	     player decides here. Which is why this renders a count and a table and
@@ -211,6 +238,27 @@
 		<p class="mx-auto mt-4 max-w-md text-xs text-muted-foreground">
 			{THE_KEY_THIS_BROWSER_PLAYS_WITH}
 		</p>
+		<!-- DEMO PRESETS: scripted positions, each a fresh world of its own that
+		     never touches the one above (`$lib/offline-presets`). A full load, so
+		     the preset world starts in a tab with nothing else booted. -->
+		<p class="mt-10 text-sm font-medium">Demo presets</p>
+		<ul class="mx-auto mt-2 flex max-w-md flex-col gap-2 text-left">
+			{#each OFFLINE_PRESETS as preset (preset.id)}
+				<li>
+					<a
+						class="block rounded-md border border-muted-foreground/30 px-3 py-2 hover:bg-muted"
+						href={`${route('/offline/')}?preset=${preset.id}`}
+						data-sveltekit-reload
+						data-testid={`preset-${preset.id}`}
+					>
+						<span class="text-sm font-medium">{preset.name}</span>
+						<span class="block text-xs text-muted-foreground"
+							>{preset.summary}</span
+						>
+					</a>
+				</li>
+			{/each}
+		</ul>
 	</div>
 {:else if $offlineWorld.step === 'Failed'}
 	<!-- A FAILED BOOT OFFERS THE WAYS OUT: trying the same world again, and

@@ -237,6 +237,7 @@
 					size="sm"
 					class="mt-2"
 					disabled={$hud.exitPayout.busy}
+					data-testid="exit-payout"
 					onclick={() => exitPayout.claim($hud.exitPayout!.army)}
 				>
 					{$hud.exitPayout.actionLabel}
