@@ -219,7 +219,7 @@ describe('highlights', () => {
 		]);
 	});
 
-	it('show attacked squares only around your king, on your destinations and on every planned target', () => {
+	it('border attacked squares around your king, on your destinations and on every planned target', () => {
 		const view = viewOf({
 			kings: [
 				{
@@ -252,6 +252,37 @@ describe('highlights', () => {
 		// Every planned piece-move is handed to the overlay, each with its place.
 		expect(overlayModel(view).planned.map((move) => move.index)).toEqual([
 			0, 1,
+		]);
+	});
+
+	it('border the attacked squares your own pieces stand on, and wash in every attacked square', () => {
+		const mine = piece(4, 4, ME, PIECE_KIND.Pawn);
+		const theirs = piece(6, 6, THEM, PIECE_KIND.Pawn);
+		const view = viewOf({
+			pieces: new Map([
+				[mine.position, mine],
+				[theirs.position, theirs],
+			]),
+			kings: [
+				{
+					army: ME,
+					position2d: {x: 0, y: 0},
+					stake: 1n,
+					stakeLabel: '1',
+					frozen: false,
+				},
+			],
+			attacked: [
+				{x: 4, y: 4},
+				{x: 6, y: 6},
+				{x: 9, y: 9},
+			],
+		});
+		expect(attackedThatMatter(view)).toEqual([{x: 4, y: 4}]);
+		expect(overlayModel(view).threatened).toEqual([
+			{x: 4, y: 4},
+			{x: 6, y: 6},
+			{x: 9, y: 9},
 		]);
 	});
 

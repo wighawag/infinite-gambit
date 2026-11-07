@@ -116,7 +116,9 @@ async function world(policy: CyclePolicy = CYCLE_POLICY.Timed) {
 	const [alice, bob, carol, dave] = f.unnamedAccounts as `0x${string}`[];
 	const actionsPerReveal = 1;
 	const read = <T>(functionName: string, args: unknown[] = []) =>
-		f.env.read(f.Game, {functionName, args}) as Promise<T>;
+		// A generic helper over every getter, so the name and args are not
+		// typed against one function: the caller states the result type.
+		f.env.read(f.Game, {functionName, args} as any) as Promise<T>;
 
 	const w = {
 		...f,
@@ -473,7 +475,10 @@ describe('Deployment collisions', function () {
 		await expect(w.commit(w.alice, a, PASS)).toBeRejectedWith('NotInGame');
 	});
 
-	for (const path of ['acknowledgeMissedReveal', 'forfeitMissedReveal']) {
+	for (const path of [
+		'acknowledgeMissedReveal',
+		'forfeitMissedReveal',
+	] as const) {
 		it(`burns the stake of a deployment never revealed, settled by ${path}`, async function () {
 			const w = await world();
 			const a = await w.commitDeployment(w.alice, [0, 0]);

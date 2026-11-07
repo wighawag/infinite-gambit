@@ -66,7 +66,25 @@ import {artifacts} from '../../rocketh/environment.js';
  * so far above that nobody has re-measured in a long time.
  */
 
-const {provider, networkHelpers} = await network.connect();
+/**
+ * THE HARDFORK THE FIGURES ARE MEASURED UNDER, whatever the rest of the suite
+ * runs on, because the hardfork is part of what a transaction costs.
+ *
+ * Amsterdam carries EIP-8037, which moves the price of new state onto a cost
+ * per state byte: a storage slot written from zero is 64 bytes at 1,530 gas, so
+ * about 108,000 gas where it was 22,100, and a value sent to a fresh account
+ * pays 120 bytes (183,600) for creating it. Sepolia runs it: the first
+ * deployment commits made there (2026-11-07) ran out of gas at the 410,000 this
+ * suite had measured under the older pricing, where the same call estimates at
+ * 1,442,013. A chain still on the older pricing spends less than these figures
+ * and the figures are limits, so measuring under the dearer hardfork is the
+ * safe direction. Move this on when a later hardfork reprices storage again.
+ */
+const MEASURED_HARDFORK = 'amsterdam';
+
+const {provider, networkHelpers} = await network.connect({
+	override: {hardfork: MEASURED_HARDFORK},
+});
 const {deployAll} = setupFixtures(provider);
 
 const SECRET =
@@ -85,13 +103,18 @@ const GENEROSITY_CEILING = 3n;
  * some opcode differently from the one this runs on, and the contracts growing
  * a little between one re-measurement and the next.
  *
- * GAS USAGE IS OTHERWISE A PROPERTY OF THE CODE AND THE EVM REVISION RATHER
- * THAN OF THE CHAIN, which is why this is a margin and not a per-chain
- * measurement: `hardhat.config.ts` pins `evmVersion` on every profile, so the
- * same contracts cost the same gas wherever they run. What genuinely varies per
- * chain is the PRICE, and that is `expectedWorstGasPrice` in the chain
- * properties, which is already declared per chain and is what turns these
- * figures into money.
+ * GAS USAGE IS A PROPERTY OF THE CODE AND OF THE CHAIN'S HARDFORK, not of the
+ * compiler's `evmVersion` alone. This used to say the code and the EVM revision
+ * were all of it, since `hardhat.config.ts` pins `evmVersion` on every profile;
+ * that was wrong. The hardfork a chain runs sets the price of each opcode
+ * whatever the bytecode was compiled for, and Amsterdam (EIP-8037) roughly
+ * quintupled the price of a fresh storage slot. So the figures are measured
+ * under the dearest hardfork a target chain runs (`MEASURED_HARDFORK`), and
+ * this margin covers what the simulator may still price differently from that
+ * chain: the first commit paying a fresh payee measures about 4% under what
+ * Sepolia estimates for the same call. What otherwise varies per chain is the
+ * PRICE, and that is `expectedWorstGasPrice` in the chain properties, which is
+ * already declared per chain and is what turns these figures into money.
  *
  * It is deliberately looser than the margin the figures actually carry (12% to
  * 28%). A tripwire set exactly at the current value fires on the first trivial

@@ -275,8 +275,8 @@
     "openSpawnPoints": "8",
     "actionsPerReveal": "3",
     "cyclePolicy": "2",
-    "commitGas": "410000",
-    "revealGas": "2100000",
+    "commitGas": "1930000",
+    "revealGas": "3380000",
     "expectedActionsPerTurn": "1"
   },
   "transaction": {

@@ -373,6 +373,7 @@ export function createChessPixiRenderer(params: {
 					overlays?.set({
 						spawns: [],
 						destinations: [],
+						threatened: [],
 						attacked: [],
 						planned: [],
 						outcomes: [],
