@@ -2,7 +2,7 @@
 	"name": "Infinite Gambit",
 	"title": "Infinite Gambit",
 	"description": "Simultaneous chess on an infinite onchain board. Stake an army, capture kings, betray your allies.",
-	"canonicalURL": "http://localhost:8080",
+	"canonicalURL": "https://infinite-gambit.netlify.app",
 	"repoURL": "https://github.com/wighawag/infinite-gambit",
 	"communityURL": "",
 	"ENSName": null,
