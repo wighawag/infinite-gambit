@@ -59,8 +59,12 @@ export function createSpawnGhosts(params: {
 					known.set(spawnPoint, pieces.map(pieceOf));
 					fresh++;
 				} catch {
-					// asked again the next time the board lists it
-					asked.delete(spawnPoint);
+					// The sandbox itself is likely down (it retries its own start on
+					// each call): stop here rather than fail once per spawn point,
+					// and ask all of them again the next time the board is read.
+					for (const point of [spawnPoint, ...queue]) asked.delete(point);
+					queue = [];
+					break;
 				}
 				if (fresh >= PUBLISH_EVERY) {
 					fresh = 0;

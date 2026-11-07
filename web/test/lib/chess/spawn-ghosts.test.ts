@@ -12,6 +12,10 @@ import {
 	type SimulateDeployment,
 } from '$lib/chess/spawn-ghosts';
 import {
+	BREATH_LOW,
+	BREATH_MS,
+	breath,
+	lookOf,
 	HOVERED_GHOST_ALPHA,
 	OPEN_GHOST_ALPHA,
 	overlayModel,
@@ -78,6 +82,43 @@ describe('the ghost armies of the open spawn points', () => {
 		expect(calls).toEqual([A, A]);
 		expect(get(ghosts).has(A)).toBe(true);
 		stop();
+	});
+
+	it('stop at the first failure rather than fail once per spawn point', async () => {
+		const board = writable(boardOf([A, B]));
+		const fail = new Set([A, B]);
+		const {calls, simulate} = fakeSimulate(fail);
+		const ghosts = createSpawnGhosts({board, simulate});
+		const stop = ghosts.subscribe(() => {});
+		await settle();
+		expect(calls).toEqual([A]);
+		fail.clear();
+		board.set(boardOf([A, B]));
+		await settle();
+		expect(calls).toEqual([A, A, B]);
+		expect(get(ghosts).size).toBe(2);
+		stop();
+	});
+
+	it('breathe when open and bob when hovered, never both', () => {
+		const king = {
+			position: A,
+			army: 0n,
+			kind: PIECE_KIND.King,
+			position2d: {x: 0, y: 0},
+		};
+		const view = {you: 9n};
+		const open = lookOf(king, view, 'open', {x: 0, y: 0})!;
+		const lit = lookOf(king, view, 'hovered', {x: 0, y: 0})!;
+		expect(open.breathe).toBeDefined();
+		expect(open.bob).toBeUndefined();
+		expect(lit.bob).toBe(true);
+		expect(lit.breathe).toBeUndefined();
+		for (let t = 0; t < BREATH_MS; t += 97) {
+			const b = breath(t, 0.3);
+			expect(b).toBeGreaterThanOrEqual(BREATH_LOW - 1e-9);
+			expect(b).toBeLessThanOrEqual(1 + 1e-9);
+		}
 	});
 
 	it('are drawn faint, the hovered one as the player\u2019s own, the planned one only once', async () => {

@@ -157,4 +157,11 @@ describe('connectSurfaceInput', () => {
 		});
 		expect(hovers).toEqual([]);
 	});
+
+	it('says again what the mouse points at when the board moves under it', () => {
+		const {element, cameraControl, hovers} = mount();
+		pointer(element, 'pointermove', {x: 400, y: 300, buttons: 0});
+		cameraControl.move(2, 0);
+		expect(hovers.at(-1)!.x).toBeCloseTo(2, 9);
+	});
 });

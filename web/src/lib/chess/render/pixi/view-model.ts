@@ -194,7 +194,9 @@ export function lookOf(
 			glow: hovered ? 0.6 : 0,
 			alpha: hovered ? HOVERED_GHOST_ALPHA : OPEN_GHOST_ALPHA,
 			stone: false,
-			...(hovered ? {bob: true} : {breathe: breathPhase(spawnAt ?? {x, y})}),
+			...(hovered
+				? {bob: true}
+				: {breathe: breathPhase(spawnAt ?? {x: 0, y: 0})}),
 		};
 	}
 	const mine = ghost || piece.army === view.you;
@@ -256,11 +258,12 @@ export function pieceLooks(view: BoardView): Map<string, PieceLook> {
 	}
 	// each open spawn point's ghost army, keyed by its spawn point as well:
 	// two footprints may overlap
+	const spawnAt = new Map(
+		view.spawnPoints.map((point) => [point.spawnPoint, point.position]),
+	);
 	for (const [spawnPoint, pieces] of view.spawnGhosts ?? []) {
 		const ghost = spawnPoint === view.hovered ? 'hovered' : 'open';
-		const at = view.spawnPoints.find(
-			(point) => point.spawnPoint === spawnPoint,
-		)?.position;
+		const at = spawnAt.get(spawnPoint);
 		for (const piece of pieces) {
 			const look = lookOf(piece, view, ghost, at);
 			if (look) looks.set(`s:${spawnPoint}:${piece.position}`, look);

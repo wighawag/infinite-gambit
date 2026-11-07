@@ -56,7 +56,8 @@ export function connectSurfaceInput(params: {
 	// The rect is cached for the reason `attachGestures` caches its own (a
 	// forced layout per mouse move otherwise), and dropped whenever the pointer
 	// leaves or the surface is resized.
-	let hovering = false;
+	/** Where the mouse hovers, in surface pixels; none when it does not. */
+	let hoverAt: {x: number; y: number} | undefined;
 	let hoverRect: DOMRect | undefined;
 	function onHoverMove(event: PointerEvent) {
 		if (event.pointerType === 'touch' || event.buttons !== 0) {
@@ -64,21 +65,20 @@ export function connectSurfaceInput(params: {
 			return;
 		}
 		const rect = (hoverRect ??= element.getBoundingClientRect());
-		hovering = true;
-		eventEmitter.emit(
-			'hovered',
-			cameraControl.toWorld({
-				x: event.clientX - rect.left,
-				y: event.clientY - rect.top,
-			}),
-		);
+		hoverAt = {x: event.clientX - rect.left, y: event.clientY - rect.top};
+		eventEmitter.emit('hovered', cameraControl.toWorld(hoverAt));
 	}
 	function onHoverLeave() {
 		hoverRect = undefined;
-		if (!hovering) return;
-		hovering = false;
+		if (!hoverAt) return;
+		hoverAt = undefined;
 		eventEmitter.emit('hovered', undefined);
 	}
+	// The board moves under a still mouse too (a wheel zoom, a key pan, the
+	// camera following an army): say again what it points at now.
+	const stopHoverFollow = cameraControl.transform.subscribe(() => {
+		if (hoverAt) eventEmitter.emit('hovered', cameraControl.toWorld(hoverAt));
+	});
 	element.addEventListener('pointermove', onHoverMove);
 	element.addEventListener('pointerleave', onHoverLeave);
 
@@ -99,6 +99,7 @@ export function connectSurfaceInput(params: {
 			detachGestures();
 			element.removeEventListener('pointermove', onHoverMove);
 			element.removeEventListener('pointerleave', onHoverLeave);
+			stopHoverFollow();
 		},
 	};
 }

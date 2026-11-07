@@ -255,11 +255,12 @@ export function createChessBoardRenderer(params: {
 			// Each open spawn point's ghost army, barely there; the one under the
 			// mouse as the player's own, half-way to a planned one.
 			// The open ones breathe, in a wave across the grid (`breath`).
+			const spawnAt = new Map(
+				view.spawnPoints.map((point) => [point.spawnPoint, point.position]),
+			);
 			for (const [spawnPoint, pieces] of view.spawnGhosts ?? []) {
 				const hovered = spawnPoint === view.hovered;
-				const at = view.spawnPoints.find(
-					(point) => point.spawnPoint === spawnPoint,
-				)?.position;
+				const at = spawnAt.get(spawnPoint);
 				const alpha = hovered
 					? 0.3
 					: 0.26 * breath(frame.timeMs, breathPhase(at ?? {x: 0, y: 0}));
