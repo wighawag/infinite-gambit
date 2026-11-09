@@ -223,8 +223,10 @@ export const config = {
 	// player makes more moves than their credits say.
 	chains: {
 		// A LAN box (github:wighawag/ethereum-lan-node): its dev chain, which no
-		// public chain list knows. nix/lan.nix deploys for it at build time, as
-		// the `lan` environment (contracts/scripts/deploy-lan-build.ts).
+		// public chain list knows. Its LAN package (ethereum-lan-node's
+		// lib.mkRockethGame, see flake.nix) deploys for it at build time, as the
+		// `lan` environment, and describes it in the export even without this
+		// entry; it is here for the properties below, which the export keeps.
 		19216801: {
 			info: {
 				id: 19216801,

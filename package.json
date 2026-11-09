@@ -4,6 +4,9 @@
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
+  "lan": {
+    "pnpmDepsHash": "sha256-tYmrL+pnngxeH8QaIvChpqQK1w9phSx/sMALAgqhHC0="
+  },
   "packageManager": "pnpm@10.28.1",
   "devDependencies": {
     "chess-battleground-contracts": "workspace:*",
