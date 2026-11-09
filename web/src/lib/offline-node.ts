@@ -12,7 +12,7 @@ import type {OfflineNodeOptions} from './offline-node-host.js';
  * Plugged in through the embedded node's `createNode` seam, which exists for
  * exactly this, so `$lib/embedded` does not know a Worker is involved. Outside
  * a browser (unit tests, SSR) there is no `Worker` and the node stays on this
- * thread, as the rule sandbox's does (`$lib/game/simulation/sandbox.ts`).
+ * thread, so the unit tests run the world exactly as before.
  *
  * ONE CHOICE PER NODE: the restore probe and the world's node each take their
  * own, so each can be waited on to be gone ({@link OfflineNodeChoice.released}).
@@ -37,7 +37,7 @@ export type WorkerLike = Endpoint & {terminate(): void};
 export function offlineWorldNode(params: {
 	/**
 	 * The IndexedDB database the chain persists in. `undefined` for a chain that
-	 * is never persisted (a demo preset's), which lives as long as its node.
+	 * is never persisted, which lives as long as its node.
 	 */
 	db: string | undefined;
 	/** Defaults to a Worker running `./offline-node-worker.ts`, when `Worker` exists. */
