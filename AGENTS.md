@@ -1,6 +1,6 @@
 # chess-battleground
 
-An onchain infinite-board chess game built on a commit-reveal foundation. This repo is a FINAL GAME, not a template: nothing descends from it. It was generated from `template-commit-reveal` (see `.offshoot.json`) and may still take updates from it, which is the only reason some sections below talk about upstream.
+An onchain infinite-board chess game built on a commit-reveal foundation. This repo is a FINAL GAME, not a template: nothing descends from it. It was generated from `template-commit-reveal@with/fuzd-pixi-indexer` and still takes updates from it as a node of the `offshoot-fanout` cascade (the `stem` remote, and `fanout.config.json` on the `offshoot` branch), which is the only reason some sections below talk about upstream.
 
 Start with `CONTEXT.md` (the words), then `work/specs/` (what we are building) and `docs/adr/` (why it is built that way).
 
@@ -70,7 +70,7 @@ If reality contradicts a spec or an ADR, change the document in the same commit 
 
 # Taking an update from upstream
 
-Only relevant when merging a new version of `template-commit-reveal` into this repo.
+Only relevant when merging a new version of `template-commit-reveal` into this repo. Updates come as ordinary merges from the `stem` remote (`offshoot-fanout`), not through `offshoot update`: the histories were joined once (`e0f35b5e`), and offshoot's `template` branch and `.offshoot.json` are gone. offshoot's rename to `chess-battleground` is therefore not re-applied: a template hunk that names `template-commit-reveal` arrives as such, or conflicts.
 
 - **Run `node scripts/check-dangling-imports.mjs`** (it is also the first step of `verify`). A hunk that merges cleanly can still import a file this repo deleted, most often the template's reference game (`$lib/placement`) once chess replaces it. `scripts/apply-omissions.sh` runs it for you when resolving modify/delete conflicts.
 - **List every template file this game deliberately deletes in `.offshoot-omissions`, with a reason**, so the next merge's modify/delete conflict is a lookup rather than an investigation.
