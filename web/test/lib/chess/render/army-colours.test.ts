@@ -53,11 +53,7 @@ describe('army colours', () => {
 	it("never change an army's colour when later armies arrive", () => {
 		const first = [army(5n, 0, 0), army(14n, 4, 4), army(23n, 8, 8)];
 		const before = armyColoursOf(first);
-		const after = armyColoursOf([
-			...first,
-			army(32n, 2, 2),
-			army(41n, 6, 6),
-		]);
+		const after = armyColoursOf([...first, army(32n, 2, 2), army(41n, 6, 6)]);
 		for (const {id} of first) expect(after.get(id)).toBe(before.get(id));
 	});
 

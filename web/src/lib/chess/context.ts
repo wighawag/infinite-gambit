@@ -42,6 +42,7 @@ import {
 	createFuzdScheduler,
 	createScheduledReveal,
 	fuzdSettings,
+	LOCAL_CHAIN_ID,
 	revealModeFor,
 	revealOnScheduleFailure,
 	scheduledTurn,
@@ -278,6 +279,10 @@ export function createGameContext(core: CoreServices): GameContext {
 
 	// `.get()`: deployments are fixed for the life of the app.
 	const deployments = core.deployments.get();
+	// WIDENED to a number: the generated `deployments.ts` types the id as the
+	// literal of whichever chain it was exported for, so comparing it with
+	// another chain's id fails the type check on every other export.
+	const chainId: number = deployments.chain.id;
 	const config = resolveChessConfig(deployments);
 	const contract = gameContract(deployments);
 
@@ -672,7 +677,7 @@ export function createGameContext(core: CoreServices): GameContext {
 		}),
 		cycleInfo: crg.game.cycleInfo,
 		endpoint: fuzdEndpoint,
-		intervalMs: deployments.chain.id === 31337 ? 1_000 : 5_000,
+		intervalMs: chainId === LOCAL_CHAIN_ID ? 1_000 : 5_000,
 	});
 
 	// THE CAMERA FOLLOWS THE ARMY, and the minimap sends it elsewhere: both read
