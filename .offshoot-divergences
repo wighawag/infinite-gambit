@@ -1,0 +1,104 @@
+# The stem's files this repo carries MODIFIED, each with the reason it differs.
+#
+# WHAT THIS IS FOR. `.offshoot-omissions` lists what this repo does not carry
+# from its stem (template-commit-reveal `with/fuzd-pixi-indexer`); this lists
+# what it carries and changes. Everything else in the tree is either the stem's
+# byte for byte or this repo's own, so `git diff stem/with/fuzd-pixi-indexer
+# main` reads as: the additions (chess), the omissions (listed there) and these.
+# A modified file is a conflict on every cascade that touches it, so each one
+# here is a cost paid on purpose, and the reason says what it buys.
+#
+# AND IT IS CHECKED. `web/test/offshoot-divergences.test.ts` fails when a file
+# differs from the stem commit last merged and is not listed here, and when a
+# listed file no longer differs. `scripts/check-stem-drift.mjs` (run by
+# `scripts/apply-omissions.sh` during a merge) is the other half: a modified
+# file whose content is the stem's own older version, which a merge resolved
+# "ours" leaves behind, is drift rather than a divergence, and does not belong
+# here. Written at step I1 of jolly-roger's docs/plans/template-tree-features.md
+# (2026-11-17), modelled on stratagems' list and test; the check moves to the
+# tree's root at that plan's step V1.
+#
+# FORMAT. One file per line: its path, then its reason. `#` starts a comment.
+
+# The repo's identity and its documents
+README.md                                 the game's README: its rules, how to run it, its Sepolia addresses (the template's is README.template.md)
+AGENTS.md                                 chess's own: the game's rules, words, commit-reveal rules and how it takes an update from the stem
+CONTEXT.md                                the framework's glossary with this game's section (army, move, spawn point, capture, stone, ...)
+.offshoot-omissions                       chess's own omissions: the reference game and what chess replaces it with
+web/src/web-config.json                   the brand: Infinite Gambit's name, description and canonical URL
+web/static/icon.svg                       the brand: Infinite Gambit's icon
+web/static/preview.png                    the brand: Infinite Gambit's social preview
+web/src/app.css                           hides the badge Netlify injects over the bottom-right panel
+
+# The workspace and its configuration
+package.json                              chess-battleground's root: its name, pinnace for the IPFS pin, and its "lan" hash
+pnpm-lock.yaml                            the lockfile of this workspace's dependencies (pinnace among them)
+contracts/package.json                    chess-battleground-contracts: the package name and its license
+web/package.json                          chess-battleground-web: the package name, its license and the contracts package it depends on
+helper-services/fuzd/package.json         chess-battleground-fuzd: the package name and its license
+web/svelte.config.js                      the $app-specific alias names chess's game.ts, not the reference game's
+web/.env                                  PUBLIC_RENDERER, which board the play page draws (canvas or pixi)
+
+# The contracts: chess replaces the reference game's contract at the stem's paths
+contracts/hardhat.config.ts               an override compiling the vendored Router10X60 with its own settings (SOLC_PATH kept for the LAN build)
+contracts/.prettierignore                 also ignores src/vendor, vendored verbatim so a diff against upstream stays exact
+contracts/rocketh/config.ts               chess's deploy data: the stake, the spawn grid, the gas limits measured under Amsterdam
+contracts/deploy/001_deploy_token.ts      the GameToken has an owner, who names the minter once the sale exists
+contracts/deploy/010_deploy_game.ts       chess's routes (Registry, Table, DeploymentReveal, Exit, Simulation) on the vendored router
+contracts/deploy/020_deploy_stake_sale.ts the sale is named the token's minter, and keeps what it is paid (no admin recipient)
+contracts/deploy/030_deploy_lobby.ts      the lobby implementation with chess's routes, and the table rules on the factory
+contracts/src/game/interfaces/IGame.sol   chess's game interface: armies, moves, deployments, exits, tables
+contracts/src/game/interfaces/UsingGameErrors.sol chess's errors
+contracts/src/game/interfaces/UsingGameEvents.sol chess's events, a table's settlement among them
+contracts/src/game/interfaces/UsingGameTypes.sol chess's types: the army, the square, the piece, the config
+contracts/src/game/internal/UsingGameInternal.sol chess's rules: lazy resolution, captures, collisions, freezes, tables
+contracts/src/game/internal/UsingGameStore.sol chess's storage: the one-slot square record, armies and spawn points
+contracts/src/game/routes/GameCommit.sol  a commitment for an army, a deployment's stake included
+contracts/src/game/routes/GameGetters.sol chess's getters: armies, pieces, spawn points, a table's options
+contracts/src/game/routes/GameReveal.sol  a reveal of piece-moves for an army
+contracts/src/game/routes/GameSimulation.sol the rules run without a chain for the client: legal moves, whole moves of three piece-moves
+contracts/src/tokens/GameToken.sol        a token backed by ETH, redeemed by an exit
+contracts/src/tokens/StakeSale.sol        a seat at a table bought through the sale creates the seat's army
+contracts/test/js/CyclePolicy.test.ts     the cycle policies, played with armies on the lean-rules board
+contracts/test/js/GasBudget.test.ts       chess's gas budget: the worst move and deployment, measured under Amsterdam
+contracts/test/js/Lobby.test.ts           a table seats armies: each seat a new army on the table's grid, the MANUAL table played with passes
+contracts/test/js/Simulation.test.ts      the Simulation route's chess rules
+contracts/test/js/StakeSale.test.ts       the backed stake's sale and redemption
+contracts/test/js/utils/index.ts          chess's fixtures: armies, moves, reveals, the vendored router
+
+# The web app: the framework's seams this game needs and the stem does not have yet
+web/src/lib/game/identity.ts              who plays is an army, not the account: the identity seam's comment says so
+web/src/lib/game/core/commit-reveal-game.ts the optional hover seam a game highlights from (spawn ghosts)
+web/src/lib/game/render/events.ts         the hovered event the hover seam is fed by
+web/src/lib/game/render/input.ts          hover tracking beside the gestures
+web/src/lib/game/render/camera.ts         a zoom floor for a narrow surface's first frame (a phone)
+web/src/lib/game/render/view-transform.ts a floor on the scale, so the board's art never shows flat
+web/src/lib/embedded/wallet.ts            a fixed mnemonic, for a demo preset whose army ids derive from its accounts
+
+# The web app: chess's offline world and its pages
+web/src/lib/offline.ts                    the offline world's contracts, deploy and stake: a game's by design, at the stem's path (presets, a worker chain, pre-deployed seats, a table's seats as armies)
+web/src/lib/offline-players.ts            the world's seats play chess: they deploy armies, pass or ask the greedy bot, and never deploy at a table
+web/src/lib/offline-lobby.ts              the shorter key sentence of the mobile HUD
+web/src/lib/ui/offline-world/OfflineWorldBar.svelte the mobile HUD's brief copy
+web/src/lib/ui/offline-world/OfflineWorldFailed.svelte the mobile HUD's brief copy
+web/src/lib/ui/offline-world/OfflineWorldNavbar.svelte the mobile HUD's brief copy
+web/src/routes/+page.svelte               the game's home page: what infinite chess is and how its rules play
+web/src/routes/play/+page.svelte          the online game's page: chess's board and HUD
+web/src/routes/lobby/+page.svelte         a table's game options (its piece-moves) shown in its row
+web/src/routes/offline/+page.svelte       the offline setup with chess's copy and its demo presets, beside the stem's arrival and table choices
+
+# The tests of the framework, held against chess
+web/e2e/tests/offline.e2e.ts              the offline world played with armies, against the mobile HUD's copy
+web/e2e/tests/offline-hotseat.e2e.ts      hotseat played with armies, against the mobile HUD's copy
+web/e2e/tests/offline-one-tab.e2e.ts      the world bar's copy
+web/e2e/tests/offline-ai.e2e.ts           the setup's and the world bar's copy
+web/e2e/tests/offline-continue.e2e.ts     the world bar's copy
+web/test/lib/context/resume-on-gas.test.ts a submission of moves, not placements
+web/test/lib/context/setup-gate.test.ts   the setup gate for an army: a stake, a refund, a deployment
+web/test/lib/embedded/world.test.ts       the offline world deploys chess: armies, pre-deployed seats, a table's seats as armies
+web/test/lib/offline-players.test.ts      the world's seats played as chess armies, the greedy bot and a table's seats
+web/test/lib/game/render/camera.test.ts   the narrow first frame's zoom floor
+web/test/lib/game/render/canvas2d.svelte.test.ts the canvas host with chess's hover
+web/test/lib/game/render/input.svelte.test.ts the hover tracking
+web/test/lib/game/render/view-transform.test.ts the scale floor
+web/test/lib/ui/offline-world-failed.svelte.test.ts the mobile HUD's brief copy
