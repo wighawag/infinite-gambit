@@ -50,6 +50,9 @@ export const SETTLE_WINDOW_MS = 4000;
 /** No pairing across more squares than this: that is a pan, not a move. */
 export const MAX_PAIR_DISTANCE = 16;
 
+/** How long a piece takes to burn away (`./effects.ts` plays it). */
+export const BURN_MS = 900;
+
 /** Delay between two pieces of one army departing or arriving, per square. */
 export const STAGGER_MS = 60;
 
@@ -219,17 +222,25 @@ export function transitionBetween(
 			const at = exit ?? king;
 			if (at) out.exitBursts.push({at, delayMs: MOVE_MS});
 		}
+		// A captured army whose king is seen falling: the king burns when its
+		// captor lands, and the rest of the army only once the king is gone.
+		const kingFalls =
+			isDead &&
+			!leaving &&
+			king !== undefined &&
+			gone.some((p) => distance(p.position2d, king) === 0);
 		for (const piece of gone) {
 			const look = lookOf(piece, prev);
 			if (!look) continue;
 			const isKing =
 				king !== undefined && distance(piece.position2d, king) === 0;
 			const fromKing = king ? distance(piece.position2d, king) : 0;
+			const afterKing = kingFalls && !isKing ? BURN_MS : 0;
 			out.departures.push({
 				look,
 				style: leaving ? 'ascend' : 'burn',
 				// a captured piece burns when its captor arrives
-				delayMs: MOVE_MS + (isDead ? fromKing * STAGGER_MS : 0),
+				delayMs: MOVE_MS + afterKing + (isDead ? fromKing * STAGGER_MS : 0),
 				...(leaving && isKing && exit ? {to: exit} : {}),
 			});
 		}

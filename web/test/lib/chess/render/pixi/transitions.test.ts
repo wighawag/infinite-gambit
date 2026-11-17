@@ -9,6 +9,7 @@ import type {
 } from '$lib/chess/view';
 import {kingBadge} from '$lib/chess/render/eth-diamond';
 import {
+	BURN_MS,
 	createTransitionTracker,
 	MOVE_MS,
 	SETTLE_WINDOW_MS,
@@ -194,9 +195,46 @@ describe('departures', () => {
 		);
 		expect(t.departures.map((d) => [d.style, d.delayMs])).toEqual([
 			['burn', MOVE_MS],
-			['burn', MOVE_MS + 60],
-			['burn', MOVE_MS + 180],
+			['burn', MOVE_MS + BURN_MS + 60],
+			['burn', MOVE_MS + BURN_MS + 180],
 		]);
+	});
+
+	it('burns the rest of a captured army only once its captor has landed and its king has burned', () => {
+		const t = transitionBetween(
+			board([
+				[0, 0, A, K],
+				[1, 0, A, Pw],
+				[2, 1, A, N],
+				[4, 0, B, R],
+				[9, 9, B, K],
+			]),
+			board([
+				[0, 0, B, Q],
+				[9, 9, B, K],
+			]),
+			{eligible: true},
+		);
+		// the rook slides onto the king and lands as a queen
+		expect(t.moves.get(key(0, 0))).toEqual({x: 4, y: 0});
+		const delays = new Map(
+			t.departures.map((d) => [`${d.look.x},${d.look.y}`, d.delayMs]),
+		);
+		expect(delays.get('0,0')).toBe(MOVE_MS);
+		expect(delays.get('1,0')).toBe(MOVE_MS + BURN_MS + 60);
+		expect(delays.get('2,1')).toBe(MOVE_MS + BURN_MS + 120);
+	});
+
+	it('does not wait for a king that is not in view', () => {
+		const prev = board([
+			[1, 0, A, Pw],
+			[9, 9, B, K],
+		]);
+		prev.kings = [king(A, 0, 0), king(B, 9, 9)];
+		const t = transitionBetween(prev, board([[9, 9, B, K]]), {
+			eligible: false,
+		});
+		expect(t.departures.map((d) => d.delayMs)).toEqual([MOVE_MS + 60]);
 	});
 
 	it('leaves a king that became a stone where it stood', () => {

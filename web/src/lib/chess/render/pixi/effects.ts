@@ -13,10 +13,9 @@ import type {Position} from '../../squares';
 import {FOOT} from './piece-art';
 import type {PieceTextures} from './pieces';
 import type {PieceMode} from './squares';
-import {MOVE_MS, type Departure, type Transition} from './transitions';
+import {BURN_MS, MOVE_MS, type Departure, type Transition} from './transitions';
 import {cssColourToHex} from './view-model';
 
-const BURN_MS = 900;
 const ASCEND_MS = 1100;
 const BURST_MS = 1400;
 /** How long an arriving piece takes to settle into place. */
