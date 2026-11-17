@@ -73,7 +73,7 @@ const MINING = {type: 'auto'} as const;
  * several reads to describe ONE block pins them to a block it has just been told
  * is the head, and under automine the head moves whenever anybody sends anything:
  * a seat the world plays, the player's own commit. The polling state store
- * downstream does exactly that (chess-battleground's `onchain/state.ts`
+ * downstream does exactly that (template-commit-reveal's `onchain/state.ts`
  * reads the head, and its games pin each `readContract` batch to it), so this is
  * the mechanism's to answer, not each game's.
  *

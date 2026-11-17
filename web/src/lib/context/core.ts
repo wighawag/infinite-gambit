@@ -215,6 +215,13 @@ export type CoreServices = {
 	 */
 	table: `0x${string}` | undefined;
 	/**
+	 * HOW A TABLE'S MEMBERS ARE NAMED, when the world knows them better than
+	 * their identity does: an offline world names its seats as its lobby does
+	 * ("Player 2", "The world (Greedy)"). Undefined online, where a member is
+	 * shown by their identity.
+	 */
+	tableSeatLabels: ((player: bigint) => string | undefined) | undefined;
+	/**
 	 * WHO REVEALS FOR THIS WORLD'S PLAYERS, when the WORLD has someone: the local
 	 * revealer of a world with several people at one device (hotseat,
 	 * `$lib/game/core/local-revealer`). The skeleton uses it in place of the
@@ -230,7 +237,7 @@ export type CoreServices = {
  * SPREAD into the context literal as-is, which is the point: an app that adds
  * members of its own returns them here and never edits this file. Two
  * descendants already need that (`mandalas` adds a purchase flow,
- * `chess-battleground` adds the game and its renderer), and under the old
+ * `template-commit-reveal` adds the game and its renderer), and under the old
  * single-function context each of them had to insert into the middle of the
  * literal, which is where several of the recorded conflicts landed.
  *
@@ -1232,6 +1239,8 @@ export function createCoreContext<App extends AppContext>(params: {
 	establishConnection?: ConnectionFactory;
 	/** The table this context is at: see `CoreServices.table`. */
 	table?: `0x${string}`;
+	/** How its members are named: see `CoreServices.tableSeatLabels`. */
+	tableSeatLabels?: (player: bigint) => string | undefined;
 	/** Who reveals for this world's players: see `CoreServices.scheduler`. */
 	scheduler?: RevealScheduler<PlayerIdentity>;
 }): {
@@ -1582,6 +1591,7 @@ export function createCoreContext<App extends AppContext>(params: {
 		hasAppRpc,
 		appConfig,
 		table: params.table,
+		tableSeatLabels: params.tableSeatLabels,
 		scheduler: params.scheduler,
 	});
 	// `start` is lifecycle rather than context, so it is held back from the

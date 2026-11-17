@@ -12,7 +12,7 @@
  * THE INDEX IS `cycleNumber` AND THE INTERVAL IS THE `cycle`, and this formula
  * is why the distinction is worth a word: it puts an index and two durations in
  * one expression, and calling the index by the interval's name is what used to
- * make it readable as a timestamp. See ADR-0001 (chess-battleground
+ * make it readable as a timestamp. See ADR-0001 (template-commit-reveal
  * `work`).
  *
  * The `+ 2` is not arbitrary: the contract starts at cycle 2 so that the

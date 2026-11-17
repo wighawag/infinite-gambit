@@ -21,7 +21,11 @@ const moves = [{from: 1n, to: 2n}];
 
 for (const [where, abi] of [
 	['the world', records.contracts.Game.abi],
-	['a table', chessLobby.deploymentsAt(records, TABLE).contracts.Game.abi],
+	[
+		'a table',
+		chessLobby.deploymentsAt(records, {address: TABLE, openedAtBlock: 0})
+			.contracts.Game.abi,
+	],
 ] as const) {
 	describe(`the whole-move route, at ${where}`, () => {
 		it('encodes a whole move and decodes its verdict', () => {

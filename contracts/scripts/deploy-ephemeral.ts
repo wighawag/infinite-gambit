@@ -18,7 +18,7 @@
  *
  * INSTANT MINING AND AN AUTOMATIC GAS PRICE, forced here rather than taken from
  * a network in `hardhat.config.ts`, because the tree does not agree on one. The
- * `default` network mines instantly in jolly-roger, but chess-battleground
+ * `default` network mines instantly in jolly-roger, but template-commit-reveal
  * and the games below it give it one-second interval mining and
  * `gasPrice: 1n`, which is below the in-process chain's base fee: a deploy
  * there waits for a block that never takes its transaction. So this connects to

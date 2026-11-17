@@ -65,11 +65,15 @@ function scratch(list: string, files: string[]): string {
 
 	git(dir, ['init', '-q', '.']);
 	mkdirSync(join(dir, 'scripts'), {recursive: true});
-	for (const script of ['apply-omissions.sh', 'check-omissions.mjs']) {
+	for (const script of [
+		'apply-omissions.sh',
+		'check-omissions.mjs',
+		'check-stem-drift.mjs',
+	]) {
 		cpSync(join(ROOT, 'scripts', script), join(dir, 'scripts', script));
 	}
 	// A STUB FOR THE SIBLING CHECK, so this suite asserts the same thing in every
-	// repo in the tree. `chess-battleground` and `reveal-or-die` carry a
+	// repo in the tree. `template-commit-reveal` and `reveal-or-die` carry a
 	// variant of the script that also runs `check-dangling-imports.mjs` and gates
 	// its last line behind it; that check needs a real module graph and is not
 	// what is being tested here. Standing in for it keeps one suite rather than

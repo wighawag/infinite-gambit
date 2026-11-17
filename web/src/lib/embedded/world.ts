@@ -163,7 +163,7 @@ export type EmbeddedWallets = NonNullable<
  * something to say while it waits.
  *
  * MEASURED, in node: 4-12ms to boot the chain, 89-101ms to run a real deploy
- * (this template's, and chess-battleground's routed proxy with four routes
+ * (this template's, and template-commit-reveal's routed proxy with four routes
  * and a sale). At that cost either lifetime is affordable, so the lifetime is
  * decided by what a world IS rather than by what it costs: it is STATE, not a
  * view, so it is created once and outlives any route that shows it. Creating

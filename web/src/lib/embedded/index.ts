@@ -8,7 +8,7 @@
  * should.
  *
  * WHY THE MECHANISM IS HERE AND NOT IN THE ROUTE THAT DEMOS IT. A descendant of
- * this template deletes inherited demo routes (chess-battleground deleted
+ * this template deletes inherited demo routes (template-commit-reveal deleted
  * `routes/demo/` and takes the resulting `CONFLICT (modify/delete)` on every
  * merge), so anything world-building written inside a route is thrown away by
  * the repos that most want it. The route is the demo; this is the thing.

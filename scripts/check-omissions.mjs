@@ -16,7 +16,7 @@
  *
  * Because the absence of it was measured, on 2026-09-25, across every repo in
  * this template tree, and EVERY list in it was incomplete. On the `jolly-roger`
- * branch of the tree: jolly-roger listed 0 of 3, chess-battleground 0 of 17
+ * branch of the tree: jolly-roger listed 0 of 3, template-commit-reveal 0 of 17
  * (its file said "this template omits nothing"), reveal-or-die 4 of 52, bleeps 1
  * of 21, mandalas 2 of 24. On the `template-svelte-tailwind-blog` branch: two
  * repos dropping 2 and 6 paths with no list anywhere to record either. The cost

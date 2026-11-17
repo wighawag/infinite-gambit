@@ -6,6 +6,7 @@ import {
 	type SerialisedLoop,
 } from '$lib/game/core/played';
 import {playedSeatSecret} from '$lib/game/core/secret';
+import {LOBBY_ABI} from '$lib/game/lobby/table';
 import {
 	RANDOM_LEVEL,
 	decidePlayedTurn,
@@ -192,6 +193,29 @@ export function createOfflinePlayers(params: {
 	const publicClient = keys.publicClient;
 	const readCycle = createCycleReader({publicClient, contract: game});
 
+	/**
+	 * AT A TABLE (`$lib/game/lobby/table`) THE SEATS PLAY ITS LIFE AND NO MORE:
+	 * nothing is committed before its start (nobody is waited for yet) nor
+	 * after its last cycle (it has ended), where the contract refuses every
+	 * commitment and a pass would retry a revert for ever; what they committed
+	 * is still revealed, and a past commitment still settled. A table is a game
+	 * whose record has the lobby's routes (`getEnd`), which the world's has not.
+	 */
+	const atTable = (game.abi as readonly {type?: string; name?: string}[]).some(
+		(entry) => entry.type === 'function' && entry.name === 'getEnd',
+	);
+	async function commitsAllowed(cycleNumber: number): Promise<boolean> {
+		if (!atTable) return true;
+		const [, lastCycleNumber, ended] = (await publicClient.readContract({
+			address: game.address,
+			abi: LOBBY_ABI,
+			functionName: 'getEnd',
+		})) as readonly [bigint, bigint, boolean];
+		return (
+			lastCycleNumber !== 0n && !ended && BigInt(cycleNumber) <= lastCycleNumber
+		);
+	}
+
 	async function read<T>(functionName: string, args: unknown[]): Promise<T> {
 		return (await publicClient.readContract({
 			...game,
@@ -345,6 +369,9 @@ export function createOfflinePlayers(params: {
 		const secret = secretFor(identity, cycleNumber);
 		let actions: readonly Move[];
 		if (army === undefined) {
+			// AT A TABLE A SEAT IS THE ONE ARMY ITS STAKE CREATED: a table refuses
+			// an account deployment, so a seat whose army is gone plays no more.
+			if (atTable) return;
 			const deployment = await deploymentFor(player);
 			if (!deployment) return;
 			await fund(player, last);
@@ -468,7 +495,7 @@ export function createOfflinePlayers(params: {
 
 	async function act(
 		player: OfflinePlayer,
-		cycle: {cycleNumber: number; commiting: boolean},
+		cycle: {cycleNumber: number; commiting: boolean; mayCommit: boolean},
 	): Promise<void> {
 		const [rawArmies, next] = await Promise.all([
 			read<readonly Parameters<typeof armyViewOf>[0][]>('getArmiesOf', [
@@ -502,7 +529,9 @@ export function createOfflinePlayers(params: {
 
 		const onChain = await read<Commitment>('getCommitment', [identity]);
 		if (cycle.commiting) {
-			await commit(player, army, identity, last, cycle.cycleNumber, onChain);
+			if (cycle.mayCommit) {
+				await commit(player, army, identity, last, cycle.cycleNumber, onChain);
+			}
 		} else {
 			await reveal(player, army, identity, cycle.cycleNumber, onChain);
 		}
@@ -515,6 +544,9 @@ export function createOfflinePlayers(params: {
 			const at = {
 				cycleNumber: cycle.cycleNumber,
 				commiting: cycle.isCommitPhase,
+				mayCommit: cycle.isCommitPhase
+					? await commitsAllowed(cycle.cycleNumber)
+					: false,
 			};
 			// IN SEQUENCE: one chain in one worker, and a revert stops the pass
 			// rather than being one rejected promise among several.

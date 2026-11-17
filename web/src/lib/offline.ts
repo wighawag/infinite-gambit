@@ -1,4 +1,4 @@
-import {get, writable, type Readable} from 'svelte/store';
+import {get, readable, writable, type Readable} from 'svelte/store';
 import {
 	config,
 	extensions,
@@ -22,12 +22,21 @@ import {
 } from '$lib/embedded/wallet';
 import {offlineWorldNode} from '$lib/offline-node';
 import {createIndexedDBDeploymentStore} from '@rocketh/web';
-import {createContext} from '$lib/context/index';
+import {createContext, lobby as gameLobby} from '$lib/context/index';
 import type {Context} from '$lib/context/types';
 import {createOfflinePlayers, type OfflinePlayer} from '$lib/offline-players';
 import {createPublicClient, createWalletClient, custom} from 'viem';
 import {deployEverySeat, humanBootSeat} from '$lib/offline-boot';
 import {createPlayedTurnStore, type AiLevel} from '$lib/game/core/strategy';
+import {embeddedConnectionFactory} from '$lib/embedded/world';
+import type {DeploymentsStore} from '$lib/deployments-store';
+import type {TableChoice} from '$lib/game/lobby/lobby';
+import type {ResolvedTable} from '$lib/game/lobby/table';
+import {
+	offlineSeatLabels,
+	offlineTableCreator,
+	seatTheOfflineTable,
+} from '$lib/game/lobby/offline-table';
 import {
 	createBytecodeSandbox,
 	type BytecodeSandbox,
@@ -166,6 +175,14 @@ const ADMIN_ADDRESS = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' as const;
  */
 export const CHAIN_ID_STORAGE_KEY = 'offline-world:chain-id';
 /**
+ * Where the address of the world's TABLE is kept, when the world is a table
+ * (`$lib/game/lobby/offline-table`): written as soon as it is created, checked
+ * against the chain on every boot after, and forgotten with the world by the
+ * lobby, which reads this key off this module. A WIRE from its first build.
+ */
+export const TABLE_STORAGE_KEY = 'offline-world:table';
+
+/**
  * HOTSEAT: how many people at this device this world can play, each their own
  * account in the world's wallet, passing the device between them
  * (`$lib/game/lobby/hotseat`). Every seat may be one. Read by the
@@ -218,9 +235,8 @@ export const OFFLINE_DEPLOYMENT = {
 		{id: '001_deploy_token', module: deployToken},
 		{id: '010_deploy_game', module: deployGame},
 		{id: '020_deploy_stake_sale', module: deployStakeSale},
-		// Tables are an online thing, and an offline world deploys their factory
-		// anyway: the app's records name it, and a world is refused unless it
-		// deploys everything they name.
+		// THE TABLES, which an offline world plays too (`startOfflineTable`):
+		// the factory and the lobby implementation every table is a clone of.
 		{id: '030_deploy_lobby', module: deployLobby},
 	],
 	/**
@@ -245,7 +261,15 @@ export const OFFLINE_DEPLOYMENT = {
 			// gas budget is measured at exactly this K (`GasBudget.test.ts`).
 			openSpawnPoints: OFFLINE_OPEN_SPAWN_POINTS,
 		},
-		Lobby: config.data.Lobby.default,
+		// A TABLE RUNS THE WORLD'S CLOCK HERE, for the world's reason (point 1
+		// on this module): the Manual cycle with both durations zero, every
+		// phase closed by its members. Everything else is the lobby's own.
+		Lobby: {
+			...config.data.Lobby.default,
+			cyclePolicy: CYCLE_POLICY.Manual,
+			commitPhaseDuration: 0n,
+			revealPhaseDuration: 0n,
+		},
 	},
 	accounts: {deployer: DEPLOYER, admin: ADMIN},
 	initialBalances: {
@@ -308,8 +332,35 @@ export function startOfflineWorld(params: {
 	 */
 	table: Table;
 }): Promise<OfflineWorldStatus> {
+	return boot(params.table, undefined);
+}
+
+/**
+ * A TABLE IN THIS WORLD: a game for the seats chosen, created by the first
+ * person's account, every seat staked at it, started by the tab, ended after
+ * `cycles`. Read by the byte-identical lobby off this module (`$lib/offline-lobby`):
+ * exporting it is what offers a table offline, and a game with online tables
+ * must (`test/offline-tables-boundary.test.ts`). The world's own `Game` is
+ * deployed beside it, and nobody is staked there.
+ */
+export function startOfflineTable(
+	choice: TableChoice,
+): Promise<OfflineWorldStatus> {
+	return boot(choice.table, {
+		cycles: choice.cycles,
+		gameOptions: choice.gameOptions,
+	});
+}
+
+/** What a table is created with: see `startOfflineTable`. */
+type TableAt = {cycles: number; gameOptions: `0x${string}`};
+
+function boot(
+	table: Table,
+	at: TableAt | undefined,
+): Promise<OfflineWorldStatus> {
 	if (!pending) {
-		pending = buildOfflineWorld(params.table).catch((err) => {
+		pending = buildOfflineWorld(table, {at}).catch((err) => {
 			// The promise is dropped so a retry is possible: a failed boot is
 			// usually a missing dependency or a deploy script throwing, and both
 			// are things a developer fixes and reloads into.
@@ -359,14 +410,16 @@ export function startPresetWorld(
 ): Promise<OfflineWorldStatus> {
 	if (presetBoot) return presetBoot;
 	preset.set(chosen);
-	presetBoot = buildOfflineWorld(presetTable(chosen), chosen).catch((err) => {
-		const failure: OfflineWorldStatus = {
-			step: 'Failed',
-			error: err instanceof Error ? err.message : String(err),
-		};
-		status.set(failure);
-		return failure;
-	});
+	presetBoot = buildOfflineWorld(presetTable(chosen), {demo: chosen}).catch(
+		(err) => {
+			const failure: OfflineWorldStatus = {
+				step: 'Failed',
+				error: err instanceof Error ? err.message : String(err),
+			};
+			status.set(failure);
+			return failure;
+		},
+	);
 	return presetBoot;
 }
 
@@ -399,8 +452,9 @@ export async function restartPresetWorld(): Promise<OfflineWorldStatus> {
 
 async function buildOfflineWorld(
 	table: Table,
-	demo?: OfflinePreset,
+	options: {demo?: OfflinePreset; at?: TableAt} = {},
 ): Promise<OfflineWorldStatus> {
+	const {demo, at} = options;
 	// The id is minted once and remembered, because it is what keys everything
 	// the player keeps: the operations ledger, and this game's submission
 	// storage (`chess/storage.ts` keys by `chainID_gameAddress_army`). See
@@ -415,9 +469,43 @@ async function buildOfflineWorld(
 
 	const world = demo
 		? await openPresetWorld(chainId, table)
-		: await openWorld(chainId, table);
+		: await openWorld(chainId, table, at);
 	const humans = humansAtThisDevice(table);
 	const hotseatHere = humans.length > 1;
+
+	/**
+	 * WHERE THE GAME IS: the world's `Game`, or the world's TABLE. At a table
+	 * everything below is composed on the table's record (the lobby's
+	 * `deploymentsAt`, the game at the table's address), so the context, the
+	 * revealer, the handover, the played seats and their strategy all play the
+	 * table; the world's own `Game` stands beside it, and nobody is in it.
+	 */
+	let records: DeploymentsStore = world.deployments;
+	let establishConnection = world.establishConnection;
+	let resolved: ResolvedTable | undefined;
+	if (at) {
+		const opened = await openTheTable(world, table, at);
+		if (opened.kind === 'incoherent') {
+			// A RECORD THE CHAIN DOES NOT HOLD is refused as an incoherent restore
+			// is: a new world under a new id, the old one orphaned (OT1-3).
+			console.warn(`the offline world's table was refused: ${opened.reason}`);
+			stopAnnouncingOfflineWallet();
+			await world.dispose();
+			status.set({step: 'Booting', what: 'starting a new world'});
+			localStorage.setItem(CHAIN_ID_STORAGE_KEY, String(mintChainId()));
+			localStorage.removeItem(TABLE_STORAGE_KEY);
+			return buildOfflineWorld(table, {at});
+		}
+		resolved = opened.table;
+		const atTable = gameLobby!.deploymentsAt(world.deployments.get(), resolved);
+		records = {...readable(atTable), get: () => atTable} as DeploymentsStore;
+		establishConnection = embeddedConnectionFactory({
+			chainId: world.chainId,
+			node: {provider: world.provider},
+			deployments: records,
+			wallets: announcedWallet ? [announcedWallet.handle] : undefined,
+		});
+	}
 
 	/**
 	 * WHO REVEALS FOR THE PEOPLE AT THIS DEVICE, in a hotseat world: a local
@@ -442,8 +530,8 @@ async function buildOfflineWorld(
 				chain: worldChain(world),
 				privateKey: localRevealerKey().privateKey,
 				contract: {
-					address: world.deployments.get().contracts.Game.address,
-					abi: world.deployments.get().contracts.Game.abi,
+					address: records.get().contracts.Game.address,
+					abi: records.get().contracts.Game.abi,
 				},
 				onActed: () => pokeAdvance(),
 			})
@@ -459,8 +547,26 @@ async function buildOfflineWorld(
 	// built synchronously during prerender, because that one is the remote
 	// world.
 	const context = createContext({
-		establishConnection: world.establishConnection,
+		establishConnection,
 		...(revealer ? {scheduler: revealer.scheduler} : {}),
+		// AT A TABLE the context is the table's, with its roster and its
+		// creator's powers, its seats named as the lobby named them.
+		...(resolved
+			? {
+					table: resolved,
+					seatLabels: await offlineSeatLabels({
+						table,
+						accounts: announcedWallet?.accounts,
+						identityOf: (player) =>
+							offlineIdentityOf({
+								env: world.env,
+								player,
+								game: records.get().contracts.Game,
+							}),
+						levels: AI_LEVELS,
+					}),
+				}
+			: {}),
 	});
 	pokeAdvance = () => {
 		if (playing > 0) void context.context.game.cycleAdvance.check();
@@ -537,7 +643,11 @@ async function buildOfflineWorld(
 			const address = wallet.accounts[human.account];
 			seated.push({
 				address,
-				player: await offlineIdentityOf({env: world.env, player: address}),
+				player: await offlineIdentityOf({
+					env: world.env,
+					player: address,
+					game: records.get().contracts.Game,
+				}),
 				label: `Player ${human.account + 1}`,
 			});
 			status.set({
@@ -597,8 +707,8 @@ async function buildOfflineWorld(
 						provider: world.provider as never,
 						chain: worldChain(world),
 						contract: {
-							address: world.deployments.get().contracts.Game.address,
-							abi: world.deployments.get().contracts.Game.abi,
+							address: records.get().contracts.Game.address,
+							abi: records.get().contracts.Game.abi,
 						},
 						players: seated.map((human) => human.player),
 					}),
@@ -618,24 +728,31 @@ async function buildOfflineWorld(
 	 * while nothing is on screen. The WORLD still outlives the page (the chain
 	 * is not disposed when a router navigates away); what stops is the playing.
 	 */
-	const played = await playedByTheWorld({env: world.env, table});
+	const played = await playedByTheWorld({
+		env: world.env,
+		table,
+		game: records.get().contracts.Game,
+	});
 	const decider = playedSeatDecider(
-		world,
+		{provider: world.provider, deployments: records},
 		played,
 		demo ? {storage: inMemoryStorage()} : {},
 	);
 	// EVERY SEAT DEPLOYS BEFORE THE FIRST CYCLE TURNS OVER: the people here and
 	// the seats the world plays. Only armies are members, so without this the
 	// first to deploy would close the commit phase on everyone else. See
-	// `$lib/chess/awaited-deployments`.
-	awaitDeploymentsOf(world.deployments.get().chain.id, [
-		...(wallet ? wallet.accounts : []),
-		...played.map((seat) => seat.address),
-	]);
+	// `$lib/chess/awaited-deployments`. Not at a table, whose members are its
+	// seats, each an army from the stake that seated it.
+	if (!resolved) {
+		awaitDeploymentsOf(world.deployments.get().chain.id, [
+			...(wallet ? wallet.accounts : []),
+			...played.map((seat) => seat.address),
+		]);
+	}
 	const players = createOfflinePlayers({
 		provider: world.provider,
-		deployments: world.deployments,
-		config: resolveChessConfig(world.deployments.get()),
+		deployments: records,
+		config: resolveChessConfig(records.get()),
 		players: played,
 		// A played commit can complete unanimity just as the human's can, and the
 		// advance client would otherwise find out on its own one-second poll.
@@ -660,7 +777,9 @@ async function buildOfflineWorld(
 		// standing and plays them from there.
 		await setUpPreset({world, wallet, table, demo, played});
 		await warmTheRulesSandbox(world);
-	} else if (wallet) {
+	} else if (wallet && !resolved) {
+		// NOT AT A TABLE: there a seat's army is made by the stake that seated it
+		// (`stakeForEveryoneAtTheTable`), on the table's own spawn grid.
 		status.set({step: 'Booting', what: 'deploying every army'});
 		await deployEverySeat({
 			provider: world.provider,
@@ -1026,6 +1145,7 @@ const OFFLINE_CHAIN = {
 async function openWorld(
 	chainId: number,
 	table: Table,
+	at: TableAt | undefined,
 ): Promise<EmbeddedWorld> {
 	status.set({step: 'Booting', what: 'starting a chain in this tab'});
 
@@ -1066,7 +1186,7 @@ async function openWorld(
 		status.set({step: 'Booting', what: 'starting a new world'});
 		const fresh = mintChainId();
 		localStorage.setItem(CHAIN_ID_STORAGE_KEY, String(fresh));
-		return openWorld(fresh, table);
+		return openWorld(fresh, table, at);
 	}
 
 	const worldNode = offlineWorldNode({db});
@@ -1086,7 +1206,49 @@ async function openWorld(
 		createNode: worldNode.createNode,
 		persistence: worldNode.persistence,
 		deploymentStore,
-		provision: (params) => provisionOfflinePlayer({...params, chainId, table}),
+		provision: (params) =>
+			provisionOfflinePlayer({...params, chainId, table, atTable: !!at}),
+	});
+}
+
+/**
+ * THE WORLD'S TABLE, set up: created by the first person's account through the
+ * world's own wallet, unless its record (or the factory) has it; every seat
+ * staked at it, unless its reserve there is funded; started, unless it has
+ * (`$lib/game/lobby/offline-table`'s `seatTheOfflineTable`, around this game's
+ * own stake). Each step asks the chain, so a reload or an interrupted boot
+ * repeats nothing.
+ */
+async function openTheTable(world: EmbeddedWorld, table: Table, at: TableAt) {
+	const wallet = announcedWallet;
+	if (!wallet || !gameLobby) {
+		throw new Error('an offline table needs the world’s wallet and tables');
+	}
+	const records = world.deployments.get();
+	const chain = worldChain(world);
+	const reader = createPublicClient({
+		chain,
+		transport: custom(world.provider as never),
+	});
+	return seatTheOfflineTable({
+		reader: reader as never,
+		creator: offlineTableCreator(wallet, chain),
+		factory: gameLobby.factory(records).address,
+		implementation: gameLobby.implementation(records).address,
+		storage: localStorage,
+		storageKey: TABLE_STORAGE_KEY,
+		seats: table.length,
+		cycles: at.cycles,
+		gameOptions: at.gameOptions,
+		stake: (opened) =>
+			stakeForEveryoneAtTheTable({
+				env: world.env,
+				table: opened.address,
+				player: wallet.accounts[0],
+				humans: wallet.accounts,
+				seats: table,
+			}),
+		onStep: (what) => status.set({step: 'Booting', what}),
 	});
 }
 
@@ -1122,6 +1284,7 @@ async function openPresetWorld(
 				...params,
 				chainId,
 				table,
+				atTable: false,
 				mnemonic: PRESET_MNEMONIC,
 			}),
 	});
@@ -1188,6 +1351,12 @@ async function provisionOfflinePlayer(params: {
 	table: Table;
 	/** A fixed mnemonic for the world's wallet (a demo preset's). */
 	mnemonic?: string;
+	/**
+	 * Whether the world is a TABLE: then nobody is staked in the world's
+	 * `Game`, and every seat is staked at the table once it exists (after the
+	 * deploy, `openTheTable`).
+	 */
+	atTable: boolean;
 }) {
 	const {env, node, table} = params;
 
@@ -1236,13 +1405,15 @@ async function provisionOfflinePlayer(params: {
 		} as never);
 	}
 
-	status.set({step: 'Booting', what: 'staking for everyone at the table'});
-	await stakeForEveryoneInTheWorld({
-		env,
-		player: wallet.accounts[0],
-		humans: wallet.accounts,
-		table,
-	});
+	if (!params.atTable) {
+		status.set({step: 'Booting', what: 'staking for everyone at the table'});
+		await stakeForEveryoneInTheWorld({
+			env,
+			player: wallet.accounts[0],
+			humans: wallet.accounts,
+			table,
+		});
+	}
 
 	// HANDED BACK rather than announced-and-hoped-for. The connection this world
 	// builds will use exactly this wallet, so the player is never asked to
@@ -1290,6 +1461,66 @@ export async function stakeForEveryoneInTheWorld(params: {
 			throw new Error('a person at this device has no account to stake for');
 		}
 		await stakeForOfflinePlayer({env: params.env, player});
+	}
+}
+
+/**
+ * GIVE EVERY SEAT AT THE WORLD'S TABLE A SEAT: the stake bought AT THE TABLE
+ * (`StakeSale.purchaseAt`, the rail an online seat is taken by), which creates
+ * the seat's army and makes it a member of the closed roster, for each seat of
+ * the table as {@link stakeForEveryoneInTheWorld} walks it, in seat order, so
+ * each takes the next spawn point of the table's grid. Unless the seat already
+ * has its army, for the reason {@link stakeForOfflinePlayer} gives: a stake
+ * refilled by a reload is not a stake. Exported for the table test.
+ */
+export async function stakeForEveryoneAtTheTable(params: {
+	env: EmbeddedWorld['env'];
+	/** The table's address. */
+	table: `0x${string}`;
+	player: `0x${string}`;
+	humans?: readonly `0x${string}`[];
+	seats: Table;
+}): Promise<void> {
+	const env = params.env as unknown as {
+		get: (name: string) => {abi: unknown};
+		namedAccounts: Record<string, `0x${string}`>;
+		read: (deployment: never, args: unknown) => Promise<unknown>;
+		execute: (deployment: never, args: unknown) => Promise<unknown>;
+	};
+	const atTable = {
+		address: params.table,
+		abi: env.get('GameLobbyImplementation').abi,
+	};
+	for (const seat of params.seats) {
+		if (seat.occupant.kind === 'remote-human') continue;
+		const player =
+			seat.occupant.kind === 'you'
+				? params.player
+				: seat.occupant.kind === 'local-human'
+					? params.humans?.[seat.occupant.account]
+					: seat.occupant.address;
+		if (!player) {
+			throw new Error('a person at this device has no account to stake for');
+		}
+		// SEATED ALREADY when its first army exists: at a table the stake that
+		// seats an account creates its army (`GameTable`), so an account whose
+		// next army is not its first has one.
+		const next = (await env.read(atTable as never, {
+			functionName: 'getNextArmy',
+			args: [player],
+		})) as bigint;
+		if (next !== firstArmyOf(player)) continue;
+		await env.execute(env.get('StakeSale') as never, {
+			account: env.namedAccounts.deployer,
+			functionName: 'purchaseAt',
+			args: [
+				params.table,
+				player,
+				'0x0000000000000000000000000000000000000000',
+				0n,
+			],
+			value: config.data.sale.default.price,
+		});
 	}
 }
 
@@ -1374,8 +1605,16 @@ export async function stakeForOfflinePlayer(params: {
 export async function offlineIdentityOf(params: {
 	env: EmbeddedWorld['env'];
 	player: `0x${string}`;
+	/**
+	 * THE GAME THE IDENTITY IS IN: the world's `Game` when omitted, or the
+	 * world's table. Unused here, where an identity is the account's first army
+	 * wherever it plays (at a table, the army its seat created); a game whose
+	 * identity is a token held in a game's custody finds it in THIS game.
+	 */
+	game?: {address: `0x${string}`; abi: unknown};
 }): Promise<bigint> {
 	void params.env;
+	void params.game;
 	return firstArmyOf(params.player);
 }
 
@@ -1383,6 +1622,8 @@ export async function offlineIdentityOf(params: {
 export async function playedByTheWorld(params: {
 	env: EmbeddedWorld['env'];
 	table: Table;
+	/** The game they play in: see {@link offlineIdentityOf}. */
+	game?: {address: `0x${string}`; abi: unknown};
 }): Promise<readonly OfflinePlayer[]> {
 	const resolved: OfflinePlayer[] = [];
 	for (const played of seatsPlayedByTheWorld(params.table)) {
@@ -1392,6 +1633,7 @@ export async function playedByTheWorld(params: {
 			identity: await offlineIdentityOf({
 				env: params.env,
 				player: played.address,
+				...(params.game ? {game: params.game} : {}),
 			}),
 			seat: resolved.length,
 			...(played.level !== undefined ? {level: played.level} : {}),

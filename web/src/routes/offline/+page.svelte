@@ -22,6 +22,11 @@
 	knows nothing about what a seat HOLDS, which is what keeps it one git object
 	across every branch of this template.
 
+	ARRIVING IS ASKED, RELOADING IS NOT. A visit to a browser that holds a game
+	is offered continuing it or a new one; `?continue` resumes it without asking,
+	and this route rewrites its URL to that, in place, once a table is settled.
+	The rule is `$lib/game/lobby/arrival`'s; this reads the URL and rewrites it.
+
 	AND SO IS THE CHROME, which is what `+page.ts` beside this file declares. The
 	strip that used to be the first element below carried this world's facts and an
 	apology for the navbar above it; both are now the CHROME of this surface
@@ -34,7 +39,10 @@
 	computing the same pixels.
 -->
 <script lang="ts">
-	import {onMount} from 'svelte';
+	import {onMount, untrack} from 'svelte';
+	import {replaceState} from '$app/navigation';
+	import {page} from '$app/state';
+	import {isContinueRequested, withContinue} from '$lib/game/lobby/arrival';
 	import DefaultHead from '../../lib/metadata/DefaultHead.svelte';
 	import Context from '$lib/context/Context.svelte';
 	import {Spinner} from '$lib/shadcn/ui/spinner';
@@ -46,8 +54,8 @@
 	} from '$lib/offline';
 	import {OFFLINE_PRESETS, presetById} from '$lib/offline-presets';
 	import PresetHint from '$lib/ui/offline-world/PresetHint.svelte';
-	import {page} from '$app/state';
-	import {SEAT_CHOICES} from '$lib/game/lobby/seats';
+	import {FEWEST_TABLE_CYCLES, MOST_TABLE_CYCLES} from '$lib/game/lobby/table';
+	import TableOptionFields from '$lib/game/lobby/ui/TableOptionFields.svelte';
 	import {
 		THE_KEY_THIS_BROWSER_PLAYS_WITH,
 		offlineLobby,
@@ -64,13 +72,34 @@
 	import OfflineWorldFailed from '$lib/ui/offline-world/OfflineWorldFailed.svelte';
 	import {offlineWorldExits, tryTheWorldAgain} from '$lib/offline-exits';
 
+	// ARRIVING OR RELOADING, said by the URL: `?continue` resumes the world
+	// here, any other visit to a browser that holds one is offered the choice.
+	// The rule is `$lib/game/lobby/arrival`'s; this reads the URL and, once a
+	// table is settled (continued, or sat down at), rewrites it IN PLACE to ask
+	// to continue, so every reload after it resumes without asking.
 	onMount(() => {
 		// A DEMO PRESET is asked for by the URL (`?preset=<id>`) and is its own
 		// world, never the one the lobby would restore (`$lib/offline`).
 		const chosen = presetById(page.url.searchParams.get('preset'));
 		if (chosen) void startPresetWorld(chosen);
-		else void offlineLobby.enter();
+		else
+			void offlineLobby.enter({
+				continueRequested: isContinueRequested(location.search),
+			});
 	});
+	$effect(() => {
+		if ($offlineLobby.step !== 'Sat') return;
+		const next = withContinue(location.href);
+		// Driven by the step only: the state is carried, not watched.
+		if (next)
+			replaceState(
+				next,
+				untrack(() => page.state),
+			);
+	});
+
+	/** Asking before a new game throws the saved one away: UI state only. */
+	let confirmingNewGame = $state(false);
 
 	/** A level's label, for the seat list: presentational only. */
 	const levelLabel = (id: string) =>
@@ -78,6 +107,25 @@
 </script>
 
 <DefaultHead title={'Play Offline - a chain in this tab'} />
+
+<!-- Who is at the table: the setup's and the saved game's. -->
+{#snippet seatList()}
+	<ul
+		class="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-2 text-xs text-muted-foreground"
+	>
+		{#each $offlineLobby.table as seat, index (index)}
+			<li class="rounded-md border border-muted-foreground/30 px-2 py-1">
+				{seat.occupant.kind === 'you'
+					? 'You'
+					: seat.occupant.kind === 'local-human'
+						? `Player ${seat.occupant.account + 1}`
+						: 'level' in seat.occupant && seat.occupant.level
+							? `The world (${levelLabel(seat.occupant.level)})`
+							: 'The world'}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
 
 <!-- ONE TAB PER WORLD, AND IT IS DECIDED ABOVE THE WORLD. While another tab has
      this world, or while this tab is handing it to one, the world's branch must
@@ -151,6 +199,52 @@
 		onTryAgain={() => void restartPresetWorld()}
 		onLeave={() => {}}
 	/>
+{:else if $offlinePreset === undefined && $offlineLobby.step === 'Saved'}
+	<!-- AN ARRIVAL AT A BROWSER THAT HOLDS A GAME: continue it, or start a new
+	     one. Continuing is the primary action; a new game throws the saved one
+	     away, so it asks first. The lobby's state describes the saved game. -->
+	<div class="container mx-auto max-w-2xl px-4 py-24 text-center">
+		<h1 class="text-lg font-semibold">You have a game in this browser</h1>
+		<p
+			class="mx-auto mt-2 max-w-md text-sm text-muted-foreground"
+			data-testid="saved-game"
+		>
+			{$offlineLobby.mode === 'table'
+				? `A table of ${$offlineLobby.seats} seats, playing ${$offlineLobby.cycles} cycles.`
+				: `The world, with ${$offlineLobby.seats} seats.`}
+		</p>
+		{@render seatList()}
+		{#if confirmingNewGame}
+			<p class="mx-auto mt-6 max-w-md text-sm" data-testid="confirm-new-game">
+				A new game throws this one away, and it cannot be got back.
+			</p>
+			<div class="mt-4 flex flex-wrap justify-center gap-2">
+				<Button
+					variant="destructive"
+					data-testid="discard-saved-game"
+					onclick={() => offlineLobby.startANewGame()}
+					>Throw it away and start a new game</Button
+				>
+				<Button
+					variant="outline"
+					data-testid="keep-saved-game"
+					onclick={() => (confirmingNewGame = false)}>Keep it</Button
+				>
+			</div>
+		{:else}
+			<div class="mt-6 flex flex-wrap justify-center gap-2">
+				<Button
+					data-testid="continue-saved-game"
+					onclick={() => offlineLobby.continueTheSavedGame()}>Continue</Button
+				>
+				<Button
+					variant="outline"
+					data-testid="new-game"
+					onclick={() => (confirmingNewGame = true)}>New game</Button
+				>
+			</div>
+		{/if}
+	</div>
 {:else if $offlinePreset === undefined && $offlineLobby.step === 'Choosing'}
 	<!-- THE CHOICE, AND IT IS THE ONLY ONE. A seat has an occupant, and today an
 	     occupant is you or the world; how many there are is the whole of what a
@@ -161,9 +255,30 @@
 		<p class="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
 			Runs in your browser. Nothing leaves this tab.
 		</p>
+		{#if $offlineLobby.modeChoices.length > 1}
+			<!-- A TABLE OR THE WORLD, when this game's world can play its tables:
+			     a table first. Asked only when there is a choice. -->
+			<p class="mt-6 text-sm font-medium">A table or the world?</p>
+			<div class="mt-2 flex flex-wrap justify-center gap-2">
+				{#each $offlineLobby.modeChoices as mode (mode)}
+					<Button
+						size="sm"
+						variant={mode === $offlineLobby.mode ? 'default' : 'outline'}
+						data-testid={`mode-${mode}`}
+						onclick={() => offlineLobby.chooseMode(mode)}
+						>{mode === 'table' ? 'A table' : 'The world'}</Button
+					>
+				{/each}
+			</div>
+			<p class="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
+				{$offlineLobby.mode === 'table'
+					? 'A table plays the number of cycles you choose, then ends.'
+					: 'The world never ends: play it for as long as you like.'}
+			</p>
+		{/if}
 		<p class="mt-6 text-sm font-medium">Seats</p>
 		<div class="mt-2 flex flex-wrap justify-center gap-2">
-			{#each SEAT_CHOICES as choice (choice)}
+			{#each $offlineLobby.seatChoices as choice (choice)}
 				<Button
 					size="sm"
 					variant={choice === $offlineLobby.seats ? 'default' : 'outline'}
@@ -172,6 +287,32 @@
 				>
 			{/each}
 		</div>
+		{#if $offlineLobby.mode === 'table'}
+			<!-- A TABLE'S OWN CHOICES: how many cycles it plays, and the game's
+			     options, asked as the online lobby asks them. -->
+			<label class="mt-6 block text-sm font-medium" for="table-cycles"
+				>How many cycles? <span class="font-normal text-muted-foreground"
+					>({FEWEST_TABLE_CYCLES} to {MOST_TABLE_CYCLES}; the game ends after
+					the last)</span
+				></label
+			>
+			<input
+				id="table-cycles"
+				class="mt-2 w-24 rounded-md border bg-background px-2 py-1 text-center text-sm"
+				type="number"
+				min={FEWEST_TABLE_CYCLES}
+				max={MOST_TABLE_CYCLES}
+				data-testid="table-cycles"
+				value={$offlineLobby.cycles}
+				oninput={(event) =>
+					offlineLobby.chooseCycles(event.currentTarget.valueAsNumber)}
+			/>
+			<TableOptionFields
+				fields={$offlineLobby.optionFields}
+				values={$offlineLobby.optionValues}
+				onchange={(id, value) => offlineLobby.chooseOption(id, value)}
+			/>
+		{/if}
 		{#if $offlineLobby.humansAtMost > 1}
 			<!-- HOTSEAT, when this game's world can play it: how many of the seats
 			     are people at this device, passing it between them. -->
@@ -210,21 +351,7 @@
 				{/each}
 			</div>
 		{/if}
-		<ul
-			class="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-2 text-xs text-muted-foreground"
-		>
-			{#each $offlineLobby.table as seat, index (index)}
-				<li class="rounded-md border border-muted-foreground/30 px-2 py-1">
-					{seat.occupant.kind === 'you'
-						? 'You'
-						: seat.occupant.kind === 'local-human'
-							? `Player ${seat.occupant.account + 1}`
-							: 'level' in seat.occupant && seat.occupant.level
-								? `The world (${levelLabel(seat.occupant.level)})`
-								: 'The world'}
-				</li>
-			{/each}
-		</ul>
+		{@render seatList()}
 		<Button
 			class="mt-6"
 			data-testid="sit-down"

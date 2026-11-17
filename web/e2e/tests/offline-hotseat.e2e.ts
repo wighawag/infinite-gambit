@@ -1,6 +1,12 @@
 import type {Page} from '@playwright/test';
 import {mnemonicToAccount} from 'viem/accounts';
-import {test, expect, describe} from '../fixtures/test';
+import {
+	test,
+	expect,
+	describe,
+	chooseTheWorld,
+	expectTheReloadToResume,
+} from '../fixtures/test';
 
 /**
  * HOTSEAT IN THE OFFLINE WORLD: two people at one device and one world seat,
@@ -143,6 +149,7 @@ describe('Hotseat in the offline world', () => {
 		await expect(page.getByText('Play offline')).toBeVisible({
 			timeout: 60_000,
 		});
+		await chooseTheWorld(page);
 		await page.getByTestId('seats-3').click();
 		// A GAME WHOSE WORLD HAS NO HOTSEAT offers no choice of people (its
 		// `$lib/offline` exports no `LOCAL_HUMANS_AT_MOST`), and this file arrives
@@ -179,6 +186,7 @@ describe('Hotseat in the offline world', () => {
 			'Pass the device to Player 2',
 			{timeout: 60_000},
 		);
+		await expectTheReloadToResume(page);
 		await page.reload();
 		await begin(page, 'Player 2');
 		await expect.poll(() => whoPlays(page), {timeout: 30_000}).not.toBe(first);

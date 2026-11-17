@@ -12,7 +12,7 @@ import {execFileSync} from 'node:child_process';
  * swap does not reach, and nothing fails: the app still builds, the suites
  * still pass, and the one dialog that bypassed it keeps the old look inside a
  * repainted app. That is exactly how it was found the first time, in
- * `chess-battleground`, in a modal, by reading rather than by a test.
+ * `template-commit-reveal`, in a modal, by reading rather than by a test.
  *
  * This lives HERE, where `$ui` is introduced, so every descendant inherits the
  * rule along with the alias, and a violation added further down the tree fails

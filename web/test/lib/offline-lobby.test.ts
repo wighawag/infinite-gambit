@@ -22,6 +22,38 @@ const started: {table: {occupant: {kind: string}}[]}[] = [];
 let booted: unknown = {step: 'Booting', what: 'in a test'};
 
 vi.mock('$lib/offline', () => mockedWorld());
+/**
+ * The game's `$app-specific` module, as far as the lobby reads it: whether it
+ * has tables (`lobby`). None by default, so the cases above are the world's in
+ * every game; a test that wants tables mocks one.
+ */
+vi.mock('$app-specific', () => ({}));
+
+/** What the mocked world was asked to set a table up with. */
+const tablesStarted: {
+	table: {occupant: {kind: string}}[];
+	cycles: number;
+	gameOptions: string;
+}[] = [];
+/** A world that can play a table offline, as the one export it adds. */
+const withTables = {
+	TABLE_STORAGE_KEY: 'offline-world:table',
+	startOfflineTable: (choice: (typeof tablesStarted)[number]) => {
+		tablesStarted.push(choice);
+		return Promise.resolve(booted);
+	},
+};
+const aGameLobby = {
+	factory: () => ({address: '0x'}),
+	implementation: () => ({address: '0x'}),
+	deploymentsAt: (deployments: unknown) => deployments,
+	options: {
+		fields: [{id: 'size', label: 'Size', min: 1, max: 9, default: 5}],
+		encode: (values: Record<string, number>) =>
+			`0x${values.size.toString(16).padStart(64, '0')}`,
+		describe: () => [],
+	},
+};
 
 /** The mocked world; `extra` is what a test adds to its exports. */
 function mockedWorld(extra: Record<string, unknown> = {}) {
@@ -48,6 +80,7 @@ const releases: (() => Promise<void>)[] = [];
 
 beforeEach(async () => {
 	started.length = 0;
+	tablesStarted.length = 0;
 	booted = {step: 'Booting', what: 'in a test'};
 	reloads = 0;
 	store.clear();
@@ -66,6 +99,10 @@ afterEach(async () => {
 	await Promise.all(releases.splice(0).map((release) => release()));
 	vi.unstubAllGlobals();
 });
+
+/** A visit to `/offline/`, and one to `/offline/?continue` (a reload). */
+const ARRIVING = {continueRequested: false};
+const RELOADING = {continueRequested: true};
 
 async function lobby() {
 	imported = await import('$lib/offline-lobby');
@@ -101,6 +138,77 @@ async function anotherTabHolds(letGo: () => Promise<void> = async () => {}) {
 }
 
 describe('the offline world\u2019s lobby', () => {
+	it('offers a table first, and the world, to a game with tables whose world can play them', async () => {
+		vi.doMock('$lib/offline', () => mockedWorld(withTables));
+		vi.doMock('$app-specific', () => ({lobby: aGameLobby}));
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(ARRIVING);
+		expect(get(offlineLobby)).toMatchObject({
+			step: 'Choosing',
+			mode: 'table',
+			modeChoices: ['table', 'world'],
+		});
+		expect(get(offlineLobby).optionFields.map((field) => field.id)).toEqual([
+			'size',
+		]);
+		offlineLobby.chooseSeats(2);
+		offlineLobby.chooseCycles(2);
+		offlineLobby.chooseOption('size', 7);
+		offlineLobby.sitDown(get(offlineLobby).seats);
+		expect(started).toHaveLength(0);
+		expect(tablesStarted).toHaveLength(1);
+		expect(tablesStarted[0]).toMatchObject({
+			cycles: 2,
+			gameOptions: `0x${(7).toString(16).padStart(64, '0')}`,
+		});
+		expect(tablesStarted[0].table).toHaveLength(2);
+		expect(store.get('offline-world:mode')).toBe('table');
+		expect(store.get('offline-world:cycles')).toBe('2');
+		expect(store.get('offline-world:game-options')).toBe(
+			tablesStarted[0].gameOptions,
+		);
+
+		// Leaving the table is leaving the world: every record goes, the table's
+		// address with it.
+		const chainId = await chainIdKey();
+		store.set(chainId, '9007199254740123');
+		store.set('offline-world:table', '0x1234');
+		offlineLobby.leaveTheTable();
+		for (const key of [
+			chainId,
+			'offline-world:table',
+			'offline-world:mode',
+			'offline-world:cycles',
+			'offline-world:game-options',
+			'offline-world:seats',
+		]) {
+			expect(store.has(key), key).toBe(false);
+		}
+		vi.doMock('$lib/offline', () => mockedWorld());
+		vi.doMock('$app-specific', () => ({}));
+	});
+
+	it('offers the world only to a game with tables whose world cannot play them yet', async () => {
+		// A GAP (`test/offline-tables-boundary.test.ts`): online tables, no
+		// `startOfflineTable`. A table the world could not boot is not offered.
+		vi.doMock('$app-specific', () => ({lobby: aGameLobby}));
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(ARRIVING);
+		expect(get(offlineLobby)).toMatchObject({
+			mode: 'world',
+			modeChoices: ['world'],
+		});
+		vi.doMock('$app-specific', () => ({}));
+	});
+
+	it('offers the world only to a world that can play a table of a game with none', async () => {
+		vi.doMock('$lib/offline', () => mockedWorld(withTables));
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(ARRIVING);
+		expect(get(offlineLobby).modeChoices).toEqual(['world']);
+		vi.doMock('$lib/offline', () => mockedWorld());
+	});
+
 	it('starts THIS world, with the table the player took', async () => {
 		const offlineLobby = await lobby();
 		offlineLobby.chooseSeats(5);
@@ -125,10 +233,78 @@ describe('the offline world\u2019s lobby', () => {
 		store.set('offline-world:seats', '4');
 
 		const offlineLobby = await lobby();
-		await offlineLobby.enter();
+		await offlineLobby.enter(RELOADING);
 
 		expect(get(offlineLobby)).toMatchObject({step: 'Sat', seats: 4});
 		expect(started[0].table).toHaveLength(4);
+	});
+
+	it('offers continuing the world here, or a new one, to a visit that does not ask to continue', async () => {
+		// THE ARRIVAL: a player who had played before opened offline mode, found
+		// themselves in an old world, and concluded it had no configuration. So
+		// the world is described and nothing boots until they choose.
+		store.set(await chainIdKey(), '9007199254740123');
+		store.set('offline-world:seats', '4');
+
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(ARRIVING);
+
+		expect(get(offlineLobby)).toMatchObject({
+			step: 'Saved',
+			mode: 'world',
+			seats: 4,
+		});
+		expect(started).toHaveLength(0);
+
+		offlineLobby.continueTheSavedGame();
+		expect(get(offlineLobby)).toMatchObject({step: 'Sat', seats: 4});
+		expect(started).toHaveLength(1);
+		expect(started[0].table).toHaveLength(4);
+		expect(store.get(await chainIdKey())).toBe('9007199254740123');
+	});
+
+	it('forgets the world here for a new game exactly as leaving does, with no reload, and shows the setup', async () => {
+		vi.doMock('$lib/offline', () => mockedWorld(withTables));
+		vi.doMock('$app-specific', () => ({lobby: aGameLobby}));
+		const chainId = await chainIdKey();
+		const records = {
+			[chainId]: '9007199254740123',
+			'offline-world:table': '0x1234',
+			'offline-world:seats': '3',
+			'offline-world:humans': '1',
+			'offline-world:levels': '["random","random"]',
+			'offline-world:mode': 'table',
+			'offline-world:cycles': '4',
+			'offline-world:game-options': `0x${'0'.repeat(64)}`,
+		};
+		for (const [key, value] of Object.entries(records)) store.set(key, value);
+
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(ARRIVING);
+		expect(get(offlineLobby)).toMatchObject({
+			step: 'Saved',
+			mode: 'table',
+			seats: 3,
+			cycles: 4,
+		});
+
+		offlineLobby.startANewGame();
+		for (const key of Object.keys(records)) {
+			expect(store.has(key), key).toBe(false);
+		}
+		expect(reloads).toBe(0);
+		expect(get(offlineLobby).step).toBe('Choosing');
+		expect(started).toHaveLength(0);
+		expect(tablesStarted).toHaveLength(0);
+		vi.doMock('$lib/offline', () => mockedWorld());
+		vi.doMock('$app-specific', () => ({}));
+	});
+
+	it('shows the setup to a visit asking to continue a world that is not here', async () => {
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(RELOADING);
+		expect(get(offlineLobby).step).toBe('Choosing');
+		expect(started).toHaveLength(0);
 	});
 
 	it('forgets the chain id when the player leaves, which is what makes it a NEW world', async () => {
@@ -184,7 +360,7 @@ describe('the offline world\u2019s lobby', () => {
 		await anotherTabHolds();
 
 		const offlineLobby = await lobby();
-		await offlineLobby.enter();
+		await offlineLobby.enter(ARRIVING);
 
 		expect(started).toHaveLength(0);
 		expect(get(offlineLobby).step).toBe('Opening');
@@ -192,13 +368,28 @@ describe('the offline world\u2019s lobby', () => {
 		expect(store.get('offline-world:seats')).toBe('4');
 	});
 
+	it('never starts a world while another tab has it, even when asked to continue', async () => {
+		store.set(await chainIdKey(), '9007199254740123');
+		store.set('offline-world:seats', '4');
+		await anotherTabHolds();
+
+		const offlineLobby = await lobby();
+		await offlineLobby.enter(RELOADING);
+
+		expect(started).toHaveLength(0);
+		expect(get(offlineLobby).step).toBe('Opening');
+		expect(get(imported!.offlineWorldClaim).step).toBe('Refused');
+	});
+
 	it('takes the world over, then boots it by the ordinary restore', async () => {
+		// A visit that did not ask to continue, refused, then taking the world
+		// over: taking it over is the choice, so it boots without asking.
 		store.set(await chainIdKey(), '9007199254740123');
 		store.set('offline-world:seats', '4');
 		const {reloaded} = await anotherTabHolds();
 
 		const offlineLobby = await lobby();
-		await offlineLobby.enter();
+		await offlineLobby.enter(ARRIVING);
 		expect(started).toHaveLength(0);
 
 		await imported!.takeTheWorldOver();
@@ -235,7 +426,7 @@ describe('the offline world\u2019s lobby', () => {
 		});
 
 		const offlineLobby = await lobby();
-		await offlineLobby.enter();
+		await offlineLobby.enter(RELOADING);
 		expect(started).toHaveLength(1);
 
 		const {createWorldClaim} = await import('$lib/embedded/claim');
@@ -264,9 +455,17 @@ describe('the offline world\u2019s lobby', () => {
 			// while this file cleared a key nothing uses - and "leave this table" would
 			// quietly go back into the same world.
 			vi.doUnmock('$lib/offline');
+			vi.doUnmock('$app-specific');
 			vi.resetModules();
 			const real = await import('$lib/offline');
 			expect(real.CHAIN_ID_STORAGE_KEY).toBe('offline-world:chain-id');
+			// The table's record, where a world has tables: in the same namespace,
+			// the one the mock spells and the lobby forgets.
+			if ('TABLE_STORAGE_KEY' in real) {
+				expect(
+					(real as unknown as {TABLE_STORAGE_KEY: string}).TABLE_STORAGE_KEY,
+				).toBe('offline-world:table');
+			}
 			// And whatever levels the real world offers (a game may offer none),
 			// `random` is among them: it is every seat's level until one is
 			// chosen. Not which levels, which is the game's answer and not this

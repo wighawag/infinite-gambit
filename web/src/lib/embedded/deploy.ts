@@ -12,7 +12,7 @@ import type {DeployScript, EIP1193ProviderLike, RockethSetup} from './types.js';
  * cannot go stale, because they are the same ones the real deployment runs.
  *
  * MEASURED, node, 2026-09-19, against this template's own contracts and against
- * chess-battleground's (a token, a routed proxy with four routes, and a
+ * template-commit-reveal's (a token, a routed proxy with four routes, and a
  * sale): boot 4-12ms, the whole deploy 89-101ms. So the cost is not the reason
  * to choose either way, which is worth saying because the plan expected it to
  * be.

@@ -83,7 +83,7 @@ export const CHROME = [
  * from the same test rather than from taste: a control whose only truthful value
  * here is "not applicable" is ABSENT, not disabled and not showing a
  * placeholder. See ADR-0009 (`work` branch), and ADR-0004 on
- * `chess-battleground`'s `work` branch for the case that produced it.
+ * `template-commit-reveal`'s `work` branch for the case that produced it.
  *
  * WHERE A DECLARATION LIVES: on the route's own PAGE DATA, as `surfaceChrome`
  * (see `app.d.ts`), which is to say in a `+page.ts` beside the `+page.svelte`

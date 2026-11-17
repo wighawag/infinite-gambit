@@ -178,3 +178,12 @@ web/test/lib/placement
 # to armies, to `contracts/test/js/Delegation.test.ts`; chunking is the base's
 # and stays covered by `CommitRevealBase.test.ts`.
 contracts/test/js/Game.test.ts
+
+# The template's offline TABLE suite, which plays the placement game's board
+# (it clicks a cell, commits, and waits for "Your placements are on the
+# board"). Its own header asks a game that plays its offline tables its own
+# way to omit it, as this one does. Chess's offline table (`startOfflineTable`
+# in `web/src/lib/offline.ts`) is held in node by `test/lib/embedded/world.test.ts`
+# and `test/lib/offline-players.test.ts`; its browser suite is still to be
+# written: `work/notes/observations/e2e-suites-still-drive-the-placement-game.md`.
+web/e2e/tests/offline-table.e2e.ts

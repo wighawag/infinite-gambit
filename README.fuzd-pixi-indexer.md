@@ -3,7 +3,7 @@
 `with/fuzd`, `with/pixi-js` and `with/indexer`, merged: the node for a game that wants fuzd's automatic reveal, the pixi host AND its state from its own etherfold processor. stratagems is that game. It replaced `with/fuzd-pixi` (`with/fuzd` and `with/pixi-js`), which stratagems alone stemmed from, when stratagems' indexer hosting moved into the template tree (its step X1, PX6 of its plan).
 
 ```
-chess-battleground@main
+template-commit-reveal@main
 ├─ with/pixi-js
 ├─ with/nft-identity
 ├─ with/fuzd

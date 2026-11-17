@@ -67,7 +67,7 @@ The app still carries `walletPrompts` on `EstablishedConnection`, and it is not 
 
 What it does not do is fix the chrome. In the same screenshot the page transacts on the embedded chain while the navbar offers "Connect" for the remote one and a banner reports that RPC as down. The page says so in a strip above the demo, which is honesty rather than a fix; see the trap at the end of this file.
 
-**The mechanism is in `lib/` and any route is only its demo.** This is not tidiness. A descendant of this template deletes the demo routes it inherits (`chess-battleground` deleted `web/src/routes/demo/` and pays for it with a recurring `CONFLICT (modify/delete)` on every merge), so anything world-building written inside a route is thrown away by the repos that most want the world. What a route may hold is the choosing: a page that says "play offline", boots a world and provides it.
+**The mechanism is in `lib/` and any route is only its demo.** This is not tidiness. A descendant of this template deletes the demo routes it inherits (`template-commit-reveal` deleted `web/src/routes/demo/` and pays for it with a recurring `CONFLICT (modify/delete)` on every merge), so anything world-building written inside a route is thrown away by the repos that most want the world. What a route may hold is the choosing: a page that says "play offline", boots a world and provides it.
 
 ## The one shared file it edits, and why it is one rather than three
 

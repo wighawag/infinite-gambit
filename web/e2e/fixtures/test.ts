@@ -560,7 +560,12 @@ export interface WalletFixtures {
 // connected app reads as disconnected.
 const WALLET_STATUS = '[data-testid="wallet-status"]';
 
-async function isWalletConnected(page: Page): Promise<boolean> {
+/**
+ * Exported, with `connectWalletDevMode`, for a game's own fixtures, which
+ * connect a page of their own the way `connectPageAs` does (stratagems' did, as
+ * a modified copy of this file, until they were).
+ */
+export async function isWalletConnected(page: Page): Promise<boolean> {
 	const attr = await page
 		.locator(WALLET_STATUS)
 		.getAttribute('data-connected')
@@ -593,6 +598,38 @@ async function isWalletConnected(page: Page): Promise<boolean> {
  * it is in the DOM on every page, and it does not depend on a breakpoint or on
  * copy.
  */
+/**
+ * THE WORLD, in an offline lobby that offers a table first (a game whose world
+ * can play its tables: `$lib/offline-lobby`). Pressed when it is offered and
+ * nothing otherwise, so a suite written for the offline WORLD goes on testing
+ * the world in every game, whether it offers tables offline or not. Call it
+ * once the lobby is on screen, before choosing seats (a mode has its own).
+ */
+export async function chooseTheWorld(page: Page): Promise<void> {
+	const world = page.getByTestId('mode-world');
+	if ((await world.count()) > 0) await world.click();
+}
+
+/**
+ * A RELOAD OF THE OFFLINE ROUTE RESUMES ITS WORLD, because the route rewrote
+ * its URL to `?continue` once the table was settled (`$lib/game/lobby/arrival`);
+ * a visit without it, to a browser that holds a world, is asked whether to
+ * continue it or start a new one. Asserted before a suite reloads mid-game, so
+ * a reload that would land on that choice fails here, saying why, rather than
+ * as a board that never comes back.
+ */
+export async function expectTheReloadToResume(page: Page): Promise<void> {
+	await expect(page).toHaveURL(/[?&]continue(?:[=&#]|$)/);
+}
+
+/**
+ * ON A FRESH VISIT TO A BROWSER THAT HOLDS A WORLD, continue it: the choice
+ * the offline route offers (see {@link expectTheReloadToResume}).
+ */
+export async function continueTheSavedGame(page: Page): Promise<void> {
+	await page.getByTestId('continue-saved-game').click();
+}
+
 export async function waitForAppReady(page: Page, timeout = 30_000) {
 	await expect(
 		page.locator(`${WALLET_STATUS} button:disabled`),
@@ -796,7 +833,7 @@ async function pickSignableAccount(dialog: Locator, index: number) {
  * Rather than assuming an order, poll for whichever dialog is currently shown
  * and act on it, until no connect-flow dialog remains (or timeout).
  */
-async function connectWalletDevMode(
+export async function connectWalletDevMode(
 	page: Page,
 	accountIndex = 0,
 ): Promise<void> {

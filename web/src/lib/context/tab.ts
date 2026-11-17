@@ -11,7 +11,7 @@ import type {OverlayRegistry} from '$lib/core/ui/overlay/index.js';
  * once in the layout). A world's context was therefore inert: an overlay it
  * opened pushed no history entry, so the back gesture meant to close it left
  * the page, which for a world in the tab throws the world away; its unload
- * guard was inert for the same reason. Measured on chess-battleground's
+ * guard was inert for the same reason. Measured on template-commit-reveal's
  * `/offline`; jolly-roger's `/offline-demo` had the same shape.
  *
  * WHY A SCOPE OF THE APP'S REGISTRY, not the registry and not a registry of

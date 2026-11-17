@@ -53,7 +53,7 @@ export type GetCreditsDeps = Pick<Context, 'payment' | 'signerBalance'>;
  *
  * Three arrangements recover it. Best is to take the payment on the contract
  * that carries the delegations, which makes the buyer the sender at the one
- * place that has to know who they are; `chess-battleground` is already in
+ * place that has to know who they are; `template-commit-reveal` is already in
  * that shape, staking through `addToReserve` on the same proxy that carries
  * `GameDelegation`. Where a sale already exists and cannot move, have the buyer
  * call the delegation contract instead and let it make a typed call to a pinned
@@ -64,7 +64,7 @@ export type GetCreditsDeps = Pick<Context, 'payment' | 'signerBalance'>;
  * Note also that "one prompt" is not one problem. A native-token sale has the
  * identity problem above; a token stake has an allowance problem, whose answers
  * are different ones (ERC-2612 `permit`, EIP-5792 batching, a transfer-and-call
- * token), and which `chess-battleground` currently pays in up to three
+ * token), and which `template-commit-reveal` currently pays in up to three
  * transactions in its `placement/reserve.ts`.
  *
  * What none of these may collapse into: naming the buyer in the payload and

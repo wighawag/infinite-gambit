@@ -16,7 +16,7 @@ The stem carries three things, and only the first is the framework's:
 
 Deleting the second two is the rule the stem's own README states: the mechanism lives in `lib/` and a route is only its demo, precisely because a descendant throws the demo away. They arrived as clean ADDS with nothing to conflict against, which is the shape this tree keeps paying for, and so did two things that came with them: a `jolly-roger-contracts` workspace dependency in `web/package.json` naming a package that does not exist in this workspace, and a "Play Offline" button on the home page linking to the route that is now gone.
 
-**Both of those names are taken now, by this game's own versions of them**: `web/src/lib/offline.ts` deploys THIS game's contracts, `web/src/routes/offline/` is this game's route rather than an inherited demo, the home page's button points at it, and `web/package.json` depends on `chess-battleground-contracts`, which this workspace does have. So the next merge from the stem meets a file that exists rather than one that was deleted, and the conflict will be a real one about content.
+**Both of those names are taken now, by this game's own versions of them**: `web/src/lib/offline.ts` deploys THIS game's contracts, `web/src/routes/offline/` is this game's route rather than an inherited demo, the home page's button points at it, and `web/package.json` depends on `template-commit-reveal-contracts`, which this workspace does have. So the next merge from the stem meets a file that exists rather than one that was deleted, and the conflict will be a real one about content.
 
 ## THE TEST THAT WAS DELETED, AND IS BACK
 

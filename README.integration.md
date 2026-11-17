@@ -8,7 +8,7 @@
 
 `stem: [with/local-signer, with/embedded-chain]`. It holds no code of its own: every line on it comes from one parent or the other, and the one file it had to compose is `context/core.ts`.
 
-It exists because the tool forces it. `offshoot-fanout`'s cross-repo edge is `stemBranch`, which is a single string and cannot be combined with `stem`, so a DESCENDANT REPO cannot integrate two parent branches itself - it can name exactly one. A repo that wants both capabilities therefore needs a branch here that already has both, and pointing its `stemBranch` at this one is the whole mechanism. `chess-battleground@main` is the first such repo.
+It exists because the tool forces it. `offshoot-fanout`'s cross-repo edge is `stemBranch`, which is a single string and cannot be combined with `stem`, so a DESCENDANT REPO cannot integrate two parent branches itself - it can name exactly one. A repo that wants both capabilities therefore needs a branch here that already has both, and pointing its `stemBranch` at this one is the whole mechanism. `template-commit-reveal@main` is the first such repo.
 
 ## Why `with/hosted-account` is out, which is a judgement and reversible
 
@@ -35,7 +35,7 @@ Nothing here asserts that combination works in a browser. `/offline-demo` is `wi
 
 ## The divergence ritual
 
-On `tooling`, in `divergence-ritual.md`, which has a block for this branch: the two `ALLOWED` lists, the three-way runs against each parent and against `main`, and the counts each last produced. The three-way form is the one that matters here and it is the same shape `chess-battleground@with/all` uses, because it is the claim this branch makes: against `with/local-signer` it differs in exactly what the embedded axis contributes, against `with/embedded-chain` in exactly what the signer axis contributes, and against `main` in exactly the union.
+On `tooling`, in `divergence-ritual.md`, which has a block for this branch: the two `ALLOWED` lists, the three-way runs against each parent and against `main`, and the counts each last produced. The three-way form is the one that matters here and it is the same shape `template-commit-reveal@with/all` uses, because it is the claim this branch makes: against `with/local-signer` it differs in exactly what the embedded axis contributes, against `with/embedded-chain` in exactly what the signer axis contributes, and against `main` in exactly the union.
 
 Measured on creation, 2026-09-20: 2, 1 and 3 files at the default width with `ALLOWED=` empty, and 6 of 101 over `core/`. At the wide width the union is 43, which is `with/local-signer`'s 37 plus `with/embedded-chain`'s 7 less the one file both edit.
 

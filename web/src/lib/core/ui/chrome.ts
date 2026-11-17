@@ -10,7 +10,7 @@ import type {Component} from 'svelte';
  * out in the one file every descendant has already changed, and a template
  * update that touches it conflicts with all of them at once. Measured, at the
  * commit that introduced the height shell: merging it into
- * `chess-battleground` conflicted on 127 of 257 lines, because the shell
+ * `template-commit-reveal` conflicted on 127 of 257 lines, because the shell
  * both wrapped the chrome block and re-indented it, and git cannot match a
  * re-indented block against an edited one.
  *
@@ -35,7 +35,7 @@ import type {Component} from 'svelte';
  *
  * That distinction is the whole design. The bug the shell prevents was armed in
  * the TEMPLATE, so it was armed once for every descendant, and
- * `chess-battleground` proved it from the other direction: it wrote
+ * `template-commit-reveal` proved it from the other direction: it wrote
  * `h-[calc(100dvh-3rem)]` for its game route, which subtracts the navbar and
  * forgets the bars, so any bar being up pushed the bottom of its HUD under the
  * fold. A replaceable shell with no contract is how that happens; a replaceable

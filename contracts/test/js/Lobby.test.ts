@@ -1,7 +1,8 @@
 import {expect} from 'earl';
 import {describe, it} from 'node:test'; // using node:test as hardhat v3 do not support vitest
 import {network} from 'hardhat';
-import {parseEventLogs, type Abi} from 'viem';
+import {parseEventLogs, zeroAddress, type Abi} from 'viem';
+import {artifacts} from '../../rocketh/environment.js';
 import {
 	commitmentHashFor,
 	fundAccount,
@@ -47,17 +48,104 @@ type Cycle = {
 	phaseEnd: bigint;
 };
 
+/**
+ * A LOBBY ON THE MANUAL CYCLE, both durations zero: what an offline world
+ * deploys for its table (`web/src/lib/offline.ts`, its `data.Lobby`), which
+ * the shipped deployment does not, so a suite deploys it as `deployGameWith`
+ * deploys a world on another policy: the shipped lobby's routes and rules
+ * (its factory's linked data), on the Manual cycle. Each its own names, for
+ * the reason given there.
+ */
+let manualLobbies = 0;
+async function deployManualLobby(fixtures: {
+	env: any;
+	GameToken: {address: `0x${string}`};
+}) {
+	const {env} = fixtures;
+	const shipped = env.get('GameFactory').linkedData as {
+		stake: string;
+		spawnSpacing: string;
+		openSpawnPoints: string;
+		actionsPerReveal: string;
+	};
+	const config = {
+		startTime: 0n,
+		commitPhaseDuration: 0n,
+		revealPhaseDuration: 0n,
+		time: zeroAddress,
+		tokens: fixtures.GameToken.address,
+		stake: BigInt(shipped.stake),
+		spawnSpacing: BigInt(shipped.spawnSpacing),
+		openSpawnPoints: BigInt(shipped.openSpawnPoints),
+		actionsPerReveal: BigInt(shipped.actionsPerReveal),
+		cyclePolicy: BigInt(CYCLE_POLICY.Manual),
+	};
+	manualLobbies++;
+	const Implementation = await env.deployViaRouter(
+		`ManualLobbyImplementation_${manualLobbies}`,
+		{account: env.namedAccounts.deployer},
+		[
+			{name: 'Getters', artifact: artifacts.GameGetters, args: [config]},
+			{name: 'Registry', artifact: artifacts.GameRegistry, args: [config]},
+			{name: 'Commit', artifact: artifacts.GameCommit, args: [config]},
+			{name: 'Table', artifact: artifacts.GameTable, args: [config]},
+			{name: 'Reveal', artifact: artifacts.GameReveal, args: [config]},
+			{
+				name: 'DeploymentReveal',
+				artifact: artifacts.GameDeploymentReveal,
+				args: [config],
+			},
+			{name: 'Exit', artifact: artifacts.GameExit, args: [config]},
+			{name: 'Simulation', artifact: artifacts.GameSimulation, args: [config]},
+			{name: 'Delegation', artifact: artifacts.GameDelegation, args: []},
+			{
+				name: 'Lobby',
+				artifact: artifacts.CommitRevealLobby,
+				args: [
+					{
+						startTime: config.startTime,
+						commitPhaseDuration: config.commitPhaseDuration,
+						revealPhaseDuration: config.revealPhaseDuration,
+						time: config.time,
+						actionsPerReveal: config.actionsPerReveal,
+						cyclePolicy: config.cyclePolicy,
+					},
+				],
+			},
+		],
+		// As the deploy scripts: the router that routes past 48 selectors
+		// (src/vendor/router/Router10X60.sol).
+		{routerContract: {type: 'custom', artifact: artifacts.Router10X60}},
+	);
+	const Factory = await env.deploy(`ManualGameFactory_${manualLobbies}`, {
+		account: env.namedAccounts.deployer,
+		artifact: artifacts.CommitRevealGameFactory,
+		args: [Implementation.address],
+	});
+	return {
+		Implementation: Implementation as {address: `0x${string}`; abi: Abi},
+		Factory: Factory as {address: `0x${string}`; abi: Abi},
+	};
+}
+
 async function createTable(
 	seats: number,
 	cycles = CYCLES,
 	gameOptions: `0x${string}` = NO_OPTIONS,
+	options?: {manual?: boolean},
 ) {
 	const fixtures = await networkHelpers.loadFixture(deployAll);
 	const {env} = fixtures;
+	const manual = options?.manual
+		? await deployManualLobby(fixtures)
+		: undefined;
+	// Blocks between the deployment and the table, as a table created later has.
+	for (let i = 0; i < 3; i++) await provider.request({method: 'evm_mine'});
 	const [creator, alice, bob, carol] =
 		fixtures.unnamedAccounts as `0x${string}`[];
-	const Factory = env.get<Abi>('GameFactory');
-	const Implementation = env.get<Abi>('GameLobbyImplementation');
+	const Factory = manual?.Factory ?? env.get<Abi>('GameFactory');
+	const Implementation =
+		manual?.Implementation ?? env.get<Abi>('GameLobbyImplementation');
 
 	const receipt = await env.execute(Factory, {
 		account: creator,
@@ -97,6 +185,7 @@ async function createTable(
 					started: boolean;
 					cycles: number;
 					startedWith: number;
+					openedAtBlock: number;
 				},
 				bigint[],
 			],
@@ -169,8 +258,10 @@ async function createTable(
 	return {
 		...fixtures,
 		Factory,
+		Implementation,
 		Table,
 		created,
+		createdIn: BigInt(receipt.blockNumber),
 		tableFixtures,
 		creator,
 		alice,
@@ -226,6 +317,16 @@ describe('games for a fixed set of players', function () {
 				args: [table.alice, 2, CYCLES, NO_OPTIONS],
 			}),
 		).toBeRejectedWith(/RosterAlreadyOpened/);
+	});
+
+	it('opens a table at the block it was created in, not where its implementation was deployed', async function () {
+		const table = await createTable(3);
+		const [roster] = await table.read.roster();
+		expect(BigInt(roster.openedAtBlock)).toEqual(table.createdIn);
+		expect(
+			BigInt(roster.openedAtBlock) >
+				BigInt(table.Implementation.receipt!.blockNumber),
+		).toEqual(true);
 	});
 
 	it("seats a player who buys a stake at the table through the world's sale", async function () {
@@ -428,6 +529,50 @@ describe('games for a fixed set of players', function () {
 		await expect(
 			table.env.read(WorldAsTable, {functionName: 'hasEnded'}),
 		).toBeRejected();
+	});
+
+	it('plays a MANUAL table, as an offline world deploys one, from its start to its end: every cycle closed by its members, none by a clock', async function () {
+		const table = await createTable(2, 2, NO_OPTIONS, {manual: true});
+		const config = (await table.env.read(table.Table, {
+			functionName: 'getConfig',
+		})) as {cyclePolicy: number};
+		expect(config.cyclePolicy).toEqual(CYCLE_POLICY.Manual);
+
+		// Seated as the offline world seats them: a stake bought at the table,
+		// which is a new army for each.
+		await table.join(table.creator);
+		await table.join(table.alice);
+		await table.start(table.creator);
+		expect((await table.read.attendance()).waitedFor).toEqual(2n);
+		const end = await table.read.end();
+		expect(end.ended).toEqual(false);
+		const first = await table.read.cycle();
+		expect(first.commiting).toEqual(true);
+		expect(end.lastCycleNumber).toEqual(first.cycleNumber + 1n);
+
+		for (let played = 0; played < 2; played++) {
+			const cycle = await table.read.cycle();
+			expect(cycle.cycleNumber).toEqual(first.cycleNumber + BigInt(played));
+			await table.commit(table.creator, []);
+			// No clock: the phase waits for the last member, however long.
+			await expect(table.advance()).toBeRejectedWith(/StillWaitingToCommit/);
+			await table.advanceToTime((await table.getTimestamp()) + 100_000, true);
+			expect((await table.read.cycle()).commiting).toEqual(true);
+			await table.commit(table.alice, []);
+			await table.advance();
+			expect((await table.read.cycle()).commiting).toEqual(false);
+			await table.reveal(table.creator, []);
+			await expect(table.advance()).toBeRejectedWith(/StillWaitingToReveal/);
+			await table.reveal(table.alice, []);
+			await table.advance();
+		}
+
+		expect((await table.read.end()).ended).toEqual(true);
+		expect(
+			await table.env.read(table.Table, {functionName: 'hasEnded'}),
+		).toEqual(true);
+		await expect(table.commit(table.creator, [])).toBeRejectedWith(/GameEnded/);
+		await expect(table.advance()).toBeRejectedWith(/GameEnded/);
 	});
 
 	it("keeps a table's commit and reveal under the lobby's declared gas", async function () {

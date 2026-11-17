@@ -11,7 +11,7 @@ import {createFakeBrowser} from '../core/navigation/fake-browser';
 // navigation and a scope of its overlay registry. Before this, it built a
 // navigation service nothing ever attached a driver to, so its overlays pushed
 // no history entry and the back gesture meant to close one left the page,
-// throwing the world away (measured on chess-battleground's /offline).
+// throwing the world away (measured on template-commit-reveal's /offline).
 //
 // Server project (Node). The lending is browser-only, so the browser cases
 // stand up a `window` (an EventTarget is all the context's browser-only

@@ -39,7 +39,7 @@ import {fileURLToPath} from 'node:url';
  * Every `.ts` under `src/lib/context`, concatenated, rather than one named file.
  * `wallet-activity-boundary.test.ts` learned this the hard way when the rule
  * watched a FILE and a consumer moved to another one, and it happened again
- * here: `chess-battleground` splits the composition into `core.ts` (this
+ * here: `template-commit-reveal` splits the composition into `core.ts` (this
  * template's half) and `game.ts` (its own), leaving `index.ts` a few lines of
  * re-export. Pointed at `index.ts` this guard threw "no memoiseSignerClient
  * call" on a branch whose signer client is correctly guarded.

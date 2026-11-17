@@ -7,7 +7,7 @@ import {startEmbeddedNode, type EmbeddedNode} from '$lib/embedded/node';
 //
 // A READ PINNED TO A BLOCK THE CHAIN HAS ALREADY MOVED PAST, which is what a
 // polling reader does when several reads must describe one block (downstream,
-// chess-battleground's `onchain/state.ts` reads the head and its games pin
+// template-commit-reveal's `onchain/state.ts` reads the head and its games pin
 // each `readContract` batch to it). On an
 // automined chain in the tab a block appears whenever anyone sends anything (a
 // seat the world plays, the player's own commit), so the head routinely moves
