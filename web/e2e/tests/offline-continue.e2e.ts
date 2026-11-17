@@ -25,7 +25,7 @@ import {
  * chain inside the page.
  */
 
-const WORLD_UP = 'Everything below runs against a chain inside this tab';
+const WORLD_UP = 'Runs on a chain inside this tab';
 
 async function chainIdOf(page: Page): Promise<string> {
 	const id = page.getByTestId('offline-world-navbar').locator('code');
