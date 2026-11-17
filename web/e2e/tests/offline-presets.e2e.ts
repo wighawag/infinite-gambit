@@ -1,5 +1,11 @@
 import type {Page} from '@playwright/test';
-import {test, expect, describe} from '../fixtures/test';
+import {
+	test,
+	expect,
+	describe,
+	chooseTheWorld,
+	continueTheSavedGame,
+} from '../fixtures/test';
 
 /**
  * THE OFFLINE DEMO PRESETS (`$lib/offline-presets`), in a browser: each preset
@@ -605,6 +611,7 @@ describe('Offline demo presets', () => {
 		await expect(page.getByText('Play offline')).toBeVisible({
 			timeout: 60_000,
 		});
+		await chooseTheWorld(page);
 		await page.getByTestId('seats-3').click();
 		await page.getByTestId('level-0-greedy').click();
 		await page.getByTestId('sit-down').click();
@@ -692,6 +699,9 @@ describe('Offline demo presets', () => {
 		// same armies.
 		await page.context().setOffline(false);
 		await page.getByTestId('preset-leave').click();
+		// LEAVING IS AN ARRIVAL at a browser that holds a world, which is asked
+		// whether to continue it (`$lib/game/lobby/arrival`).
+		await continueTheSavedGame(page);
 		await expect(page.locator('canvas')).toBeVisible({timeout: 180_000});
 		await expect(page.getByTestId('preset-hint')).toHaveCount(0);
 		expect(await chainId(page)).toBe(normalChain);
