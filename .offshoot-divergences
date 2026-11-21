@@ -68,9 +68,6 @@ contracts/test/js/utils/index.ts          chess's fixtures: armies, moves, revea
 
 # The web app: the framework's seams this game needs and the stem does not have yet
 web/src/lib/game/identity.ts              who plays is an army, not the account: the identity seam's comment says so
-web/src/lib/game/core/commit-reveal-game.ts the optional hover seam a game highlights from (spawn ghosts)
-web/src/lib/game/render/events.ts         the hovered event the hover seam is fed by
-web/src/lib/game/render/input.ts          hover tracking beside the gestures
 web/src/lib/game/render/camera.ts         a zoom floor for a narrow surface's first frame (a phone)
 web/src/lib/game/render/view-transform.ts a floor on the scale, so the board's art never shows flat
 web/src/lib/embedded/wallet.ts            a fixed mnemonic, for a demo preset whose army ids derive from its accounts
@@ -100,6 +97,5 @@ web/test/lib/app-world.ts                 the world test constants: chess's cont
 web/test/lib/offline-players.test.ts      the world's seats played as chess armies, the greedy bot and a table's seats
 web/test/lib/game/render/camera.test.ts   the narrow first frame's zoom floor
 web/test/lib/game/render/canvas2d.svelte.test.ts the canvas host with chess's hover
-web/test/lib/game/render/input.svelte.test.ts the hover tracking
 web/test/lib/game/render/view-transform.test.ts the scale floor
 web/test/lib/ui/offline-world-failed.svelte.test.ts the mobile HUD's brief copy
