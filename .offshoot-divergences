@@ -76,7 +76,7 @@ web/src/lib/game/render/view-transform.ts a floor on the scale, so the board's a
 web/src/lib/embedded/wallet.ts            a fixed mnemonic, for a demo preset whose army ids derive from its accounts
 
 # The web app: chess's offline world and its pages
-web/src/lib/offline.ts                    the offline world's contracts, deploy and stake: a game's by design, at the stem's path (presets, a worker chain, pre-deployed seats, a table's seats as armies)
+web/src/lib/offline.ts                    the offline world on the template's steps ($lib/game/offline): chess's contracts, deploy and stake, pre-deployed seats, a table's seats as armies, and the demo presets with their own opener and wallet
 web/src/lib/offline-players.ts            the world's seats play chess: they deploy armies, pass or ask the greedy bot, and never deploy at a table
 web/src/lib/offline-lobby.ts              the shorter key sentence of the mobile HUD
 web/src/lib/ui/offline-world/OfflineWorldBar.svelte the mobile HUD's brief copy
@@ -96,6 +96,7 @@ web/e2e/tests/offline-continue.e2e.ts     the world bar's copy
 web/test/lib/context/resume-on-gas.test.ts a submission of moves, not placements
 web/test/lib/context/setup-gate.test.ts   the setup gate for an army: a stake, a refund, a deployment
 web/test/lib/embedded/world.test.ts       the offline world deploys chess: armies, pre-deployed seats, a table's seats as armies
+web/test/lib/app-world.ts                 the world test constants: chess's contracts package and its deploy scripts (read by the stem's offline-world.test.ts)
 web/test/lib/offline-players.test.ts      the world's seats played as chess armies, the greedy bot and a table's seats
 web/test/lib/game/render/camera.test.ts   the narrow first frame's zoom floor
 web/test/lib/game/render/canvas2d.svelte.test.ts the canvas host with chess's hover
