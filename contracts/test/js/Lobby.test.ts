@@ -114,9 +114,6 @@ async function deployManualLobby(fixtures: {
 				],
 			},
 		],
-		// As the deploy scripts: the router that routes past 48 selectors
-		// (src/vendor/router/Router10X60.sol).
-		{routerContract: {type: 'custom', artifact: artifacts.Router10X60}},
 	);
 	const Factory = await env.deploy(`ManualGameFactory_${manualLobbies}`, {
 		account: env.namedAccounts.deployer,

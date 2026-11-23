@@ -8,18 +8,27 @@ import {
 	type AbiFunction,
 } from 'viem';
 import {setupFixtures} from './utils/index.js';
-import {artifacts} from '../../rocketh/environment.js';
+import {createRequire} from 'node:module';
+import type {Artifact} from 'rocketh/types';
+
+/** `@rocketh/router`'s default router, as the package ships it. */
+const Router = createRequire(import.meta.url)(
+	'@rocketh/router/artifacts/Router.json',
+) as Artifact<Abi>;
 
 /**
  * EVERY SELECTOR A ROUTER CARRIES IS ROUTED, past 48 too.
  *
- * `Router10X60` from `solidity-proxy@0.5.2` claims 60 selectors but packs
- * entries 48 and up into the wrong word, so a router with more than 48 loses
- * some of them and those calls revert `UNKNOWN_METHOD`, with nothing said at
- * deploy time. The deploys use a fixed copy (`src/vendor/router/`); this pins
- * that every deployed router routes every selector of its merged ABI, so the
- * bug cannot come back silently (a bump of the package, a dropped
- * `routerContract`). See work/notes/observations/router-loses-selectors-past-48.md.
+ * `Router10X60` from `solidity-proxy@0.5.2` claimed 60 selectors but packed
+ * entries 48 and up into the wrong word, so a router with more than 48 lost
+ * some of them and those calls reverted `UNKNOWN_METHOD`, with nothing said at
+ * deploy time. This game vendored a fixed copy until solidity-proxy 0.5.3
+ * fixed it; the deploys now take `@rocketh/router`'s default router, `Router`
+ * (solidity-proxy 0.6), which has no 60-selector cap. This pins the release:
+ * every deployed router routes every selector of its merged ABI, and the
+ * package's router routes every selector it is given, so the bug cannot come
+ * back silently with a bump of the package. See
+ * work/notes/observations/router-loses-selectors-past-48.md.
  *
  * A call with the bare selector and no arguments is enough: a routed call
  * reaches its route and fails there (bad calldata) or succeeds; only an
@@ -86,17 +95,17 @@ describe('the router', function () {
 		});
 	}
 
-	it('routes all 60 selectors it can hold, and nothing else', async function () {
+	it("routes every selector it is given, past 60: the package's default router", async function () {
 		const {env} = await networkHelpers.loadFixture(deployAll);
 		// Any contract without a fallback: a routed call reverts there, with no
 		// `UNKNOWN_METHOD`.
 		const target = env.get<Abi>('GameToken').address;
-		const sigs = Array.from({length: 60}, (_, i) =>
+		const sigs = Array.from({length: 100}, (_, i) =>
 			(i + 1).toString(16).padStart(8, '0'),
 		);
-		const router = await env.deploy('TestRouter60', {
+		const router = await env.deploy('TestRouter100', {
 			account: env.namedAccounts.deployer,
-			artifact: artifacts.Router10X60,
+			artifact: Router,
 			args: [
 				{
 					implementations: [target],
@@ -111,6 +120,6 @@ describe('the router', function () {
 		}
 		assert.deepStrictEqual(lost, [], `unrouted: ${lost.join(', ')}`);
 		// The detector itself: a selector the router does not hold.
-		assert.ok(await unknownMethod(router.address, '0x0000003d'));
+		assert.ok(await unknownMethod(router.address, '0x00000065'));
 	});
 });

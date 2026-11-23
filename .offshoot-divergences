@@ -40,11 +40,9 @@ web/svelte.config.js                      the $app-specific alias names chess's 
 web/.env                                  PUBLIC_RENDERER, which board the play page draws (canvas or pixi)
 
 # The contracts: chess replaces the reference game's contract at the stem's paths
-contracts/hardhat.config.ts               an override compiling the vendored Router10X60 with its own settings (SOLC_PATH kept for the LAN build)
-contracts/.prettierignore                 also ignores src/vendor, vendored verbatim so a diff against upstream stays exact
 contracts/rocketh/config.ts               chess's deploy data: the stake, the spawn grid, the gas limits measured under Amsterdam
 contracts/deploy/001_deploy_token.ts      the GameToken has an owner, who names the minter once the sale exists
-contracts/deploy/010_deploy_game.ts       chess's routes (Registry, Table, DeploymentReveal, Exit, Simulation) on the vendored router
+contracts/deploy/010_deploy_game.ts       chess's routes (Registry, Table, DeploymentReveal, Exit, Simulation)
 contracts/deploy/020_deploy_stake_sale.ts the sale is named the token's minter, and keeps what it is paid (no admin recipient)
 contracts/deploy/030_deploy_lobby.ts      the lobby implementation with chess's routes, and the table rules on the factory
 contracts/src/game/interfaces/IGame.sol   chess's game interface: armies, moves, deployments, exits, tables
@@ -64,7 +62,7 @@ contracts/test/js/GasBudget.test.ts       chess's gas budget: the worst move and
 contracts/test/js/Lobby.test.ts           a table seats armies: each seat a new army on the table's grid, the MANUAL table played with passes
 contracts/test/js/Simulation.test.ts      the Simulation route's chess rules
 contracts/test/js/StakeSale.test.ts       the backed stake's sale and redemption
-contracts/test/js/utils/index.ts          chess's fixtures: armies, moves, reveals, the vendored router
+contracts/test/js/utils/index.ts          chess's fixtures: armies, moves, reveals
 
 # The web app: the framework's seams this game needs and the stem does not have yet
 web/src/lib/game/identity.ts              who plays is an army, not the account: the identity seam's comment says so
