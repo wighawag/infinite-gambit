@@ -2,10 +2,7 @@ import {describe, it, expect, beforeAll, afterAll} from 'vitest';
 import type {Abi} from 'viem';
 import {createNode} from 'webevm';
 import {createEmbeddedWorld, type EmbeddedWorld} from '$lib/embedded';
-import {
-	config,
-	extensions,
-} from 'chess-battleground-contracts/rocketh/config.js';
+import {config, extensions} from 'infinite-gambit-contracts/rocketh/config.js';
 import {OFFLINE_DEPLOYMENT} from '$lib/offline';
 import {
 	createBytecodeSandbox,

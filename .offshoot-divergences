@@ -31,11 +31,11 @@ web/static/preview.png                    the brand: Infinite Gambit's social pr
 web/src/app.css                           hides the badge Netlify injects over the bottom-right panel
 
 # The workspace and its configuration
-package.json                              chess-battleground's root: its name, pinnace for the IPFS pin, and its "lan" hash
+package.json                              infinite-gambit's root: its name, pinnace for the IPFS pin, and its "lan" hash
 pnpm-lock.yaml                            the lockfile of this workspace's dependencies (pinnace among them)
-contracts/package.json                    chess-battleground-contracts: the package name and its license
-web/package.json                          chess-battleground-web: the package name, its license and the contracts package it depends on
-helper-services/fuzd/package.json         chess-battleground-fuzd: the package name and its license
+contracts/package.json                    infinite-gambit-contracts: the package name and its license
+web/package.json                          infinite-gambit-web: the package name, its license and the contracts package it depends on
+helper-services/fuzd/package.json         infinite-gambit-fuzd: the package name and its license
 web/svelte.config.js                      the $app-specific alias names chess's game.ts, not the reference game's
 web/.env                                  PUBLIC_RENDERER, which board the play page draws (canvas or pixi)
 

@@ -156,7 +156,7 @@ the word: what the framework calls a submission, its HUD calls a turn.
 
 ## This game: infinite chess
 
-chess-battleground is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), of up to three of its pieces, capturing a king takes its stake and removes its army from the board, and the stake only leaves through an exit square. It also runs online as closed tables with a winner, and offline as a hotseat world where each seat is a human at the same device or a machine-played seat (single player is the latter).
+infinite-gambit is an onchain infinite-board chess game. Players stake to deploy an army at a hidden spawn point, every army makes one simultaneous move per cycle (commit then reveal), of up to three of its pieces, capturing a king takes its stake and removes its army from the board, and the stake only leaves through an exit square. It also runs online as closed tables with a winner, and offline as a hotseat world where each seat is a human at the same device or a machine-played seat (single player is the latter).
 
 Everything above this heading is the framework's and stays game-neutral. The words below are this game's own. The full rule set is in `work/specs/`, and the decisions behind it are in `docs/adr/`.
 

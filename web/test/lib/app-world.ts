@@ -1,7 +1,7 @@
-import deployToken from 'chess-battleground-contracts/deploy/001_deploy_token.js';
-import deployGame from 'chess-battleground-contracts/deploy/010_deploy_game.js';
-import deployStakeSale from 'chess-battleground-contracts/deploy/020_deploy_stake_sale.js';
-import deployLobby from 'chess-battleground-contracts/deploy/030_deploy_lobby.js';
+import deployToken from 'infinite-gambit-contracts/deploy/001_deploy_token.js';
+import deployGame from 'infinite-gambit-contracts/deploy/010_deploy_game.js';
+import deployStakeSale from 'infinite-gambit-contracts/deploy/020_deploy_stake_sale.js';
+import deployLobby from 'infinite-gambit-contracts/deploy/030_deploy_lobby.js';
 
 /**
  * WHAT AN EMBEDDED WORLD MUST DEPLOY for the app's context to work, and the
@@ -17,10 +17,7 @@ import deployLobby from 'chess-battleground-contracts/deploy/030_deploy_lobby.js
  * at their default data (every contract the app's records name, so the
  * world's own check passes) and checks the opener, not the game.
  */
-export {
-	config,
-	extensions,
-} from 'chess-battleground-contracts/rocketh/config.js';
+export {config, extensions} from 'infinite-gambit-contracts/rocketh/config.js';
 
 /** The deploy scripts a world runs, in order (as `OFFLINE_DEPLOYMENT` of `$lib/offline` deploys). */
 export const APP_SCRIPTS = [

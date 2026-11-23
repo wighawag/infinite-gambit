@@ -1,10 +1,7 @@
 import {describe, it, expect, afterEach} from 'vitest';
 import {createNode} from 'webevm';
 import {createEmbeddedWorld, type EmbeddedWorld} from '$lib/embedded';
-import {
-	config,
-	extensions,
-} from 'chess-battleground-contracts/rocketh/config.js';
+import {config, extensions} from 'infinite-gambit-contracts/rocketh/config.js';
 import {OFFLINE_DEPLOYMENT} from '$lib/offline';
 import {createBytecodeSandbox} from '$lib/game/simulation';
 import {attackedSquares, attackersOf} from '$lib/chess/attacked';

@@ -6,7 +6,7 @@ import {
 	config,
 	extensions,
 	OFFLINE_OPEN_SPAWN_POINTS,
-} from 'chess-battleground-contracts/rocketh/config.js';
+} from 'infinite-gambit-contracts/rocketh/config.js';
 import {
 	OFFLINE_DEPLOYMENT,
 	firstArmyOf,

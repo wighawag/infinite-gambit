@@ -4,11 +4,11 @@ import {
 	extensions,
 	CYCLE_POLICY,
 	OFFLINE_OPEN_SPAWN_POINTS,
-} from 'chess-battleground-contracts/rocketh/config.js';
-import deployToken from 'chess-battleground-contracts/deploy/001_deploy_token.js';
-import deployGame from 'chess-battleground-contracts/deploy/010_deploy_game.js';
-import deployStakeSale from 'chess-battleground-contracts/deploy/020_deploy_stake_sale.js';
-import deployLobby from 'chess-battleground-contracts/deploy/030_deploy_lobby.js';
+} from 'infinite-gambit-contracts/rocketh/config.js';
+import deployToken from 'infinite-gambit-contracts/deploy/001_deploy_token.js';
+import deployGame from 'infinite-gambit-contracts/deploy/010_deploy_game.js';
+import deployStakeSale from 'infinite-gambit-contracts/deploy/020_deploy_stake_sale.js';
+import deployLobby from 'infinite-gambit-contracts/deploy/030_deploy_lobby.js';
 import {createEmbeddedWorld, type EmbeddedWorld} from '$lib/embedded';
 import {mintChainId} from '$lib/embedded/chain-id';
 import {

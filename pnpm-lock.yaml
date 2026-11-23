@@ -13,15 +13,15 @@ importers:
 
   .:
     devDependencies:
-      chess-battleground-contracts:
-        specifier: workspace:*
-        version: link:contracts
       dorfl:
         specifier: 0.15.1
         version: 0.15.1
       expand-vars:
         specifier: ^0.1.0
         version: 0.1.0
+      infinite-gambit-contracts:
+        specifier: workspace:*
+        version: link:contracts
       ldenv:
         specifier: ^0.6.0
         version: 0.6.0
@@ -275,9 +275,6 @@ importers:
       bits-ui:
         specifier: ^2.18.2
         version: 2.18.2(@internationalized/date@3.12.3)(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.0(svelte@5.56.9)(vite@8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)))(svelte@5.56.9)(typescript@6.0.3)(vite@8.2.4(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)))(svelte@5.56.9)
-      chess-battleground-contracts:
-        specifier: workspace:*
-        version: link:../contracts
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -293,6 +290,9 @@ importers:
       faucet-client:
         specifier: ^0.1.0
         version: 0.1.0
+      infinite-gambit-contracts:
+        specifier: workspace:*
+        version: link:../contracts
       ipfs-gateway-emulator:
         specifier: ^5.1.0
         version: 5.1.0

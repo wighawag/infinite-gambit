@@ -10,10 +10,7 @@ import {
 import {privateKeyToAccount} from 'viem/accounts';
 import {createNode} from 'webevm';
 import {createEmbeddedWorld, type EmbeddedWorld} from '$lib/embedded';
-import {
-	config,
-	extensions,
-} from 'chess-battleground-contracts/rocketh/config.js';
+import {config, extensions} from 'infinite-gambit-contracts/rocketh/config.js';
 import {
 	OFFLINE_DEPLOYMENT,
 	offlineIdentityOf,
