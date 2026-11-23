@@ -82,7 +82,7 @@ import {artifacts} from '../../rocketh/environment.js';
  */
 const MEASURED_HARDFORK = 'amsterdam';
 
-const {provider, networkHelpers} = await network.connect({
+const {provider, networkHelpers} = await network.create({
 	override: {hardfork: MEASURED_HARDFORK},
 });
 const {deployAll} = setupFixtures(provider);

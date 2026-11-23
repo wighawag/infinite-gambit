@@ -15,7 +15,7 @@ import {setupFixtures} from './utils/index.js';
  * which is the unoptimised build and so the larger one.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 const CODE_SIZE_LIMIT = 24_576;

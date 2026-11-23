@@ -33,7 +33,7 @@ import {movesWorld, move} from './utils/moves-world.js';
  *     (3,1), where both pawns can capture it.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

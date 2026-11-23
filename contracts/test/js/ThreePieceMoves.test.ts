@@ -44,7 +44,7 @@ import {
  *   y=-2  . P P P .
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

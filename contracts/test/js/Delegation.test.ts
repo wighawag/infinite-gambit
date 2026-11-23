@@ -21,7 +21,7 @@ import {delegationMessage} from '@etherplay/delegation';
  * signer deploys and plays an army for the account without holding anything.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 const SECRET_A =

@@ -26,7 +26,7 @@ import {
  * (6,6), every king on its spawn point.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 // Stakes BOUGHT through `StakeSale`, so an exit's payout can redeem them.
 const world = movesWorld({

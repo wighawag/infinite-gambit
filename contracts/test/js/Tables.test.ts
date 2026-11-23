@@ -25,7 +25,7 @@ import {tableWorld} from './utils/table-world.js';
  *   every king on its spawn point, every army the one layout.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = tableWorld({deployAll, loadFixture: networkHelpers.loadFixture});
 

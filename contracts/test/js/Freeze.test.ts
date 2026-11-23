@@ -21,7 +21,7 @@ import {movesWorld, move} from './utils/moves-world.js';
  * into her empty core square, and her king walks by (1,-1) and (2,-2).
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

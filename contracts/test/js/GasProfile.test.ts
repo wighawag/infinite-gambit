@@ -58,7 +58,7 @@ import {loadFunctionIndex} from './utils/gas-functions.js';
  * move of three piece-moves (`docs/adr/0016`), fresh and touched.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 const SECRET =

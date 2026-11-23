@@ -26,7 +26,7 @@ import {parseEther, zeroAddress} from 'viem';
  * `docs/adr/0002`, `0006` and `0007`.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 const SECRET_A =

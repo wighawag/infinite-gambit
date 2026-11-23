@@ -42,7 +42,7 @@ import {zeroAddress} from 'viem';
  * reaches down column 1 once her pawn (1,-2) has stepped aside.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 const COMMIT_PHASE = 60n;

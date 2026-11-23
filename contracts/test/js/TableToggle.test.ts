@@ -23,7 +23,7 @@ import {OFFLINE_OPEN_SPAWN_POINTS} from '../../rocketh/config.js';
  * (6,0), each the one layout, whose pawns stand on y = 2 above their king.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = tableWorld({deployAll, loadFixture: networkHelpers.loadFixture});
 

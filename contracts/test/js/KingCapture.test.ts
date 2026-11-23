@@ -43,7 +43,7 @@ import {
  * by (7,3) and bob's pawn (5,2).
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

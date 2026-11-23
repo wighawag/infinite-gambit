@@ -34,7 +34,7 @@ import {
  *   carol, spawn (0,6), and dave, spawn (6,6): the same, moved up 6.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

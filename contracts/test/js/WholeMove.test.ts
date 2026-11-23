@@ -26,7 +26,7 @@ import {movesWorld, move, type Piece} from './utils/moves-world.js';
  * alice's pieces.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

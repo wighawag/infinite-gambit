@@ -14,7 +14,7 @@ import {movesWorld, move} from './utils/moves-world.js';
  * fixture in one suite would start from a chain the first has moved on.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 const world = movesWorld({
 	deployAll,

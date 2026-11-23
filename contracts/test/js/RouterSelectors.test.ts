@@ -35,7 +35,7 @@ const Router = createRequire(import.meta.url)(
  * unrouted one reverts `UNKNOWN_METHOD`.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 /** `UNKNOWN_METHOD` as it appears in an `Error(string)` revert's data. */
