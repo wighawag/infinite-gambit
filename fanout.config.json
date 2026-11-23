@@ -5,5 +5,5 @@
       "stemBranch": "with/fuzd-pixi-indexer"
     }
   },
-  "verify": "pnpm install && node scripts/check-dangling-imports.mjs && pnpm format:check && pnpm web:check && pnpm contracts:test && pnpm --filter ./web test:unit"
+  "verify": "pnpm install && node scripts/check-dangling-imports.mjs && pnpm format:check && pnpm web:check && pnpm contracts:test && pnpm --filter ./web test:unit && pnpm --filter ./contracts typescript"
 }
