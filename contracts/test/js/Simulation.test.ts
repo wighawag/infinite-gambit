@@ -20,7 +20,7 @@ import {
  * preview a deployment, make it, and compare.
  */
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 const SECRET =

@@ -9,7 +9,7 @@ import {
 } from './utils/index.js';
 import {zeroAddress} from 'viem';
 
-const {provider, networkHelpers} = await network.connect();
+const {provider, networkHelpers} = await network.create();
 const {deployAll} = setupFixtures(provider);
 
 /**
