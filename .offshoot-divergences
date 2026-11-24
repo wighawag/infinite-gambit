@@ -86,7 +86,7 @@ web/src/routes/offline/+page.svelte       the offline setup with chess's copy an
 web/e2e/tests/offline.e2e.ts              the offline world played with armies, against the mobile HUD's copy
 web/e2e/tests/offline-hotseat.e2e.ts      hotseat played with armies, against the mobile HUD's copy
 web/e2e/tests/offline-one-tab.e2e.ts      the world bar's copy
-web/e2e/tests/offline-ai.e2e.ts           the setup's and the world bar's copy
+web/e2e/tests/offline-ai.e2e.ts           the greedy world seats played in chess: armies on the board from the first cycle shown, a stored turn of piece-moves, the person's Pass; and the setup's and the world bar's copy
 web/e2e/tests/offline-continue.e2e.ts     the world bar's copy
 web/test/lib/context/resume-on-gas.test.ts a submission of moves, not placements
 web/test/lib/context/setup-gate.test.ts   the setup gate for an army: a stake, a refund, a deployment

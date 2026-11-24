@@ -2,12 +2,21 @@ import type {Page} from '@playwright/test';
 import {test, expect, describe, connectPageAs} from '../fixtures/test';
 import {
 	authoriseToPlay,
-	planOnCanvas,
+	planPieceMove,
+	pressCommit,
 	stake,
 	submissionStep,
-} from '../fixtures/game';
+	waitForRoomToPlay,
+} from '../fixtures/chess-game';
 
 /**
+ * THIS GAME'S PORT of the template's `table.e2e.ts`, which plays the placement
+ * game this repo does not carry (`.offshoot-omissions`). The table is the
+ * template's, unchanged; what each member plays at it is chess: an army that
+ * its purchase deploys (a table seats armies on spawn points of their own), and
+ * a piece-move each cycle (one at a table), a turn like any other for every
+ * rule here.
+ *
  * A TABLE, end to end, in two browsers: a game for a fixed set of players at
  * an address of its own, created from the lobby to play three cycles, joined by
  * its link, started by its creator, played, a vanished member forfeited, and
@@ -94,11 +103,14 @@ async function canPlay(page: Page): Promise<boolean> {
 	});
 }
 
-async function commitNow(page: Page): Promise<void> {
-	const commit = page.getByRole('button', {name: /commit now/i});
-	if (await commit.isEnabled().catch(() => false)) {
-		await commit.click().catch(() => {});
-	}
+/**
+ * Plan a piece-move and commit it now, and wait for it to be on chain. A table
+ * runs on its clock, so a turn is a move: there is no Pass here.
+ */
+async function moveNow(page: Page): Promise<void> {
+	await waitForRoomToPlay(page);
+	await planPieceMove(page);
+	await pressCommit(page, 'commit-move');
 	await expect
 		.poll(async () => (await submissionStep(page)).step, {
 			message: 'the commitment should reach the chain',
@@ -223,13 +235,14 @@ describe('A table for a fixed set of players', () => {
 			// Each page brought to the front before it is clicked, as a person
 			// switching windows would.
 			await host.bringToFront();
+			// A table's army is deployed by its purchase, on a spawn point of its
+			// own, and stands on the board from the start: each member's turn is a
+			// move.
 			await readyToPlay(host);
-			await planOnCanvas(host, {x: 40, y: 30});
+			await moveNow(host);
 			await guest.bringToFront();
 			await readyToPlay(guest);
-			await planOnCanvas(guest, {x: -60, y: 40});
-			await commitNow(host);
-			await commitNow(guest);
+			await moveNow(guest);
 			await expect
 				.poll(async () => (await cycleOf(host)).commiting, {
 					message:
@@ -272,8 +285,7 @@ describe('A table for a fixed set of players', () => {
 		// gone, so nothing can open the reveal phase early and the clock does.
 		await host.bringToFront();
 		await readyToPlay(host);
-		await planOnCanvas(host, {x: 70, y: 50});
-		await commitNow(host);
+		await moveNow(host);
 		await expect
 			.poll(async () => (await cycleOf(host)).commiting, {
 				message: 'the clock should open the reveal phase',
@@ -315,8 +327,7 @@ describe('A table for a fixed set of players', () => {
 		// phases close early, and the table has played its three cycles.
 		await expect(host.getByTestId('table-progress')).toHaveText('Cycle 3 of 3');
 		await readyToPlay(host);
-		await planOnCanvas(host, {x: 90, y: 60});
-		await commitNow(host);
+		await moveNow(host);
 		await expect
 			.poll(async () => (await submissionStep(host)).step, {
 				message: 'the last turn should be revealed',

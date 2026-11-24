@@ -14,15 +14,15 @@ import {
  *
  * What it holds: the lobby offers a level per world seat and the world plays
  * them; each greedy seat decides its turn in the commit phase and stores it
- * before committing (`offline-world:played-turns`), on a cell that held no
- * stake when the commit phase opened (two greedy seats may still meet on one
- * cell, since neither sees the other's commitment, so it is asserted per seat);
- * and a reload in the reveal phase still closes the cycle, the seats revealing
- * the turns they stored rather than deciding again on a board that has moved.
+ * before committing (`offline-world:played-turns`); and a reload in the reveal
+ * phase still closes the cycle, the seats revealing the turns they stored
+ * rather than deciding again on a board that has moved.
  *
- * Written against the byte-identical route and world only, and the chain read
- * through `globalThis.offlineWorld`, so a game that offers levels adapts the
- * cell read and nothing else. A game whose world offers no levels skips it.
+ * PORTED TO CHESS here (the template's reads cells and plays a placement):
+ * every seat stands on the board from the first cycle shown
+ * (`$lib/offline-boot`), so the cycle numbers are read off the chain rather
+ * than assumed, a seat's stored turn is its piece-moves (an empty one is a
+ * pass, also a decision), and the person's turn is a Pass.
  */
 
 const READ = `
@@ -44,19 +44,6 @@ const READ = `
 		});
 `;
 
-/** Click the board at an offset from its centre. */
-async function clickCanvas(
-	page: Page,
-	offset: {x: number; y: number},
-): Promise<void> {
-	const box = await page.locator('canvas').boundingBox();
-	if (!box) throw new Error('the canvas has no layout box');
-	await page.mouse.click(
-		box.x + box.width / 2 + offset.x,
-		box.y + box.height / 2 + offset.y,
-	);
-}
-
 /** Where the cycle is, from the chain. */
 async function cycleOnChain(
 	page: Page,
@@ -70,14 +57,21 @@ async function cycleOnChain(
 	})()`) as Promise<{cycleNumber: number; commiting: boolean} | undefined>;
 }
 
-/** The world seats' stored turns for a cycle: one cell id per seat. */
+/**
+ * The world seats' stored turns for a cycle: one record per seat, as
+ * `identity:from-to,...` (nothing after the colon for a pass), sorted.
+ */
 async function storedTurns(page: Page, cycleNumber: number): Promise<string[]> {
 	return page.evaluate(`(() => {
 		const raw = localStorage.getItem('offline-world:played-turns');
 		const records = raw ? JSON.parse(raw) : [];
 		return records
 			.filter((record) => record.cycleNumber === ${cycleNumber})
-			.flatMap((record) => record.actions.map(String));
+			.map((record) =>
+				record.identity + ':' +
+				record.actions.map((move) => move.from + '-' + move.to).join(','),
+			)
+			.sort();
 	})()`) as Promise<string[]>;
 }
 
@@ -142,22 +136,18 @@ async function revealed(page: Page): Promise<number> {
 	})()`) as Promise<number>;
 }
 
-/** What a cell holds on chain, now. */
-async function cellOnChain(
-	page: Page,
-	cellID: string,
-): Promise<{totalStake: string; numClaimants: number}> {
-	return page.evaluate(`(async () => {
+/** The person's submission, in the world's own context. */
+async function personStep(page: Page): Promise<string | undefined> {
+	return page.evaluate(`(() => {
 		${READ}
-		const cell = await call('getCell', [BigInt('${cellID}')]);
-		return {totalStake: cell.totalStake.toString(), numClaimants: Number(cell.numClaimants)};
-	})()`) as Promise<{totalStake: string; numClaimants: number}>;
+		if (!world) return undefined;
+		return read(world.context.game.submission).step;
+	})()`) as Promise<string | undefined>;
 }
 
 /**
- * Wait for this cycle's commit phase, then check the world seats decided on a
- * board where their cells were free: in a manual commit phase nothing is
- * revealed, so the board now is the board the phase opened on.
+ * Wait for this cycle's commit phase, then for both world seats to have decided
+ * and stored their turns for it, still inside the commit phase.
  */
 async function greedySeatsDecided(
 	page: Page,
@@ -171,23 +161,15 @@ async function greedySeatsDecided(
 			timeout: 30_000,
 		})
 		.toBe(2);
-	const cells = await storedTurns(page, cycleNumber);
 	expect((await cycleOnChain(page))?.commiting).toBe(true);
-	for (const cell of cells) {
-		expect((await cellOnChain(page, cell)).totalStake).toBe('0');
-	}
-	return cells;
+	return storedTurns(page, cycleNumber);
 }
 
-/** Plan one placement and commit it. */
-async function playOneCell(
-	page: Page,
-	offset: {x: number; y: number},
-): Promise<void> {
-	const canvas = page.locator('canvas');
-	await expect(canvas).toBeVisible({timeout: 30_000});
-	await clickCanvas(page, offset);
-	await page.getByRole('button', {name: /commit now/i}).click();
+/** The person's turn: a Pass, committed (and revealed by the world). */
+async function pass(page: Page): Promise<void> {
+	await expect(page.locator('canvas')).toBeVisible({timeout: 30_000});
+	await expect(page.getByTestId('pass')).toBeVisible({timeout: 60_000});
+	await page.getByTestId('pass').click();
 }
 
 describe('AI seats in the offline world', () => {
@@ -216,55 +198,54 @@ describe('AI seats in the offline world', () => {
 			{timeout: 120_000},
 		);
 
-		// CYCLE TWO: the seats decide on the opening board and store first.
-		const first = await greedySeatsDecided(page, 2);
-		await playOneCell(page, {x: 40, y: 30});
-		await expect(
-			page.getByText('Revealed. Your placements are on the board.'),
-		).toBeVisible({timeout: 60_000});
+		// THE FIRST CYCLE SHOWN, from the chain: the boot deploys every seat
+		// before the board first shows, so it is not the world's first cycle.
 		await expect
-			.poll(async () => (await cycleOnChain(page))?.cycleNumber, {
+			.poll(async () => (await cycleOnChain(page))?.commiting, {
 				timeout: 60_000,
 			})
-			.toBe(3);
-		for (const cell of first) {
-			expect(
-				(await cellOnChain(page, cell)).numClaimants,
-			).toBeGreaterThanOrEqual(1);
-		}
+			.toBe(true);
+		const start = (await cycleOnChain(page))!.cycleNumber;
 
-		// CYCLE THREE, on a board that now holds cycle two's cells: the seats'
-		// cells were free on it, so greedy saw them taken.
-		const second = await greedySeatsDecided(page, 3);
+		// THE FIRST CYCLE: the seats decide and store first, then commit.
+		await greedySeatsDecided(page, start);
 		const seats = await storedIdentities(page);
 		expect(seats).toHaveLength(2);
 		await expect
 			.poll(() => committedIn(page, seats), {timeout: 30_000})
-			.toEqual([3, 3]);
+			.toEqual([start, start]);
+		await pass(page);
+		await expect
+			.poll(async () => (await cycleOnChain(page))?.cycleNumber, {
+				timeout: 60_000,
+			})
+			.toBe(start + 1);
+
+		// THE SECOND CYCLE, decided on the board the first one left.
+		const second = await greedySeatsDecided(page, start + 1);
+		await expect
+			.poll(() => committedIn(page, seats), {timeout: 30_000})
+			.toEqual([start + 1, start + 1]);
 		// Committed and still owing: the person has not committed yet.
 		expect(await revealed(page)).toBe(0);
 
 		// THE RELOAD LANDS IN THE REVEAL PHASE, BY CONSTRUCTION. A reveal phase
-		// left alone lasts less than one poll here (measured: the seats and the
-		// person reveal right after the advance), so the seats are left without
+		// left alone lasts less than one poll here, so the seats are left without
 		// gas: the person commits and reveals, the cycle waits for the seats, and
 		// the page is reloaded with their reveals owed.
 		await drainWorldSeatsGas(page);
-		await playOneCell(page, {x: -60, y: -40});
+		await pass(page);
 		await expect
 			.poll(() => cycleOnChain(page), {timeout: 60_000})
-			.toEqual({cycleNumber: 3, commiting: false});
-		await expect(
-			page.getByText('Revealed. Your placements are on the board.'),
-		).toBeVisible({timeout: 60_000});
+			.toEqual({cycleNumber: start + 1, commiting: false});
+		await expect
+			.poll(() => personStep(page), {timeout: 60_000})
+			.toBe('Revealed');
 		await expect.poll(() => revealed(page), {timeout: 30_000}).toBe(1);
 		expect(await cycleOnChain(page)).toEqual({
-			cycleNumber: 3,
+			cycleNumber: start + 1,
 			commiting: false,
 		});
-		for (const cell of second) {
-			expect((await cellOnChain(page, cell)).totalStake).toBe('0');
-		}
 		await expectTheReloadToResume(page);
 		await page.reload();
 
@@ -273,13 +254,9 @@ describe('AI seats in the offline world', () => {
 			.poll(async () => (await cycleOnChain(page))?.cycleNumber, {
 				timeout: 90_000,
 			})
-			.toBe(4);
-		for (const cell of second) {
-			expect(
-				(await cellOnChain(page, cell)).numClaimants,
-			).toBeGreaterThanOrEqual(1);
-		}
-		// AND THE TURNS WERE NOT DECIDED AGAIN: one stored turn per seat and cycle.
-		expect(await storedTurns(page, 3)).toEqual(second);
+			.toBe(start + 2);
+		// AND THE TURNS WERE NOT DECIDED AGAIN: one stored turn per seat and
+		// cycle, the very ones stored before the reload.
+		expect(await storedTurns(page, start + 1)).toEqual(second);
 	});
 });

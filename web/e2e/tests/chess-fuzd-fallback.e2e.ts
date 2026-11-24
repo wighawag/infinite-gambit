@@ -1,15 +1,19 @@
 import {type Hex} from 'viem';
 import {test, expect, describe} from '../fixtures/test';
-import {currentPhase, submissionStep} from '../fixtures/game';
+import {currentPhase, submissionStep} from '../fixtures/chess-game';
 import {freezeFuzd, thawFuzd} from '../fixtures/fuzd';
 import {
 	appFacts,
 	chain,
 	commitAScheduledTurn,
 	turnOnChain,
-} from '../fixtures/fuzd-game';
+} from '../fixtures/chess-fuzd-game';
 
 /**
+ * THIS GAME'S PORT of the template's `fuzd-fallback.e2e.ts`, whose turn is a
+ * placement this repo does not have (`.offshoot-omissions`); here it is a
+ * deployment, at a spawn point of its own.
+ *
  * THE FALLBACK (`with/fuzd`, P7): fuzd goes down AFTER scheduling a turn, and
  * the browser, still open, reveals it itself at half the reveal phase, from its
  * own key, rather than at once (fuzd may be sending it) or never.
@@ -28,7 +32,7 @@ describe('A scheduled reveal when fuzd is down', () => {
 		test.setTimeout(300_000);
 		const page = connectedPage;
 		const facts = await appFacts(page);
-		const turn = await commitAScheduledTurn(page, authoriseBrowser, 1);
+		const turn = await commitAScheduledTurn(page, authoriseBrowser, 15);
 		expect((await currentPhase(page)).phase).not.toBe('reveal');
 
 		// fuzd goes down AFTER scheduling the turn, the page staying open.

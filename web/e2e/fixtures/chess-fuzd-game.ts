@@ -3,17 +3,20 @@ import {expect, type Page} from '@playwright/test';
 import {
 	authoriseToPlay,
 	clearAnyMissedReveal,
-	planManyOnCanvas,
-	plannedCellIDs,
-	stake,
-	stakeOnCell,
+	planDeployment,
+	stakeAndWait,
 	submissionStep,
-} from './game';
+} from './chess-game';
 
 /**
  * The game, as the fuzd suites read it: who plays and signs, the schedule the
  * app stored with the turn, and the chain's record of the turn. Shared by
- * `fuzd.e2e.ts` and `fuzd-fallback.e2e.ts`.
+ * `chess-fuzd.e2e.ts` and `chess-fuzd-fallback.e2e.ts`.
+ *
+ * THIS GAME'S PORT of the template's `fixtures/fuzd-game.ts`, which plans
+ * placements this repo does not have (`.offshoot-omissions`): the turn here is
+ * a deployment, and the player is an army (`activeIdentity`), which is what
+ * the commit-reveal events are indexed by.
  */
 
 const RPC_URL =
@@ -55,13 +58,11 @@ export async function appFacts(page: Page) {
 			identity: read(context.game.activeIdentity),
 			signer: signer.status === 'ready' ? signer.address.toLowerCase() : undefined,
 			game: context.deployments.get().contracts.Game.address,
-			placementCost: context.game.config.placementCost.toString(),
 		};
 	})()`) as Promise<{
 		identity: string;
 		signer: string;
 		game: `0x${string}`;
-		placementCost: string;
 	}>;
 }
 
@@ -120,33 +121,22 @@ export async function turnOnChain(
 }
 
 /**
- * Stake, plan `count` cells, commit, and wait for the turn to be committed AND
- * scheduled, all inside the commit phase.
+ * Stake, plan a deployment at the `index`-th open spawn point, commit, and
+ * wait for the turn to be committed AND scheduled, all inside the commit phase.
  */
 export async function commitAScheduledTurn(
 	page: Page,
 	authoriseBrowser: Parameters<typeof authoriseToPlay>[1],
-	count: number,
+	index: number,
 ) {
 	await authoriseToPlay(page, authoriseBrowser);
 	await clearAnyMissedReveal(page);
-	await stake(page);
-	await expect
-		.poll(async () => (await submissionStep(page)).reserve !== '0', {
-			message: 'a reserve to bond from',
-			timeout: 60_000,
-		})
-		.toBe(true);
+	await stakeAndWait(page);
 
-	await planManyOnCanvas(page, count, 18);
-	const cells = await plannedCellIDs(page);
-	expect(cells).toHaveLength(count);
-	const before = new Map<string, bigint>();
-	for (const cellID of cells) {
-		before.set(cellID, BigInt(await stakeOnCell(page, cellID)));
-	}
+	await planDeployment(page, index, 18);
+	expect((await submissionStep(page)).planned).toBe(1);
 
-	await page.getByRole('button', {name: /commit now/i}).click();
+	await page.getByTestId('commit-deployment').click();
 	await expect
 		.poll(async () => (await submissionStep(page)).step, {
 			message: 'the commitment should reach the chain',
@@ -172,7 +162,7 @@ export async function commitAScheduledTurn(
 		'scheduled',
 	);
 	await expect(page.locator('[data-testid="reveal-schedule"]')).toContainText(
-		/revealed for you/i,
+		/auto-reveal scheduled/i,
 	);
-	return {cells, before, schedule, cycleNumber: scheduled!.cycleNumber};
+	return {schedule, cycleNumber: scheduled!.cycleNumber};
 }
